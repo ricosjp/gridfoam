@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gridfoam"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Daichi Ishida", email = "ishida@ricos.co.jp" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "pyvista>=0.44.2",
+    "torch>=2.6.0",
+    "nanobind_example",
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "pytest-benchmark",
+  "pytest-memray",
+]
+lint = [
+  "ruff",
+  "mypy"
+]
+docs = [
+  "sphinx",
+  "furo",
+  "sphinx-fontawesome",
+  "sphinx-gallery",
+  "sphinx-design",
+  "sphinx-copybutton",
+]
+note = [
+  "ipykernel",
+  "nbstripout>=0.8.1",
+  "trame",
+  "trame-vtk",
+  "trame-vuetify",
+  "imageio>=2.37.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "lint", "docs", "note"]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+  { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" },
+]
+nanobind_example = { path = "./src/nanobind_example", editable = true }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.pytest.ini_options]
+markers = [
+    "with_benchmark: Run test with the --benchmark-autosave option",
+    "with_memray: Run test with the --memray option",
+]
+addopts = [
+    "--import-mode=importlib",
+    "-m",
+    "not with_benchmark and not with_memray",
+]
+
+[tool.coverage.report]
+ignore_errors = false
+show_missing = true
+# Regexes for lines to exclude from consideration
+exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "AbstractMethodError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+]
