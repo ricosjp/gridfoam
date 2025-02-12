@@ -14,7 +14,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pyvista>=0.44.2",
     "torch>=2.6.0",
-    "nanobind_example",
+    "nanofoam",
 ]
 
 [dependency-groups]
@@ -57,7 +57,7 @@ torchvision = [
   { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
   { index = "pytorch-cu124", marker = "sys_platform == 'linux'" },
 ]
-nanobind_example = { path = "./src/nanobind_example", editable = true }
+nanofoam = { path = "./src/nanofoam", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

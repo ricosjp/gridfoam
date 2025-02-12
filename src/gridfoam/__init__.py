@@ -1,4 +1,4 @@
-import nanobind_example as m
+import nanofoam as m
 
 def main() -> None:
     print("Hello from gridfoam!")

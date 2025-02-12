@@ -60,7 +60,7 @@ nanobind_add_module(
   NB_STATIC
 
   # Source code goes here
-  src/nanobind_example_ext.cpp
+  src/register.cpp
 )
 
 target_compile_definitions(${ModuleName}_ext PRIVATE MODULE_NAME=${ModuleName}_ext)
