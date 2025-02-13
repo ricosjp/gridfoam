@@ -1,0 +1,78 @@
+variables:
+  UV_VERSION: 0.5
+  PYTHON_VERSION: 3.12
+  BASE_LAYER: bookworm-slim
+  # GitLab CI creates a separate mountpoint for the build directory,
+  # so we need to copy instead of using hard links.
+  UV_LINK_MODE: copy
+
+stages:
+  - test
+  - deploy
+
+default:
+  image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
+  before_script:
+    - apt update
+    - apt install -y make
+    - make install
+
+lint:
+  stage: test
+  script:
+    - make lint
+  tags:
+    - no-gpu
+
+pytest:
+  stage: test
+  script:
+    - make test
+    - uv run coverage html -d coverage
+    - uv run coverage xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    expose_as: coverage
+    paths:
+      - coverage/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  tags:
+    - no-gpu
+    - GenuineIntel
+
+pages:
+  stage: deploy
+  script:
+    - apt install -y xvfb libgl1-mesa-glx
+    - make document
+    - mkdir public
+    - cp -r docs/build/html/* public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
+    - develop
+    - issue/add_docs
+
+
+.deploy:wheel:
+  stage: deploy
+  script:
+    - uv version $VERSION
+    - uv config repositories.ricos https://pypi.ritc.jp
+    - uv build -f wheel
+    - uv publish --username ricos --password $RICOS_PYPI_KEY -r ricos --no-ansi -n -v
+    - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN --no-ansi -n -v
+
+
+deploy:wheel:tags:
+  image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
+  extends: .deploy:wheel
+  before_script:
+    - export VERSION=$CI_COMMIT_REF_NAME
+  only:
+    - tags

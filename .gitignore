@@ -175,3 +175,6 @@ tests/outputs
 tmp
 spike
 
+outputs/
+docs/source/tutorials/
+sg_execution_times.rst
