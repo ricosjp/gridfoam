@@ -17,9 +17,13 @@ lint:
 	uv run ruff format --diff
 	# uv run mypy src
 
-.PHONY: test
-test:
+.PHONY: cpu-test
+cpu-test:
 	uv run pytest tests --cov=src --cov-report term-missing --durations 5
+
+.PHONY: gpu-test
+gpu-test:
+	uv run pytest tests -m "with_device and gpu_only" --gpu
 
 .PHONY: document
 document:

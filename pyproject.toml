@@ -14,7 +14,10 @@ requires-python = ">=3.12"
 dependencies = [
     "pyvista>=0.44.2",
     "torch>=2.6.0",
+    "scipy>=1.15.1",
     "nanofoam",
+    "h5py>=3.13.0",
+    "vtk>=9.3.1",
 ]
 
 [dependency-groups]
@@ -73,11 +76,13 @@ explicit = true
 markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_memray: Run test with the --memray option",
+    "with_device: Run test with the --gpu option",
+    "gpu_only: Run test with the --gpu option",
 ]
 addopts = [
     "--import-mode=importlib",
     "-m",
-    "not with_benchmark and not with_memray",
+    "not with_benchmark and not with_memray and not gpu_only",
 ]
 
 [tool.coverage.report]
@@ -85,19 +90,6 @@ ignore_errors = false
 show_missing = true
 # Regexes for lines to exclude from consideration
 exclude_also = [
-    # Don't complain about missing debug-only code:
-    "def __repr__",
-    "if self\\.debug",
-
-    # Don't complain if tests don't hit defensive assertion code:
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "AbstractMethodError",
-
-    # Don't complain if non-runnable code isn't run:
-    "if 0:",
-    "if __name__ == .__main__.:",
-
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
 ]

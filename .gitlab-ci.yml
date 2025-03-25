@@ -14,7 +14,7 @@ default:
   image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
   before_script:
     - apt update
-    - apt install -y make
+    - apt install -y build-essential
     - make install
 
 lint:
@@ -24,10 +24,10 @@ lint:
   tags:
     - no-gpu
 
-pytest:
+cpu-pytest:
   stage: test
   script:
-    - make test
+    - make cpu-test
     - uv run coverage html -d coverage
     - uv run coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
@@ -42,6 +42,19 @@ pytest:
   tags:
     - no-gpu
     - GenuineIntel
+
+gpu_pytest:
+  stage: test
+  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
+  before_script:
+    - apt update
+    - apt install -y make
+    - pip install uv
+    - make install
+  script:
+    - make gpu-test
+  tags:
+    - gpu
 
 pages:
   stage: deploy
