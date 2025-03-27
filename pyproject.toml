@@ -77,12 +77,11 @@ markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_memray: Run test with the --memray option",
     "with_device: Run test with the --gpu option",
-    "gpu_only: Run test with the --gpu option",
 ]
 addopts = [
     "--import-mode=importlib",
     "-m",
-    "not with_benchmark and not with_memray and not gpu_only",
+    "not with_benchmark and not with_memray",
 ]
 
 [tool.coverage.report]
