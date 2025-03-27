@@ -30,8 +30,10 @@ LOGGING_CONFIG = {
 
 logging.config.dictConfig(LOGGING_CONFIG)
 
+
 def pytest_addoption(parser):
     parser.addoption("--gpu", action="store_true")
+
 
 @pytest.fixture
 def device(pytestconfig) -> str:

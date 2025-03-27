@@ -16,14 +16,17 @@ from gridfoam import GridTensor
         ([1.0, 2.0, 3.0], "local"),
         (np.array([4.0, 5.0, 6.0]), "cell"),
         (torch.tensor([7.0, 8.0, 9.0]), "global"),
-    ]
+    ],
 )
 def test_creation(data: Any, coord_type: str, requires_grad: bool, device: str):
-    tensor = GridTensor(data, coord_type=coord_type, requires_grad=requires_grad, device=device)
+    tensor = GridTensor(
+        data, coord_type=coord_type, requires_grad=requires_grad, device=device
+    )
     assert isinstance(tensor, GridTensor)
     assert tensor.coord_type == coord_type
     assert tensor.requires_grad == requires_grad
     assert str(tensor.device) == device
+
 
 @pytest.mark.parametrize("coord_type", ["global", "local", "cell"])
 @pytest.mark.parametrize(
@@ -42,24 +45,28 @@ def test_repr(data: list[float], coord_type: str):
 @pytest.mark.parametrize(
     "input, slice, desired",
     [
-        ([1, 2, 3, 4, 5], slice(None, 2), torch.tensor([1, 2])),
-        ([1, 2, 3, 4, 5], slice(None, -2), torch.tensor([1, 2, 3])),
-        ([1, 2, 3, 4, 5], slice(2, None), torch.tensor([3, 4, 5])),
-        ([1, 2, 3, 4, 5], slice(-2, None), torch.tensor([4, 5])),
-        ([1, 2, 3, 4, 5], slice(1, 4), torch.tensor([2, 3, 4])),
-        ([1, 2, 3, 4, 5], slice(2, -2), torch.tensor([3])),
-        ([1, 2, 3, 4, 5], slice(None, None, 2), torch.tensor([1, 3, 5])),
+        ([1, 2, 3, 4, 5], slice(None, 2), [1, 2]),
+        ([1, 2, 3, 4, 5], slice(None, -2), [1, 2, 3]),
+        ([1, 2, 3, 4, 5], slice(2, None), [3, 4, 5]),
+        ([1, 2, 3, 4, 5], slice(-2, None), [4, 5]),
+        ([1, 2, 3, 4, 5], slice(1, 4), [2, 3, 4]),
+        ([1, 2, 3, 4, 5], slice(2, -2), [3]),
+        ([1, 2, 3, 4, 5], slice(None, None, 2), [1, 3, 5]),
     ],
 )
 def test_getitem(
-    input: Any, slice: Any, coord_type: str, device: str, desired: Any,
+    input: Any,
+    slice: Any,
+    coord_type: str,
+    device: str,
+    desired: Any,
 ):
     tensor = GridTensor(input, coord_type=coord_type, device=device)
     result = tensor[slice]
     assert isinstance(result, GridTensor)
     assert result.coord_type == coord_type
     assert str(result.device) == device
-    assert torch.equal(result, desired)
+    assert torch.equal(result, torch.tensor(desired, device=device))
 
 
 @pytest.mark.parametrize(
@@ -105,7 +112,11 @@ def test_unavailable_operation(other: Any):
     ],
 )
 def test_add(
-    data1: Any, data2: Any, coord_type: str, device: str, desired: Any,
+    data1: Any,
+    data2: Any,
+    coord_type: str,
+    device: str,
+    desired: Any,
 ):
     input1 = GridTensor(data1, coord_type=coord_type, device=device)
     input2 = GridTensor(data2, coord_type=coord_type, device=device)
@@ -114,6 +125,7 @@ def test_add(
     assert result.coord_type == coord_type
     assert str(result.device) == device
     assert torch.equal(result, torch.tensor(desired, device=device))
+
 
 @pytest.mark.with_device
 @pytest.mark.parametrize("coord_type", ["global", "local", "cell"])
@@ -126,7 +138,11 @@ def test_add(
     ],
 )
 def test_sub(
-    data1: Any, data2: Any, coord_type: str, device: str, desired: Any,
+    data1: Any,
+    data2: Any,
+    coord_type: str,
+    device: str,
+    desired: Any,
 ):
     input1 = GridTensor(data1, coord_type=coord_type, device=device)
     input2 = GridTensor(data2, coord_type=coord_type, device=device)
@@ -145,10 +161,14 @@ def test_sub(
         (5, 2, 10),
         ([1, 2, 3], 2, [2, 4, 6]),
         (np.array([4, 5, 6]), 3, [12, 15, 18]),
-    ]
+    ],
 )
 def test_mul(
-    data: Any, scalar: Any, coord_type: str, device: str, desired: Any,
+    data: Any,
+    scalar: Any,
+    coord_type: str,
+    device: str,
+    desired: Any,
 ):
     input = GridTensor(data, coord_type=coord_type, device=device)
     result1 = input * scalar
@@ -171,11 +191,13 @@ def test_mul(
         (GridTensor([1, 2, 3]), GridTensor([9, 5, 3]), [False, False, True]),
         (GridTensor([1, 2, 3]), GridTensor([-1, 5, 8]), [False, False, False]),
         (GridTensor([1, 2, 3]), GridTensor([1, 2, 0]), [True, True, False]),
-        (GridTensor([1, 1, 1]), 1, [True, True, True])
+        (GridTensor([1, 1, 1]), 1, [True, True, True]),
     ],
 )
 def test_eq(
-    data1: Any, data2: Any, desired: Any,
+    data1: Any,
+    data2: Any,
+    desired: Any,
 ):
     result = data1 == data2
     assert isinstance(result, GridTensor)
@@ -189,7 +211,7 @@ def test_eq(
         (GridTensor([1, 2, 3]), GridTensor([9, 5, 3]), [True, True, False]),
         (GridTensor([1, 2, 3]), GridTensor([-1, 5, 8]), [False, True, True]),
         (GridTensor([1, 2, 3]), GridTensor([1, 2, 0]), [False, False, False]),
-        (GridTensor([1, 1, 1]), 1, [False, False, False])
+        (GridTensor([1, 1, 1]), 1, [False, False, False]),
     ],
 )
 def test_lt(data1: Any, data2: Any, desired: Any):
@@ -205,7 +227,7 @@ def test_lt(data1: Any, data2: Any, desired: Any):
         (GridTensor([1, 2, 3]), GridTensor([9, 5, 3]), [True, True, True]),
         (GridTensor([1, 2, 3]), GridTensor([-1, 5, 8]), [False, True, True]),
         (GridTensor([1, 2, 3]), GridTensor([1, 2, 0]), [True, True, False]),
-        (GridTensor([1, 1, 1]), 1, [True, True, True])
+        (GridTensor([1, 1, 1]), 1, [True, True, True]),
     ],
 )
 def test_le(data1: Any, data2: Any, desired: Any):
@@ -221,7 +243,7 @@ def test_le(data1: Any, data2: Any, desired: Any):
         (GridTensor([1, 2, 3]), GridTensor([9, 5, 3]), [False, False, False]),
         (GridTensor([1, 2, 3]), GridTensor([-1, 5, 8]), [True, False, False]),
         (GridTensor([1, 2, 3]), GridTensor([1, 2, 0]), [False, False, True]),
-        (GridTensor([1, 1, 1]), 1, [False, False, False])
+        (GridTensor([1, 1, 1]), 1, [False, False, False]),
     ],
 )
 def test_gt(data1: Any, data2: Any, desired: Any):
@@ -237,7 +259,7 @@ def test_gt(data1: Any, data2: Any, desired: Any):
         (GridTensor([1, 2, 3]), GridTensor([9, 5, 3]), [False, False, True]),
         (GridTensor([1, 2, 3]), GridTensor([-1, 5, 8]), [True, False, False]),
         (GridTensor([1, 2, 3]), GridTensor([1, 2, 0]), [True, True, True]),
-        (GridTensor([1, 1, 1]), 1, [True, True, True])
+        (GridTensor([1, 1, 1]), 1, [True, True, True]),
     ],
 )
 def test_ge(data1: Any, data2: Any, desired: Any):
@@ -256,7 +278,11 @@ def test_ge(data1: Any, data2: Any, desired: Any):
     ],
 )
 def test_clone(
-    data: Any, coord_type: str, requires_grad: bool, device: str, desired: Any,
+    data: Any,
+    coord_type: str,
+    requires_grad: bool,
+    device: str,
+    desired: Any,
 ):
     input = GridTensor(
         data, coord_type=coord_type, device=device, requires_grad=requires_grad

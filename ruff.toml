@@ -28,6 +28,9 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    ".txt",
+    ".cpp",
+    ".h",
 ]
 
 # Same as Black.
@@ -51,7 +54,7 @@ select = [
     "UP",  # pyupgrade
     "ANN", # flake8-annotations
 ]
-ignore = ["ANN003", "ANN101", "ANN102", "ANN204", "ANN401"]
+ignore = ["ANN003", "ANN204", "ANN401"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

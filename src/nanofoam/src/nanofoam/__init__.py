@@ -1,1 +1,3 @@
-from .nanofoam_ext import add, subtract, multiply, divide, __doc__
+from .nanofoam_ext import __doc__, add, divide, multiply, subtract
+
+__all__ = ["add", "subtract", "multiply", "divide"]

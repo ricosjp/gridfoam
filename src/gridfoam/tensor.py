@@ -101,18 +101,15 @@ class GridTensor(torch.Tensor):
         result = super().__eq__(other)
         return GridTensor(result, self.coord_type)
 
-
     def __lt__(self, other: Number | GridTensor) -> GridTensor:
         self._check_if_available_operation(other)
         result = super().__lt__(other)
         return GridTensor(result, self.coord_type)
 
-
     def __le__(self, other: Number | GridTensor) -> GridTensor:
         self._check_if_available_operation(other)
         result = super().__le__(other)
         return GridTensor(result, self.coord_type)
-
 
     def __gt__(self, other: Number | GridTensor) -> GridTensor:
         self._check_if_available_operation(other)
@@ -123,7 +120,6 @@ class GridTensor(torch.Tensor):
         self._check_if_available_operation(other)
         result = super().__ge__(other)
         return GridTensor(result, self.coord_type)
-
 
     @property
     def coord_type(self) -> Literal["global", "local", "cell"] | None:
