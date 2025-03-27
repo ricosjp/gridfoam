@@ -48,7 +48,7 @@ gpu_pytest:
   image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
   before_script:
     - apt update
-    - apt install -y make
+    - apt install -y build-essential
     - pip install uv
     - make install
   script:
@@ -56,36 +56,36 @@ gpu_pytest:
   tags:
     - gpu
 
-pages:
-  stage: deploy
-  script:
-    - apt install -y xvfb libgl1-mesa-glx
-    - make document
-    - mkdir public
-    - cp -r docs/build/html/* public/
-  artifacts:
-    paths:
-      - public
-  only:
-    - main
-    - develop
-    - issue/add_docs
+# pages:
+#   stage: deploy
+#   script:
+#     - apt install -y xvfb libgl1-mesa-glx
+#     - make document
+#     - mkdir public
+#     - cp -r docs/build/html/* public/
+#   artifacts:
+#     paths:
+#       - public
+#   only:
+#     - main
+#     - develop
+#     - issue/add_docs
 
 
-.deploy:wheel:
-  stage: deploy
-  script:
-    - uv version $VERSION
-    - uv config repositories.ricos https://pypi.ritc.jp
-    - uv build -f wheel
-    - uv publish --username ricos --password $RICOS_PYPI_KEY -r ricos --no-ansi -n -v
-    - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN --no-ansi -n -v
+# .deploy:wheel:
+#   stage: deploy
+#   script:
+#     - uv version $VERSION
+#     - uv config repositories.ricos https://pypi.ritc.jp
+#     - uv build -f wheel
+#     - uv publish --username ricos --password $RICOS_PYPI_KEY -r ricos --no-ansi -n -v
+#     - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN --no-ansi -n -v
 
 
-deploy:wheel:tags:
-  image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
-  extends: .deploy:wheel
-  before_script:
-    - export VERSION=$CI_COMMIT_REF_NAME
-  only:
-    - tags
+# deploy:wheel:tags:
+#   image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
+#   extends: .deploy:wheel
+#   before_script:
+#     - export VERSION=$CI_COMMIT_REF_NAME
+#   only:
+#     - tags

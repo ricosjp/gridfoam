@@ -34,8 +34,8 @@ exclude = [
 line-length = 80
 indent-width = 4
 
-# Assume Python 3.10
-target-version = "py310"
+# Assume Python 3.12
+target-version = "py312"
 
 [lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -51,7 +51,7 @@ select = [
     "UP",  # pyupgrade
     "ANN", # flake8-annotations
 ]
-ignore = ["ANN003", "ANN101", "ANN102", "ANN204"]
+ignore = ["ANN003", "ANN101", "ANN102", "ANN204", "ANN401"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
