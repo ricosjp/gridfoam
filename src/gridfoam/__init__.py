@@ -11,7 +11,7 @@
 
 from importlib.metadata import version
 
-from gridfoam.tensor import GridTensor
+from gridfoam._base.tensors import GridTensor, grid_tensor
 
 __version__ = version("gridfoam")
-__all__ = ["GridTensor"]
+__all__ = ["GridTensor", "grid_tensor"]
