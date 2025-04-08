@@ -31,6 +31,7 @@ exclude = [
     ".txt",
     ".cpp",
     ".h",
+    "note"
 ]
 
 # Same as Black.
@@ -54,7 +55,7 @@ select = [
     "UP",  # pyupgrade
     "ANN", # flake8-annotations
 ]
-ignore = ["ANN003", "ANN204", "ANN401"]
+ignore = ["ANN003", "ANN204", "ANN401", "UP040"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

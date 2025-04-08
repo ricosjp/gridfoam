@@ -26,6 +26,7 @@ dev = [
   "pytest-cov",
   "pytest-benchmark",
   "pytest-memray",
+  "hypothesis[numpy]",
 ]
 lint = [
   "ruff",
@@ -41,6 +42,7 @@ docs = [
 ]
 note = [
   "ipykernel",
+  "ipywidgets",
   "nbstripout>=0.8.1",
   "trame",
   "trame-vtk",
@@ -58,7 +60,7 @@ nanofoam = { path = "./src/nanofoam", editable = true }
 markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_memray: Run test with the --memray option",
-    "with_device: Run test with the --gpu option",
+    "with_device: Run test on cuda device",
 ]
 addopts = [
     "--import-mode=importlib",

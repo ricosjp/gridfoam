@@ -23,7 +23,7 @@ cpu-test:
 
 .PHONY: gpu-test
 gpu-test:
-	uv run pytest tests -m with_device --gpu
+	uv run pytest tests -m with_device
 
 .PHONY: document
 document:
