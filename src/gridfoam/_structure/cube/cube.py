@@ -1,4 +1,3 @@
-
 class Cube:
     """Cube in the Building Cube Method.
 
