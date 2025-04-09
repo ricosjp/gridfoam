@@ -179,5 +179,4 @@ outputs/
 docs/source/tutorials/
 sg_execution_times.rst
 docker-compose.yml
-tests/data/vtu
 reference

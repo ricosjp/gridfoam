@@ -64,8 +64,7 @@ def test_initialization(octree: Octree):
 @pytest.mark.parametrize(
     "file_name",
     [
-        # pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
-        pathlib.Path("tests/data/vtu/complex/surface.vtu"),
+        pathlib.Path("tests/data/stl/bunny.stl"),
     ],
 )
 def test_build_from_mesh(octree: Octree, file_name: pathlib.Path):
