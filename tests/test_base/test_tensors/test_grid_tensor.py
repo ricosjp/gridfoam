@@ -338,61 +338,79 @@ def test_mul(
 
 
 @pytest.mark.with_device
-@given(
-    arrays_data=arrays_for_arithmetic_test(),
-    device=device_strategy(),
-)
-@settings(deadline=None)
-def test_floordiv(
-    arrays_data: tuple[np.ndarray, np.ndarray | float | int],
-    device: str,
-):
-    """Test floordiv method with hypothesis"""
-    x, y = arrays_data
-    x_tensor = grid_tensor(x, coord_type=CoordinateType.GLOBAL, device=device)
-
-    if isinstance(y, float | int):
-        y_tensor = y
-        desired = np.array(x) // y
-    else:
-        y_tensor = grid_tensor(
-            y, coord_type=CoordinateType.GLOBAL, device=device
-        )
-        desired = np.array(x) // np.array(y)
-
-    result = x_tensor // y_tensor
-    assert isinstance(result, GridTensor)
-    np.testing.assert_allclose(result.numpy(), desired)
-
-
 @pytest.mark.parametrize(
     "x, y, desired",
     [
         (
-            grid_tensor([4.0, 5.0, 6.0], coord_type=CoordinateType.GLOBAL),
-            grid_tensor([1.0, 2.0, 3.0], coord_type=CoordinateType.GLOBAL),
-            torch.tensor([4.0, 2.5, 2.0]),
+            [4.0, 5.0, 6.0],
+            [1.0, 2.0, 3.0],
+            [4.0, 2.0, 2.0],
         ),
         (
-            grid_tensor([4.0, 5.0, 6.0], coord_type=CoordinateType.GLOBAL),
+            [4.0, 5.0, 6.0],
             2.0,
-            torch.tensor([2.0, 2.5, 3.0]),
+            [2.0, 2.0, 3.0],
         ),
         (
             2.0,
-            grid_tensor([4.0, 5.0, 10.0], coord_type=CoordinateType.GLOBAL),
-            torch.tensor([0.5, 0.4, 0.2]),
+            [4.0, 5.0, 10.0],
+            [0.0, 0.0, 0.0],
         ),
     ],
 )
-def test_truediv(
-    x: GridTensor,
-    y: GridTensor | bool | int | float,
-    desired: torch.Tensor,
+@given(
+    device=device_strategy(),
+)
+@settings(deadline=None)
+def test_floordiv(
+    x: float | list[float],
+    y: float | list[float],
+    device: str,
+    desired: list[float],
 ):
-    result = x / y
+    tensor_x = grid_tensor(x, coord_type=CoordinateType.GLOBAL, device=device)
+    tensor_y = grid_tensor(y, coord_type=CoordinateType.GLOBAL, device=device)
+    result = tensor_x // tensor_y
     assert isinstance(result, GridTensor)
-    assert torch.equal(result.tensor(), desired)
+    assert torch.equal(result.tensor(), torch.tensor(desired, device=device))
+
+
+@pytest.mark.with_device
+@pytest.mark.parametrize(
+    "x, y, desired",
+    [
+        (
+            [4.0, 5.0, 6.0],
+            [1.0, 2.0, 3.0],
+            [4.0, 2.5, 2.0],
+        ),
+        (
+            [4.0, 5.0, 6.0],
+            2.0,
+            [2.0, 2.5, 3.0],
+        ),
+        (
+            2.0,
+            [4.0, 5.0, 10.0],
+            [0.5, 0.4, 0.2],
+        ),
+    ],
+)
+@given(
+    device=device_strategy(),
+)
+@settings(deadline=None)
+def test_truediv(
+    x: float | list[float],
+    y: float | list[float],
+    desired: list[float],
+    device: str,
+):
+    tensor_x = grid_tensor(x, coord_type=CoordinateType.GLOBAL, device=device)
+    tensor_y = grid_tensor(y, coord_type=CoordinateType.GLOBAL, device=device)
+    result = tensor_x / tensor_y
+    assert isinstance(result, GridTensor)
+    assert torch.equal(result.tensor(), torch.tensor(desired, device=device))
 
 
 def test_bool_conversion():
