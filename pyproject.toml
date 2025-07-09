@@ -14,10 +14,8 @@ requires-python = ">=3.12"
 dependencies = [
     "pyvista>=0.44.2",
     "torch>=2.6.0",
-    "scipy>=1.15.1",
+    "pydantic>=2.11.7",
     "nanofoam",
-    "h5py>=3.13.0",
-    "vtk>=9.3.1",
 ]
 
 [dependency-groups]
@@ -26,11 +24,11 @@ dev = [
   "pytest-cov",
   "pytest-benchmark",
   "pytest-memray",
-  "hypothesis[numpy]",
 ]
 lint = [
   "ruff",
-  "mypy"
+  "jaxtyping",
+  "beartype",
 ]
 docs = [
   "sphinx",
