@@ -11,8 +11,7 @@
 
 from importlib.metadata import version
 
-from gridfoam._base.tensors import GridTensor, grid_tensor
-from gridfoam._structure import Octree
+from beartype.claw import beartype_this_package
 
+beartype_this_package()
 __version__ = version("gridfoam")
-__all__ = ["GridTensor", "Octree", "grid_tensor"]
