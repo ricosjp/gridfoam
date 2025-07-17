@@ -1,1 +1,1 @@
-from gridfoam._base.tensors import GridTensor, IGridTensor, grid_tensor
+from gridfoam._base.grid import Grid
