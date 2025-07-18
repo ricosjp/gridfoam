@@ -3,7 +3,7 @@ from collections import deque
 import torch
 
 from gridfoam._base.grid import Grid
-from gridfoam._geometry import AABB, TriangleMesh, is_intersect_aabb_aabb
+from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam._octree._iterator import (
     iterate_octree_at_depth,
     iterate_octree_bfs,
@@ -68,23 +68,16 @@ class Forest:
         mesh : TriangleMesh
             The mesh used to determine which nodes should be split.
         """
-        per_face_aabbs = mesh.per_face_aabbs
-        n_faces = mesh.n_triangles
-        root_halfwidth = (self._bbox.max - self._bbox.min) / (
-            2 * self._divisions
-        )
+        unit_width = self._bbox.width / self._divisions
         root_indices = get_grid_indices(self._divisions)
-        root_centers = self._bbox.min + (2 * root_indices + 1) * root_halfwidth
+        root_mins = self._bbox.min + root_indices * unit_width
+        root_maxs = self._bbox.min + (root_indices + 1) * unit_width
 
-        for root_center, root_index in zip(
-            root_centers, root_indices, strict=True
+        for root_min, root_max, root_index in zip(
+            root_mins, root_maxs, root_indices, strict=True
         ):
-            root_bbox = AABB(root_center, root_halfwidth)
-            root_face_ids = [
-                fid
-                for fid in range(n_faces)
-                if is_intersect_aabb_aabb(root_bbox, per_face_aabbs[fid])
-            ]
+            root_bbox = AABB(root_min, root_max)
+            root_face_ids = mesh.find_intersecting_face_ids(root_bbox)
             self._roots.append(
                 OctreeNode(
                     root_index=root_index,
@@ -153,8 +146,8 @@ class Forest:
         bool
             True if the node should be split, False otherwise.
         """
-        h = node.bbox.width.max()
-        rc = mesh.get_radii_of_curvature(node.face_ids)
+        h = node.calculate_width(self._divisions, self._bbox.width)
+        rc = mesh.calculate_radii_of_curvature(node.face_ids)
         curvature_condition = torch.any(h >= self._alpha * rc).item()
         level_condition = node.level < self._level_limit
         return curvature_condition and level_condition
@@ -177,7 +170,7 @@ class Forest:
         set[tuple[int, int, int]]
             Set of coordinates that are dilated.
         """
-        octree_size = torch.tensor(2**octree_depth, dtype=torch.int32)
+        octree_size = 2**octree_depth
         bounds = self._divisions * octree_size
         flag_coords = torch.tensor(flag_coords_list, dtype=torch.int32)
         flag_coords = dilate_sparse_coords(flag_coords, bounds)

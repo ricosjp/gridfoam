@@ -1,5 +1,6 @@
 import pytest
 import torch
+from trimesh.triangles import bounds_tree
 
 from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam._octree._iterator import (
@@ -15,8 +16,8 @@ def simple_node() -> OctreeNode:
     """Create a simple OctreeNode for testing."""
     root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
     bbox = AABB(
-        center=torch.tensor([0.5, 0.5, 0.5]),
-        halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+        min_pt=torch.tensor([0.0, 0.0, 0.0]),
+        max_pt=torch.tensor([1.0, 1.0, 1.0]),
     )
     return OctreeNode(
         root_index=root_index,
@@ -49,8 +50,12 @@ def simple_mesh() -> TriangleMesh:
         dtype=torch.int32,
     )
     gaussian_curvatures = torch.zeros(4)
+    tree = bounds_tree(points[faces])
     return TriangleMesh(
-        points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+        points=points,
+        faces=faces,
+        gaussian_curvatures=gaussian_curvatures,
+        tree=tree,
     )
 
 
@@ -120,8 +125,8 @@ class TestIterateOctreeDFS:
         """Test DFS with a node that has no children."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -200,8 +205,8 @@ class TestIterateOctreeBFS:
         # Create a second root node
         root_index2 = torch.tensor([1, 0, 0], dtype=torch.int32)
         bbox2 = AABB(
-            center=torch.tensor([1.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([1.0, 0.0, 0.0]),
+            max_pt=torch.tensor([2.0, 1.0, 1.0]),
         )
         node2 = OctreeNode(
             root_index=root_index2,
@@ -320,8 +325,8 @@ class TestIterateOctreeAtDepth:
         # Create a second root node
         root_index2 = torch.tensor([1, 0, 0], dtype=torch.int32)
         bbox2 = AABB(
-            center=torch.tensor([1.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([1.0, 0.0, 0.0]),
+            max_pt=torch.tensor([2.0, 1.0, 1.0]),
         )
         node2 = OctreeNode(
             root_index=root_index2,
@@ -442,8 +447,8 @@ class TestIteratorIntegration:
         # Create a node but don't add any children
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,

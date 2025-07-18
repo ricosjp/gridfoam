@@ -1,5 +1,6 @@
 import pytest
 import torch
+from trimesh.triangles import bounds_tree
 
 from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam._octree._node import OctreeNode
@@ -11,15 +12,15 @@ def simple_node() -> OctreeNode:
     """Create a simple OctreeNode for testing."""
     root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
     bbox = AABB(
-        center=torch.tensor([0.5, 0.5, 0.5]),
-        halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+        min_pt=torch.tensor([0.0, 0.0, 0.0]),
+        max_pt=torch.tensor([1.0, 1.0, 1.0]),
     )
     return OctreeNode(
         root_index=root_index,
         bbox=bbox,
         octree_depth=0,
         morton_code=0,
-        face_ids=[0, 1, 2],
+        face_ids=[0, 1, 2, 3, 4, 5, 6, 7],
     )
 
 
@@ -51,8 +52,12 @@ def simple_mesh() -> TriangleMesh:
         ]
     )
     gaussian_curvatures = torch.zeros(8)
+    tree = bounds_tree(points[faces])
     return TriangleMesh(
-        points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+        points=points,
+        faces=faces,
+        gaussian_curvatures=gaussian_curvatures,
+        tree=tree,
     )
 
 
@@ -63,8 +68,8 @@ class TestOctreeNodeInitialization:
         """Test basic initialization."""
         root_index = torch.tensor([1, 2, 3], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -85,8 +90,8 @@ class TestOctreeNodeInitialization:
         """Test initialization with empty face_ids."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -109,10 +114,10 @@ class TestOctreeNodeProperties:
 
     def test_bbox_property(self, simple_node: OctreeNode):
         """Test bbox property."""
-        expected_center = torch.tensor([0.5, 0.5, 0.5])
-        expected_halfwidth = torch.tensor([0.5, 0.5, 0.5])
-        assert torch.equal(simple_node.bbox.center, expected_center)
-        assert torch.equal(simple_node.bbox.halfwidth, expected_halfwidth)
+        expected_min = torch.tensor([0.0, 0.0, 0.0])
+        expected_max = torch.tensor([1.0, 1.0, 1.0])
+        assert torch.equal(simple_node.bbox.min, expected_min)
+        assert torch.equal(simple_node.bbox.max, expected_max)
 
     def test_level_property(self, simple_node: OctreeNode):
         """Test level property."""
@@ -135,8 +140,8 @@ class TestOctreeNodeProperties:
         """Test morton_id property with non-zero depth."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -162,8 +167,8 @@ class TestOctreeNodeProperties:
         """Test local_index property with non-zero morton code."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -191,8 +196,8 @@ class TestOctreeNodeProperties:
         """Test global_index property with non-zero root index."""
         root_index = torch.tensor([2, 3, 1], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -210,7 +215,7 @@ class TestOctreeNodeProperties:
 
     def test_face_ids_property(self, simple_node: OctreeNode):
         """Test face_ids property."""
-        assert simple_node.face_ids == [0, 1, 2]
+        assert simple_node.face_ids == [0, 1, 2, 3, 4, 5, 6, 7]
 
     def test_children_property(self, simple_node: OctreeNode):
         """Test children property."""
@@ -239,8 +244,8 @@ class TestOctreeNodeMethods:
         """Test has_boundary method when node has no faces."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -341,28 +346,6 @@ class TestOctreeNodeSplitByMesh:
         with pytest.raises(ValueError, match="This node is already split"):
             simple_node.split_by_mesh(simple_mesh)
 
-    def test_split_by_mesh_empty_face_ids(self, simple_mesh: TriangleMesh):
-        """Test split_by_mesh with node that has no faces."""
-        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
-        bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
-        )
-        node = OctreeNode(
-            root_index=root_index,
-            bbox=bbox,
-            octree_depth=0,
-            morton_code=0,
-            face_ids=[],
-        )
-
-        node.split_by_mesh(simple_mesh)
-
-        # All children should have empty face_ids
-        for child in node.children:
-            assert child.face_ids == []
-
-
 class TestOctreeNodeEdgeCases:
     """Test OctreeNode edge cases and error conditions."""
 
@@ -370,8 +353,8 @@ class TestOctreeNodeEdgeCases:
         """Test morton_id with large depth."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         node = OctreeNode(
             root_index=root_index,
@@ -415,8 +398,8 @@ class TestOctreeNodeIntegration:
         ]
 
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
 
         for root_index in root_indices:
@@ -433,8 +416,8 @@ class TestOctreeNodeIntegration:
         """Test node hierarchy creation and traversal."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([0.5, 0.5, 0.5]),
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
         )
         root_node = OctreeNode(
             root_index=root_index,

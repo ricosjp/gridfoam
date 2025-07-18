@@ -1,5 +1,6 @@
 import pytest
 import torch
+from trimesh.triangles import bounds_tree
 
 from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam._octree._forest import Forest
@@ -53,8 +54,12 @@ def simple_mesh() -> TriangleMesh:
         ]
     )
     gaussian_curvatures = torch.tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+    tree = bounds_tree(points[faces])
     return TriangleMesh(
-        points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+        points=points,
+        faces=faces,
+        gaussian_curvatures=gaussian_curvatures,
+        tree=tree,
     )
 
 
@@ -64,8 +69,12 @@ def empty_mesh() -> TriangleMesh:
     points = torch.empty((0, 3))
     faces = torch.empty((0, 3), dtype=torch.int32)
     gaussian_curvatures = torch.empty(0)
+    tree = None
     return TriangleMesh(
-        points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+        points=points,
+        faces=faces,
+        gaussian_curvatures=gaussian_curvatures,
+        tree=tree,
     )
 
 
@@ -187,8 +196,8 @@ class TestForestShouldSplitNode:
 
         # Create a node with large width (should split)
         large_bbox = AABB(
-            center=torch.tensor([0.5, 0.5, 0.5]),
-            halfwidth=torch.tensor([1.0, 1.0, 1.0]),  # Large width
+            min_pt=torch.tensor([-0.5, -0.5, -0.5]),
+            max_pt=torch.tensor([1.5, 1.5, 1.5]),  # Large width
         )
         large_node = forest._roots[0] if forest._roots else None
         if large_node:
@@ -340,8 +349,12 @@ class TestForestBuildGridFromMesh:
         )
         faces = torch.tensor([[0, 1, 2]])
         gaussian_curvatures = torch.tensor([1.0, 1.0, 1.0])  # High curvature
+        tree = bounds_tree(points[faces])
         mesh = TriangleMesh(
-            points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+            points=points,
+            faces=faces,
+            gaussian_curvatures=gaussian_curvatures,
+            tree=tree,
         )
 
         forest = Forest(setting)

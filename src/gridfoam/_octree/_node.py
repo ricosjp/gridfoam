@@ -3,11 +3,10 @@ from __future__ import annotations
 from functools import cached_property
 
 import torch
-from jaxtyping import Int32
+from jaxtyping import Float, Int32
 
-from gridfoam._geometry import AABB, TriangleMesh, is_intersect_aabb_aabb
+from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam.utils.enums import Constants
-from gridfoam.utils.index import get_grid_indices
 from gridfoam.utils.morton import get_child_codes, get_local_index
 
 
@@ -57,31 +56,19 @@ class OctreeNode:
 
         Parameters
         ----------
-        per_face_aabbs : list of AABB
-            List of AABBs for each face in the mesh.
-            Used to determine which faces intersect with each child node.
+        mesh : TriangleMesh
+            To find the intersecting face IDs for each child node.
         """
         if not self.is_leaf():
             raise ValueError("This node is already split")
-        per_face_aabbs = mesh.per_face_aabbs
-        divisions = torch.full((3,), 2, dtype=torch.int32)
-        child_halfwidth = (self.bbox.max - self.bbox.min) / (2 * divisions)
-        child_indices = get_grid_indices(divisions)
+        child_bboxes = self.bbox.split()
         child_codes = get_child_codes(self.morton_code, self.octree_depth)
-        child_centers = (
-            self.bbox.min + (2 * child_indices + 1) * child_halfwidth
-        )
         child_octree_depth = self.octree_depth + 1
 
-        for child_center, child_code in zip(
-            child_centers, child_codes, strict=True
+        for child_bbox, child_code in zip(
+            child_bboxes, child_codes, strict=True
         ):
-            child_bbox = AABB(child_center, child_halfwidth)
-            child_face_ids = [
-                fid
-                for fid in self.face_ids
-                if is_intersect_aabb_aabb(child_bbox, per_face_aabbs[fid])
-            ]
+            child_face_ids = mesh.find_intersecting_face_ids(child_bbox)
             self._children.append(
                 OctreeNode(
                     root_index=self.root_index,
@@ -97,6 +84,13 @@ class OctreeNode:
 
     def has_boundary(self) -> bool:
         return self.is_leaf() and len(self.face_ids) > 0
+
+    def calculate_width(
+        self, divisions: Int32[torch.Tensor, " 3"], domain_width: Float[torch.Tensor, " 3"]
+    ) -> Float[torch.Tensor, " 3"]:
+        octree_size = 2 ** self.octree_depth
+        total_divisions = divisions * octree_size
+        return domain_width / total_divisions
 
     @property
     def root_index(self) -> Int32[torch.Tensor, " 3"]:
@@ -137,7 +131,7 @@ class OctreeNode:
         """Global index [gx, gy, gz] at given octree depth"""
         root_index = self.root_index
         local_index = self.local_index
-        octree_size = torch.tensor(2**self.octree_depth, dtype=torch.int32)
+        octree_size = 2**self.octree_depth
         global_index = root_index * octree_size + local_index
         return global_index
 
