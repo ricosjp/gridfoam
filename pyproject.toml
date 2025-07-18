@@ -25,6 +25,8 @@ dev = [
   "pytest-cov",
   "pytest-benchmark",
   "pytest-memray",
+  "polars",
+  "seaborn",
 ]
 lint = [
   "ruff",
