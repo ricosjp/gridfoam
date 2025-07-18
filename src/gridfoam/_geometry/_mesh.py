@@ -1,40 +1,70 @@
 from __future__ import annotations
 
+import pathlib
 from dataclasses import dataclass
-from functools import cached_property
 
 import pyvista as pv
+import rtree
 import torch
 from jaxtyping import Float, Int
+from trimesh.triangles import bounds_tree
 
 from gridfoam._geometry import AABB
 
 
-@dataclass
+@dataclass(frozen=True)
 class TriangleMesh:
-    points: Float[torch.Tensor, "n_points 3"]
-    faces: Int[torch.Tensor, "n_triangles 3"]
+    points: Float[torch.Tensor, " n_points 3"]
+    faces: Int[torch.Tensor, " n_triangles 3"]
     gaussian_curvatures: Float[torch.Tensor, " n_points"]
+    tree: rtree.Rtree | None = None
+
+    @classmethod
+    def from_file(cls, file: pathlib.Path) -> TriangleMesh:
+        polydata: pv.PolyData = pv.read(file).extract_surface()
+        polydata.triangulate(inplace=True)
+        points = torch.from_numpy(polydata.points)
+        faces = torch.from_numpy(polydata.regular_faces)
+        gaussian_curvatures = torch.from_numpy(polydata.curvature("gaussian"))
+        if len(faces) > 0 and len(points) > 0:
+            tree = bounds_tree(points[faces])
+        else:
+            tree = None
+        return cls(points, faces, gaussian_curvatures, tree)
 
     @classmethod
     def from_polydata(cls, polydata: pv.PolyData) -> TriangleMesh:
-        trimesh = polydata.triangulate()
-        gaussian_curvatures = torch.from_numpy(polydata.curvature("gaussian"))
-        faces = torch.from_numpy(trimesh.regular_faces)
-        points = torch.from_numpy(trimesh.points)
+        tri = polydata.triangulate(inplace=True)
+        points = torch.from_numpy(tri.points)
+        faces = torch.from_numpy(tri.regular_faces)
+        gaussian_curvatures = torch.from_numpy(tri.curvature("gaussian"))
         return cls(points, faces, gaussian_curvatures)
 
-    @cached_property
-    def per_face_aabbs(self) -> list[AABB]:
-        triangles = self.points[self.faces]
-        return AABB.get_per_triangle_aabbs(triangles)
+    def find_intersecting_face_ids(self, aabb: AABB) -> list[int]:
+        """Find the IDs of faces that intersect with the given AABB bounds.
 
-    def get_radii_of_curvature(self, face_ids: list[int]) -> float:
+        Parameters
+        ----------
+        aabb : AABB
+            The axis-aligned bounding box.
+
+        Returns
+        -------
+        list[int]
+            List of intersecting face IDs.
+        """
+        if self.tree is None:
+            return []
+        aabb_bounds = aabb.bounds
+        return list(self.tree.intersection(aabb_bounds.tolist()))
+
+    def calculate_radii_of_curvature(self, face_ids: list[int]) -> float:
         if len(face_ids) == 0:
             return float("inf")
         point_ids = torch.unique(torch.flatten(self.faces[face_ids]))
-        regional_curvature = self.gaussian_curvatures[point_ids]
-        return 1.0 / torch.abs(regional_curvature).mean().item()
+        inv_r = torch.sqrt(torch.abs(self.gaussian_curvatures[point_ids]))
+        r_g = 1.0 / inv_r.mean().item()  # radius of effective curvature
+        return r_g
 
     @property
     def space_dim(self) -> int:

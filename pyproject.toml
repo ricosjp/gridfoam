@@ -17,6 +17,8 @@ dependencies = [
     "pydantic>=2.11.7",
     "h5py>=3.14.0",
     "nanofoam",
+    "trimesh>=4.7.1",
+    "rtree>=1.4.0",
 ]
 
 [dependency-groups]
