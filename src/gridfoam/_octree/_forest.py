@@ -12,6 +12,7 @@ from gridfoam._octree._node import OctreeNode
 from gridfoam.settings import GridSetting
 from gridfoam.utils.flag import dilate_sparse_coords
 from gridfoam.utils.index import get_grid_indices
+from gridfoam.utils.log_time import log_time
 
 
 class Forest:
@@ -58,6 +59,7 @@ class Forest:
             face_ids_offset=face_ids_offset_array,
         )
 
+    @log_time
     def _generate_roots(self, mesh: TriangleMesh) -> None:
         """Generate the root nodes of the octree.
 
@@ -93,6 +95,7 @@ class Forest:
                 )
             )
 
+    @log_time
     def _recursive_split_by_mesh(self, mesh: TriangleMesh) -> None:
         """
         Recursively split octree nodes based on mesh curvature and level limit.

@@ -9,6 +9,7 @@ from jaxtyping import Int32, Int64, UInt8
 
 from gridfoam._base.field_data import FieldData
 from gridfoam._geometry import AABB
+from gridfoam.utils.log_time import log_time
 
 
 @dataclass
@@ -71,6 +72,7 @@ class Grid:
         stacked = torch.stack([indices, indices + n_cell], dim=1)
         return stacked.permute(0, 2, 1).reshape(-1, 6)
 
+    @log_time
     def save_structure(
         self, file_name: pathlib.Path, overwrite_file: bool = True
     ) -> None:
