@@ -9,62 +9,31 @@ from gridfoam._geometry import AABB
 @pytest.fixture
 def simple_aabb() -> AABB:
     """Create a simple AABB for testing."""
-    center = torch.tensor([0.5, 0.5, 0.5])
-    halfwidth = torch.tensor([0.5, 0.5, 0.5])
-    return AABB(center, halfwidth)
+    min_pt = torch.tensor([0.0, 0.0, 0.0])
+    max_pt = torch.tensor([1.0, 1.0, 1.0])
+    return AABB(min_pt, max_pt)
 
 
 # property
 @pytest.mark.parametrize(
-    "center, halfwidth, expected_dim",
+    "min_pt, max_pt, expected_dim",
     [
-        (torch.tensor([0.0, 0.0, 0.0]), torch.tensor([1.0, 1.0, 1.0]), 3),
-        (torch.tensor([0.0, 0.0]), torch.tensor([1.0, 1.0]), 2),
+        (torch.tensor([-0.5, -0.5, -0.5]), torch.tensor([0.5, 0.5, 0.5]), 3),
+        (torch.tensor([-0.5, -0.5]), torch.tensor([0.5, 0.5]), 2),
     ],
 )
 def test_aabb_properties(
-    center: torch.Tensor, halfwidth: torch.Tensor, expected_dim: int
+    min_pt: torch.Tensor, max_pt: torch.Tensor, expected_dim: int
 ):
     """Test AABB properties."""
-    aabb = AABB(center, halfwidth)
+    aabb = AABB(min_pt, max_pt)
     assert aabb.space_dim == expected_dim
-    assert torch.equal(aabb.center, center)
-    assert torch.equal(aabb.halfwidth, halfwidth)
-    assert torch.equal(aabb.width, halfwidth * 2.0)
-    assert torch.equal(aabb.min, center - halfwidth)
-    assert torch.equal(aabb.max, center + halfwidth)
-
-
-# classmethod
-def test_aabb_from_center_halfwidth():
-    """Test AABB creation from center and halfwidth."""
-    center = torch.tensor([0.5, 0.5, 0.5])
-    halfwidth = torch.tensor([0.5, 0.5, 0.5])
-    aabb = AABB.from_center_halfwidth(center, halfwidth)
-    assert torch.equal(aabb.center, center)
-    assert torch.equal(aabb.halfwidth, halfwidth)
-
-
-def test_aabb_from_min_max():
-    """Test AABB creation from min and max points."""
-    min_point = torch.tensor([0.0, 0.0, 0.0])
-    max_point = torch.tensor([1.0, 1.0, 1.0])
-    aabb = AABB.from_min_max(min_point, max_point)
-    assert torch.equal(aabb.min, min_point)
-    assert torch.equal(aabb.max, max_point)
-    assert torch.equal(aabb.center, (max_point + min_point) / 2.0)
-    assert torch.equal(aabb.halfwidth, (max_point - min_point) / 2.0)
-
-
-def test_aabb_from_origin_width():
-    """Test AABB creation from origin and width."""
-    origin = torch.tensor([0.0, 0.0, 0.0])
-    width = torch.tensor([1.0, 1.0, 1.0])
-    aabb = AABB.from_origin_width(origin, width)
-    assert torch.equal(aabb.min, origin)
-    assert torch.equal(aabb.max, origin + width)
-    assert torch.equal(aabb.center, origin + width / 2.0)
-    assert torch.equal(aabb.halfwidth, width / 2.0)
+    assert torch.equal(aabb.min, min_pt)
+    assert torch.equal(aabb.max, max_pt)
+    assert torch.equal(aabb.center, (min_pt + max_pt) / 2.0)
+    assert torch.equal(aabb.halfwidth, (max_pt - min_pt) / 2.0)
+    assert torch.equal(aabb.width, max_pt - min_pt)
+    assert torch.equal(aabb.bounds, torch.hstack([min_pt, max_pt]))
 
 
 def test_aabb_from_points():
@@ -115,15 +84,6 @@ def test_aabb_contains(
     assert simple_aabb.contains(point) == should_contain
 
 
-def test_aabb_scale(simple_aabb: AABB):
-    """Test AABB scale."""
-    simple_aabb.scale(2.0)
-    assert torch.equal(simple_aabb.center, torch.tensor([0.5, 0.5, 0.5]))
-    assert torch.equal(simple_aabb.halfwidth, torch.tensor([1.0, 1.0, 1.0]))
-    assert torch.equal(simple_aabb.min, torch.tensor([-0.5, -0.5, -0.5]))
-    assert torch.equal(simple_aabb.max, torch.tensor([1.5, 1.5, 1.5]))
-
-
 def test_aabb_split(simple_aabb: AABB):
     """Test AABB subdivision."""
     sub_aabbs = simple_aabb.split()
@@ -141,6 +101,16 @@ def test_aabb_split(simple_aabb: AABB):
     for aabb, expected_center in zip(sub_aabbs, expected_centers, strict=False):
         assert torch.equal(aabb.center, expected_center)
         assert torch.equal(aabb.halfwidth, torch.tensor([0.25, 0.25, 0.25]))
+
+
+def test_aabb_merge(simple_aabb: AABB):
+    """Test AABB merge."""
+    other_aabb = AABB(
+        torch.tensor([1.0, 1.0, 1.0]), torch.tensor([2.0, 2.0, 2.0])
+    )
+    merged_aabb = simple_aabb.merge(other_aabb)
+    assert torch.equal(merged_aabb.min, torch.tensor([0.0, 0.0, 0.0]))
+    assert torch.equal(merged_aabb.max, torch.tensor([2.0, 2.0, 2.0]))
 
 
 def test_invalid_input():
@@ -162,7 +132,7 @@ def test_invalid_input():
             torch.tensor([0.0, 0.0, 0.0]),
             torch.tensor([1.0, 1.0, 1.0, 1.0]),
         )
-    # negative halfwidth
+    # negative width
     with pytest.raises(ValueError):
         AABB(
             torch.tensor([0.0, 0.0, 0.0]),
@@ -178,11 +148,3 @@ def test_invalid_input():
         AABB.get_per_triangle_aabbs(
             torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0]]),
         )
-    # # different shape
-    # with pytest.raises(BeartypeCallHintParamViolation):
-    #     aabb = AABB(
-    #         torch.tensor([0.0, 0.0, 0.0]),
-    #         torch.tensor([1.0, 1.0, 1.0]),
-    #     )
-    #     tensor = torch.tensor([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])
-    #     aabb.contains(tensor)

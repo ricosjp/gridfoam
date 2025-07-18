@@ -24,7 +24,7 @@ class GridSetting(BaseModel, frozen=True):
     def get_domain(self) -> AABB:
         min_pt = torch.tensor([self.blockXMin, self.blockYMin, self.blockZMin])
         max_pt = torch.tensor([self.blockXMax, self.blockYMax, self.blockZMax])
-        return AABB.from_min_max(min_pt, max_pt)
+        return AABB(min_pt, max_pt)
 
     def get_block_resolutions(self) -> Int32[torch.Tensor, " 3"]:
         return torch.tensor(
