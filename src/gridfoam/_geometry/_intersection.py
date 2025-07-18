@@ -57,7 +57,7 @@ def is_intersect_aabb_triangle(
     edges = torch.stack([e0, e1, e2])  # (3, dim)
 
     # Compute the triangle normal
-    tri_normal = torch.cross(e0, e1)  # (dim,)
+    tri_normal = torch.linalg.cross(e0, e1)  # (dim,)
     if torch.all(tri_normal == 0):
         # Degenerate triangle
         return False
@@ -85,7 +85,7 @@ def is_intersect_aabb_triangle(
     # Test the 9 cross product axes
     for i in range(aabb.space_dim):
         for j in range(edges.size(0)):
-            axis = torch.cross(aabb_axes[i], edges[j])
+            axis = torch.linalg.cross(aabb_axes[i], edges[j])
             r = (aabb.halfwidth * torch.abs(axis)).sum()
             projs = v @ axis
             p_min = projs.min()
