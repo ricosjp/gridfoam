@@ -30,10 +30,12 @@ def test_mesh_properties(simple_mesh: TriangleMesh):
 
 def test_find_intersecting_face_ids(simple_mesh: TriangleMesh):
     """Test get_per_face_aabbs."""
-    face_ids = simple_mesh.find_intersecting_face_ids(AABB(
-        min_pt=torch.tensor([0.0, 0.0, 0.0]),
-        max_pt=torch.tensor([1.0, 1.0, 1.0]),
-    ))
+    face_ids = simple_mesh.find_intersecting_face_ids(
+        AABB(
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([1.0, 1.0, 1.0]),
+        )
+    )
     assert len(face_ids) == simple_mesh.n_triangles
 
 

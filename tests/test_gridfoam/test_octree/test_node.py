@@ -346,6 +346,7 @@ class TestOctreeNodeSplitByMesh:
         with pytest.raises(ValueError, match="This node is already split"):
             simple_node.split_by_mesh(simple_mesh)
 
+
 class TestOctreeNodeEdgeCases:
     """Test OctreeNode edge cases and error conditions."""
 

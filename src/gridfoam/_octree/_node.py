@@ -86,9 +86,11 @@ class OctreeNode:
         return self.is_leaf() and len(self.face_ids) > 0
 
     def calculate_width(
-        self, divisions: Int32[torch.Tensor, " 3"], domain_width: Float[torch.Tensor, " 3"]
+        self,
+        divisions: Int32[torch.Tensor, " 3"],
+        domain_width: Float[torch.Tensor, " 3"],
     ) -> Float[torch.Tensor, " 3"]:
-        octree_size = 2 ** self.octree_depth
+        octree_size = 2**self.octree_depth
         total_divisions = divisions * octree_size
         return domain_width / total_divisions
 
