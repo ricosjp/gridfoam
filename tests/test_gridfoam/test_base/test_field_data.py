@@ -102,6 +102,7 @@ class TestFieldData:
         assert isinstance(items, ItemsView)
         assert len(items) == 0
 
+    @pytest.mark.with_device
     def test_cuda_device(self):
         """Test FieldData with CUDA device if available."""
         if not torch.cuda.is_available():
