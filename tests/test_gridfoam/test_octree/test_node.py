@@ -181,7 +181,8 @@ class TestOctreeNodeProperties:
         global_index = simple_node.global_index
         assert global_index.shape == (3,)
         assert global_index.dtype == torch.int32
-        # For root_index [0,0,0], depth 0, and local_index [0,0,0], global_index should be [0,0,0]
+        # For root_index [0,0,0], depth 0, and local_index [0,0,0],
+        # global_index should be [0,0,0]
         assert torch.equal(
             global_index, torch.tensor([0, 0, 0], dtype=torch.int32)
         )

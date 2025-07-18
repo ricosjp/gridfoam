@@ -117,4 +117,3 @@ def get_local_index(code: int, octree_depth: int) -> Int32[torch.Tensor, " 3"]:
     shifted = _code >> shift  # to coarse resolution
     ix, iy, iz = morton_decode(shifted)
     return torch.stack([ix, iy, iz], dim=-1)
-

@@ -138,7 +138,10 @@ class TestLinearizeGridIndices:
         assert linear_indices == expected
 
     def test_round_trip_consistency(self):
-        """Test that get_grid_indices and linearize_grid_indices work together."""
+        """
+        Test that get_grid_indices and
+        linearize_grid_indices work together.
+        """
         divisions = torch.tensor([3, 2, 2], dtype=torch.int32)
 
         # Generate grid indices

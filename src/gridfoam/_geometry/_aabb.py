@@ -198,9 +198,7 @@ class AABB(IAABB):
         """
         return [cls.from_points(triangle) for triangle in triangles]
 
-    def contains(
-        self, pt: Float[torch.Tensor, " space_dim"]
-    ) -> bool:
+    def contains(self, pt: Float[torch.Tensor, " space_dim"]) -> bool:
         """
         Check if a point is inside the AABB.
         """

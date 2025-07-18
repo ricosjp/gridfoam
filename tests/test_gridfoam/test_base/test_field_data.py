@@ -2,7 +2,8 @@ from collections.abc import ItemsView
 
 import pytest
 import torch
-from src.gridfoam._base.field_data import FieldData
+
+from gridfoam._base.field_data import FieldData
 
 
 class TestFieldData:
@@ -15,7 +16,6 @@ class TestFieldData:
 
         assert field_data.device == device
         assert field_data._field_data == {}
-
 
     def test_add_multiple_fields(self):
         """Test adding multiple fields."""

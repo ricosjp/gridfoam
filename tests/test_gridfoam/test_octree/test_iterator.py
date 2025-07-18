@@ -76,7 +76,8 @@ class TestIterateOctreeDFS:
         """Test DFS iteration on a multi-level tree."""
         nodes = list(iterate_octree_dfs(multi_level_tree))
 
-        # Should visit all nodes: 1 root + 8 children + 3*8 grandchildren = 33 nodes
+        # Should visit all nodes:
+        # 1 root + 8 children + 3*8 grandchildren = 33 nodes
         assert len(nodes) == 33
 
         # First node should be the root
@@ -91,7 +92,8 @@ class TestIterateOctreeDFS:
         """Test DFS iteration on a multi-level tree with only_leaves=True."""
         nodes = list(iterate_octree_dfs(multi_level_tree, only_leaves=True))
 
-        # Should only visit leaf nodes: 5 children + 3*8 grandchildren = 29 leaf nodes
+        # Should only visit leaf nodes:
+        # 5 children + 3*8 grandchildren = 29 leaf nodes
         assert len(nodes) == 29
 
         # All returned nodes should be leaves
@@ -141,7 +143,8 @@ class TestIterateOctreeBFS:
         """Test BFS iteration on a multi-level tree."""
         nodes = list(iterate_octree_bfs([multi_level_tree]))
 
-        # Should visit all nodes: 1 root + 8 children + 3*8 grandchildren = 33 nodes
+        # Should visit all nodes:
+        # 1 root + 8 children + 3*8 grandchildren = 33 nodes
         assert len(nodes) == 33
 
         # First node should be the root
@@ -156,7 +159,8 @@ class TestIterateOctreeBFS:
         """Test BFS iteration on a multi-level tree with only_leaves=True."""
         nodes = list(iterate_octree_bfs([multi_level_tree], only_leaves=True))
 
-        # Should only visit leaf nodes: 5 children + 3*8 grandchildren = 29 leaf nodes
+        # Should only visit leaf nodes:
+        # 5 children + 3*8 grandchildren = 29 leaf nodes
         assert len(nodes) == 29
 
         # All returned nodes should be leaves
@@ -213,7 +217,8 @@ class TestIterateOctreeBFS:
 
         nodes = list(iterate_octree_bfs([simple_node, node2]))
 
-        # Should visit all nodes from both trees: 2 roots + 2*8 children = 18 nodes
+        # Should visit all nodes from both trees:
+        # 2 roots + 2*8 children = 18 nodes
         assert len(nodes) == 18
 
         # Both roots should be in the result
@@ -347,6 +352,7 @@ class TestIterateOctreeAtDepth:
 
 class TestIteratorEdgeCases:
     """Test edge cases and error conditions."""
+
     def test_dfs_very_deep_tree(
         self, simple_node: OctreeNode, simple_mesh: TriangleMesh
     ):
@@ -378,7 +384,8 @@ class TestIteratorEdgeCases:
 
         nodes = list(iterate_octree_bfs([simple_node]))
 
-        # Should visit all nodes: 1 root + 8 children + 8*8 grandchildren = 73 nodes
+        # Should visit all nodes:
+        # 1 root + 8 children + 8*8 grandchildren = 73 nodes
         assert len(nodes) == 73
 
         # All nodes should be unique
@@ -413,7 +420,10 @@ class TestIteratorIntegration:
         assert depth_1_nodes == dfs_depth_1_nodes
 
     def test_only_leaves_consistency(self, multi_level_tree: OctreeNode):
-        """Test that only_leaves parameter works consistently across all iterators."""
+        """
+        Test that only_leaves parameter works
+        consistently across all iterators.
+        """
         # Get all leaf nodes using different iterators
         dfs_leaves = set(iterate_octree_dfs(multi_level_tree, only_leaves=True))
         bfs_leaves = set(

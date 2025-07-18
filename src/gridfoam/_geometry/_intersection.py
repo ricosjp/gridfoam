@@ -11,18 +11,14 @@ from gridfoam._geometry._interface import IAABB, IPlane
 
 
 # AABB against AABB
-def is_intersect_aabb_aabb(
-    aabb1: IAABB, aabb2: IAABB
-) -> bool:
+def is_intersect_aabb_aabb(aabb1: IAABB, aabb2: IAABB) -> bool:
     d = aabb1.center - aabb2.center
     sum_halfwidth = aabb1.halfwidth + aabb2.halfwidth
     return torch.all(torch.abs(d) <= sum_halfwidth).item()
 
 
 # AABB against Plane
-def is_intersect_aabb_plane(
-    aabb: IAABB, plane: IPlane
-) -> bool:
+def is_intersect_aabb_plane(aabb: IAABB, plane: IPlane) -> bool:
     c = aabb.center
     e = aabb.halfwidth
     # project halfwidth onto plane normal

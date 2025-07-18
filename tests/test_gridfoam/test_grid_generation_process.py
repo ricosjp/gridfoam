@@ -25,6 +25,7 @@ def grid_setting_bunny() -> GridSetting:
         level_limit=7,
     )
 
+
 @pytest.mark.with_benchmark
 def test_grid_generation_process_bunny(grid_setting_bunny: GridSetting):
     """Test the grid generation process."""
