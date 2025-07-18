@@ -32,3 +32,10 @@ document:
 	rm -rf docs/source/tutorials || true
 	rm docs/source/sg_execution_times.rst || true
 	uv run sphinx-build -M html docs/source docs/build
+
+.PHONY: benchmark
+benchmark:
+	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-max-time=0.0001 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time/ --benchmark-save=gridgen
+	uv run pytest -v -m with_memray --memray --memray-bin-path=./tests/outputs/benchmark/memory --memray-bin-prefix=gridgen
+	uv run memray flamegraph ./tests/outputs/benchmark/memory/gridgen-tests-test_gridfoam-benchmark-test_memory.py-test_grid_generation_process_bunny_benchmark_memory.bin
+
