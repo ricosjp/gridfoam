@@ -147,7 +147,7 @@ class Forest:
             True if the node should be split, False otherwise.
         """
         h = node.calculate_width(self._divisions, self._bbox.width)
-        rc = mesh.calculate_radii_of_curvature(node.face_ids)
+        rc = mesh.calculate_radii2_of_curvature(node.face_ids)
         curvature_condition = torch.any(h >= self._alpha * rc).item()
         level_condition = node.level < self._level_limit
         return curvature_condition and level_condition

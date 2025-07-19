@@ -40,15 +40,15 @@ def test_find_intersecting_face_ids(simple_mesh: TriangleMesh):
 
 
 @pytest.mark.parametrize(
-    "face_ids, expected_radius",
+    "face_ids, expected_radius2",
     [
-        ([0, 1, 2, 3, 4, 5], 2.0),
-        ([1, 2, 3, 4, 5, 6], 2.0),
+        ([0, 1, 2, 3, 4, 5], 4.0),
+        ([1, 2, 3, 4, 5, 6], 4.0),
     ],
 )
-def test_get_radii_of_curvature(
-    sphere_mesh: TriangleMesh, face_ids: list[int], expected_radius: float
+def test_get_radii2_of_curvature(
+    sphere_mesh: TriangleMesh, face_ids: list[int], expected_radius2: float
 ):
     """Test get_radii_of_curvature."""
-    actual_radius = sphere_mesh.calculate_radii_of_curvature(face_ids)
-    assert abs(actual_radius - expected_radius) < 0.1
+    actual_radius2 = sphere_mesh.calculate_radii2_of_curvature(face_ids)
+    assert abs(actual_radius2 - expected_radius2) < 0.1

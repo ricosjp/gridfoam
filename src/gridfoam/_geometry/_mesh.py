@@ -26,10 +26,7 @@ class TriangleMesh:
         points = torch.from_numpy(polydata.points)
         faces = torch.from_numpy(polydata.regular_faces)
         gaussian_curvatures = torch.from_numpy(polydata.curvature("gaussian"))
-        if len(faces) > 0 and len(points) > 0:
-            tree = bounds_tree(points[faces])
-        else:
-            tree = None
+        tree = bounds_tree(points[faces])
         return cls(points, faces, gaussian_curvatures, tree)
 
     @classmethod
@@ -38,7 +35,8 @@ class TriangleMesh:
         points = torch.from_numpy(tri.points)
         faces = torch.from_numpy(tri.regular_faces)
         gaussian_curvatures = torch.from_numpy(tri.curvature("gaussian"))
-        return cls(points, faces, gaussian_curvatures)
+        tree = bounds_tree(points[faces])
+        return cls(points, faces, gaussian_curvatures, tree)
 
     def find_intersecting_face_ids(self, aabb: AABB) -> list[int]:
         """Find the IDs of faces that intersect with the given AABB bounds.
@@ -58,13 +56,13 @@ class TriangleMesh:
         aabb_bounds = aabb.bounds
         return list(self.tree.intersection(aabb_bounds.tolist()))
 
-    def calculate_radii_of_curvature(self, face_ids: list[int]) -> float:
+    def calculate_radii2_of_curvature(self, face_ids: list[int]) -> float:
         if len(face_ids) == 0:
             return float("inf")
         point_ids = torch.unique(torch.flatten(self.faces[face_ids]))
-        inv_r = torch.sqrt(torch.abs(self.gaussian_curvatures[point_ids]))
-        r_g = 1.0 / inv_r.mean().item()  # radius of effective curvature
-        return r_g
+        inv_r2 = torch.abs(self.gaussian_curvatures[point_ids])
+        r2_g = 1.0 / inv_r2.mean().item()  # radius of effective curvature
+        return r2_g
 
     @property
     def space_dim(self) -> int:
