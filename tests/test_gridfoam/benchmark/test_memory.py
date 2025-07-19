@@ -27,13 +27,15 @@ def grid_setting_bunny() -> GridSetting:
 
 
 @pytest.mark.with_memray
-def test_gridgen_bunny_benchmark_memory(grid_setting_bunny: GridSetting):
+def test_gridgen_bunny_benchmark_memory(
+    grid_setting_bunny: GridSetting, tmp_path: pathlib.Path
+):
     """Test the grid generation process."""
     pv_mesh = pv.read("tests/data/stl/bunny.stl")
     mesh = TriangleMesh.from_polydata(pv_mesh)
     forest = Forest(grid_setting_bunny)
     grid = forest.build_grid_from_mesh(mesh)
-    file_name = pathlib.Path("tests/outputs/grid/bunny.vtkhdf")
+    file_name = tmp_path / "bunny.vtkhdf"
     grid.save_structure(file_name)
 
 
@@ -56,11 +58,13 @@ def grid_setting_DrivAer() -> GridSetting:
 
 
 @pytest.mark.with_memray
-def test_gridgen_DrivAer_benchmark_memory(grid_setting_DrivAer: GridSetting):
+def test_gridgen_DrivAer_benchmark_memory(
+    grid_setting_DrivAer: GridSetting, tmp_path: pathlib.Path
+):
     """Test the grid generation process."""
     pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
     mesh = TriangleMesh.from_polydata(pv_mesh)
     forest = Forest(grid_setting_DrivAer)
     grid = forest.build_grid_from_mesh(mesh)
-    file_name = pathlib.Path("tests/outputs/grid/DrivAer.vtkhdf")
+    file_name = tmp_path / "DrivAer.vtkhdf"
     grid.save_structure(file_name)

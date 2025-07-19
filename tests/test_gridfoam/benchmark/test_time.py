@@ -23,12 +23,12 @@ def grid_setting_bunny() -> GridSetting:
         nBlockY=4,
         nBlockZ=4,
         alpha=0.3,
-        level_limit=2,
+        level_limit=7,
     )
 
 
 @pytest.mark.with_benchmark
-@pytest.mark.parametrize("level_limit", [2, 3])
+@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8, 9, 10])
 def test_gridgen_bunny_benchmark_time(
     benchmark: BenchmarkFixture,
     grid_setting_bunny: GridSetting,
@@ -52,36 +52,36 @@ def test_gridgen_bunny_benchmark_time(
     benchmark(gridgen_process)
 
 
-# @pytest.fixture
-# def grid_setting_DrivAer() -> GridSetting:
-#     """Return a Settings object."""
-#     return GridSetting(
-#         blockXMin=-5.0,
-#         blockXMax=11.0,
-#         blockYMin=-4.0,
-#         blockYMax=4.0,
-#         blockZMin=0.0,
-#         blockZMax=4.0,
-#         nBlockX=8,
-#         nBlockY=4,
-#         nBlockZ=2,
-#         alpha=0.3,
-#         level_limit=3,
-#     )
+@pytest.fixture
+def grid_setting_DrivAer() -> GridSetting:
+    """Return a Settings object."""
+    return GridSetting(
+        blockXMin=-5.0,
+        blockXMax=11.0,
+        blockYMin=-4.0,
+        blockYMax=4.0,
+        blockZMin=0.0,
+        blockZMax=4.0,
+        nBlockX=8,
+        nBlockY=4,
+        nBlockZ=2,
+        alpha=0.3,
+        level_limit=3,
+    )
 
 
-# @pytest.mark.with_benchmark
-# def test_gridgen_DrivAer_benchmark_time(
-#     benchmark: BenchmarkFixture, grid_setting_DrivAer: GridSetting
-# ):
-#     """Test the grid generation process."""
+@pytest.mark.with_benchmark
+def test_gridgen_DrivAer_benchmark_time(
+    benchmark: BenchmarkFixture, grid_setting_DrivAer: GridSetting
+):
+    """Test the grid generation process."""
 
-#     def gridgen_process() -> None:
-#         pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
-#         mesh = TriangleMesh.from_polydata(pv_mesh)
-#         forest = Forest(grid_setting_DrivAer)
-#         grid = forest.build_grid_from_mesh(mesh)
-#         file_name = pathlib.Path("tests/outputs/grid/DrivAer.vtkhdf")
-#         grid.save_structure(file_name)
+    def gridgen_process() -> None:
+        pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
+        mesh = TriangleMesh.from_polydata(pv_mesh)
+        forest = Forest(grid_setting_DrivAer)
+        grid = forest.build_grid_from_mesh(mesh)
+        file_name = pathlib.Path("tests/outputs/grid/DrivAer.vtkhdf")
+        grid.save_structure(file_name)
 
-#     benchmark(gridgen_process)
+    benchmark(gridgen_process)
