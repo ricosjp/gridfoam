@@ -26,9 +26,10 @@ def grid_setting_bunny() -> GridSetting:
     )
 
 
-@pytest.mark.with_memray
-def test_gridgen_bunny_benchmark_memory(
-    grid_setting_bunny: GridSetting, tmp_path: pathlib.Path
+@pytest.mark.with_profile
+def test_gridgen_bunny_profile(
+    grid_setting_bunny: GridSetting,
+    tmp_path: pathlib.Path,
 ):
     """Test the grid generation process."""
     pv_mesh = pv.read("tests/data/stl/bunny.stl")
@@ -53,13 +54,14 @@ def grid_setting_DrivAer() -> GridSetting:
         nBlockY=4,
         nBlockZ=2,
         alpha=0.3,
-        level_limit=3,
+        level_limit=7,
     )
 
 
-@pytest.mark.with_memray
-def test_gridgen_DrivAer_benchmark_memory(
-    grid_setting_DrivAer: GridSetting, tmp_path: pathlib.Path
+@pytest.mark.with_profile
+def test_gridgen_DrivAer_profile(
+    grid_setting_DrivAer: GridSetting,
+    tmp_path: pathlib.Path,
 ):
     """Test the grid generation process."""
     pv_mesh = pv.read("tests/data/stl/DrivAer.stl")

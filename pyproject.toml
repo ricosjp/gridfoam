@@ -27,8 +27,9 @@ dev = [
   "pytest-cov",
   "pytest-benchmark",
   "pytest-memray",
+  "pyinstrument",
   "polars",
-  "seaborn",
+  "plotly",
 ]
 lint = [
   "ruff",
@@ -59,16 +60,19 @@ default-groups = ["dev", "lint", "docs", "note"]
 [tool.uv.sources]
 nanofoam = { path = "./src/nanofoam", editable = true }
 
+[tool.pytest]
+testpaths = ["tests"]
+
 [tool.pytest.ini_options]
 markers = [
-    "with_benchmark: Run test with the --benchmark-autosave option",
-    "with_memray: Run test with the --memray option",
+    "with_benchmark: Run test with pytest-benchmark",
+    "with_profile: Run test with memray / pyinstrument",
     "with_device: Run test on cuda device",
 ]
 addopts = [
     "--import-mode=importlib",
     "-m",
-    "not with_benchmark and not with_memray",
+    "not with_benchmark and not with_profile",
 ]
 
 [tool.coverage.report]

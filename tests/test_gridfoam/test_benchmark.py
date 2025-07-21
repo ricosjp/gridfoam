@@ -1,4 +1,5 @@
 import pathlib
+from collections.abc import Callable
 
 import pytest
 import pyvista as pv
@@ -7,6 +8,10 @@ from pytest_benchmark.fixture import BenchmarkFixture
 from gridfoam._geometry import TriangleMesh
 from gridfoam._octree import Forest
 from gridfoam.settings import GridSetting
+
+
+def benchmark_with_group(func: Callable) -> Callable:
+    return pytest.mark.benchmark(group=func.__name__)(func)
 
 
 @pytest.fixture
@@ -29,7 +34,8 @@ def grid_setting_bunny() -> GridSetting:
 
 @pytest.mark.with_benchmark
 @pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8, 9, 10])
-def test_gridgen_bunny_benchmark_time(
+@benchmark_with_group
+def test_gridgen_bunny(
     benchmark: BenchmarkFixture,
     grid_setting_bunny: GridSetting,
     level_limit: int,
@@ -71,17 +77,26 @@ def grid_setting_DrivAer() -> GridSetting:
 
 
 @pytest.mark.with_benchmark
-def test_gridgen_DrivAer_benchmark_time(
-    benchmark: BenchmarkFixture, grid_setting_DrivAer: GridSetting
+@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8, 9, 10])
+@benchmark_with_group
+def test_gridgen_DrivAer(
+    benchmark: BenchmarkFixture,
+    grid_setting_DrivAer: GridSetting,
+    level_limit: int,
 ):
     """Test the grid generation process."""
+    benchmark_grid_setting_DrivAer = grid_setting_DrivAer.model_copy(
+        update={"level_limit": level_limit}
+    )
 
     def gridgen_process() -> None:
         pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
         mesh = TriangleMesh.from_polydata(pv_mesh)
-        forest = Forest(grid_setting_DrivAer)
+        forest = Forest(benchmark_grid_setting_DrivAer)
         grid = forest.build_grid_from_mesh(mesh)
-        file_name = pathlib.Path("tests/outputs/grid/DrivAer.vtkhdf")
+        file_name = pathlib.Path(
+            f"tests/outputs/grid/DrivAer_level{level_limit}.vtkhdf"
+        )
         grid.save_structure(file_name)
 
     benchmark(gridgen_process)
