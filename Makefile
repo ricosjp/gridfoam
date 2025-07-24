@@ -35,11 +35,18 @@ document:
 
 .PHONY: benchmark
 benchmark:
-	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-max-time=0.0001 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time/
+	mkdir -p ./tests/outputs/benchmark/time/
+	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-max-time=0.0001 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time --benchmark-autosave
 
 .PHONY: profile
 profile:
+	mkdir -p ./tests/outputs/profile/time/
+	mkdir -p ./tests/outputs/profile/memory/
 	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m with_profile
 	uv run pytest -v -m with_profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridgen
+	uv run memray flamegraph ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_bunny_profile.bin
 	uv run memray flamegraph ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_DrivAer_profile.bin
+
+.PHONY: performance_check
+performance_check: benchmark profile
 

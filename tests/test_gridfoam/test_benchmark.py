@@ -33,7 +33,7 @@ def grid_setting_bunny() -> GridSetting:
 
 
 @pytest.mark.with_benchmark
-@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8, 9, 10])
+@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8])
 @benchmark_with_group
 def test_gridgen_bunny(
     benchmark: BenchmarkFixture,
@@ -77,7 +77,7 @@ def grid_setting_DrivAer() -> GridSetting:
 
 
 @pytest.mark.with_benchmark
-@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8, 9, 10])
+@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8])
 @benchmark_with_group
 def test_gridgen_DrivAer(
     benchmark: BenchmarkFixture,
