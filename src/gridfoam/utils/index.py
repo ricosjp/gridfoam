@@ -32,9 +32,9 @@ def generate_grid_indices(
 
 
 def ravel_index_3d(
-    indices: Int32[torch.Tensor, "n_grid 3"],
+    indices: Int32[torch.Tensor, "... 3"],
     divisions: Int32[torch.Tensor, " 3"],
-) -> Int32[torch.Tensor, " n_grid"]:
+) -> Int32[torch.Tensor, " ..."]:
     """
     Convert 3D grid indices to 1D linearized indices.
     [..., [ix, iy, iz], ...]
@@ -43,24 +43,26 @@ def ravel_index_3d(
 
     Parameters
     ----------
-    indices : Int32[torch.Tensor, "n_grid 3"]
-        Tensor of shape (n_grid, 3) containing 3D grid indices (ix, iy, iz).
+    indices : Int32[torch.Tensor, "... 3"]
+        Tensor of shape (..., 3) containing 3D grid indices (ix, iy, iz).
     divisions : Int32[torch.Tensor, " 3"]
         Number of divisions along each axis (X, Y, Z).
 
     Returns
     -------
-    Int32[torch.Tensor, "n_grid"]
-        Tensor of shape (n_grid,) containing linearized grid indices.
+    Int32[torch.Tensor, "..."]
+        Tensor of shape (...,) containing linearized grid indices.
     """
-    XX, YY, ZZ = indices.T
-    index = XX + (YY + ZZ * divisions[1]) * divisions[0]
+    ix = indices[..., 0]
+    iy = indices[..., 1]
+    iz = indices[..., 2]
+    index = ix + (iy + iz * divisions[1]) * divisions[0]
     return index
 
 def unravel_index_3d(
-    index: Int32[torch.Tensor, " n_grid"],
+    index: Int32[torch.Tensor, " ..."],
     divisions: Int32[torch.Tensor, " 3"],
-) -> Int32[torch.Tensor, "n_grid 3"]:
+) -> Int32[torch.Tensor, "... 3"]:
     """
     Convert 1D linearized indices to 3D grid indices.
     [..., (ix + (iy + iz * divisions[1]) * divisions[0]), ...]
@@ -69,17 +71,17 @@ def unravel_index_3d(
 
     Parameters
     ----------
-    index : Int32[torch.Tensor, "n_grid"]
-        Tensor of shape (n_grid,) containing linearized grid indices.
+    index : Int32[torch.Tensor, "..."]
+        Tensor of shape (...,) containing linearized grid indices.
     divisions : Int32[torch.Tensor, " 3"]
         Number of divisions along each axis (X, Y, Z).
 
     Returns
     -------
-    Int32[torch.Tensor, "n_grid 3"]
-        Tensor of shape (n_grid, 3) containing 3D grid indices (ix, iy, iz).
+    Int32[torch.Tensor, "... 3"]
+        Tensor of shape (..., 3) containing 3D grid indices (ix, iy, iz).
     """
-    ZZ = index // (divisions[0] * divisions[1])
-    YY = (index % (divisions[0] * divisions[1])) // divisions[0]
-    XX = index % divisions[0]
-    return torch.stack([XX, YY, ZZ], dim=-1)
+    iz = index // (divisions[0] * divisions[1])
+    iy = (index % (divisions[0] * divisions[1])) // divisions[0]
+    ix = index % divisions[0]
+    return torch.stack([ix, iy, iz], dim=-1)
