@@ -50,26 +50,23 @@ def unpart1by2(n: Int64[torch.Tensor, "..."]) -> Int32[torch.Tensor, "..."]:
 
 
 def morton_encode(
-    ix: Int32[torch.Tensor, "..."],
-    iy: Int32[torch.Tensor, "..."],
-    iz: Int32[torch.Tensor, "..."],
+    indices: Int32[torch.Tensor, "... 3"],
 ) -> Int64[torch.Tensor, "..."]:
     """Compute Morton code from x, y, z (all torch tensors)"""
+    ix = indices[..., 0]
+    iy = indices[..., 1]
+    iz = indices[..., 2]
     return (part1by2(iz) << 2) | (part1by2(iy) << 1) | part1by2(ix)
 
 
 def morton_decode(
     code: Int64[torch.Tensor, "..."],
-) -> tuple[
-    Int32[torch.Tensor, "..."],
-    Int32[torch.Tensor, "..."],
-    Int32[torch.Tensor, "..."],
-]:
+) -> Int32[torch.Tensor, "... 3"]:
     """Decode Morton code into x, y, z (all torch tensors)"""
     ix = unpart1by2(code >> 0)
     iy = unpart1by2(code >> 1)
     iz = unpart1by2(code >> 2)
-    return ix, iy, iz
+    return torch.stack([ix, iy, iz], dim=-1)
 
 
 def get_ancestor_code(
@@ -115,5 +112,4 @@ def get_local_index(code: int, octree_depth: int) -> Int32[torch.Tensor, " 3"]:
     _code = torch.tensor(code, dtype=torch.int64)
     shift = 3 * (Constants.MAX_OCTREE_DEPTH - octree_depth)
     shifted = _code >> shift  # to coarse resolution
-    ix, iy, iz = morton_decode(shifted)
-    return torch.stack([ix, iy, iz], dim=-1)
+    return morton_decode(shifted)

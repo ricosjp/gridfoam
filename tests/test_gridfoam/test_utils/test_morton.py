@@ -152,21 +152,24 @@ class TestMortonEncode:
 
     def test_morton_encode_single_point(self):
         """Test morton_encode with single point"""
-        ix = torch.tensor([1], dtype=torch.int32)
-        iy = torch.tensor([2], dtype=torch.int32)
-        iz = torch.tensor([3], dtype=torch.int32)
+        indices = torch.tensor([[1, 2, 3]], dtype=torch.int32)
 
-        result = morton_encode(ix, iy, iz)
+        result = morton_encode(indices)
         expected_code = torch.tensor([0b110101], dtype=torch.int64)
         torch.testing.assert_close(result, expected_code)
 
     def test_morton_encode_multiple_points(self):
         """Test morton_encode with multiple points"""
-        ix = torch.tensor([1, 2, 3], dtype=torch.int32)
-        iy = torch.tensor([4, 5, 6], dtype=torch.int32)
-        iz = torch.tensor([7, 8, 9], dtype=torch.int32)
+        indices = torch.tensor(
+            [
+                [1, 4, 7],
+                [2, 5, 8],
+                [3, 6, 9],
+            ],
+            dtype=torch.int32,
+        )
 
-        result = morton_encode(ix, iy, iz)
+        result = morton_encode(indices)
         expected_code = torch.tensor(
             [0b110100101, 0b100010001010, 0b100010011101], dtype=torch.int64
         )
@@ -174,21 +177,17 @@ class TestMortonEncode:
 
     def test_morton_encode_zero_coordinates(self):
         """Test morton_encode with zero coordinates"""
-        ix = torch.tensor([0], dtype=torch.int32)
-        iy = torch.tensor([0], dtype=torch.int32)
-        iz = torch.tensor([0], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
 
-        result = morton_encode(ix, iy, iz)
+        result = morton_encode(indices)
         assert result.dtype == torch.int64
         assert result[0] == 0
 
     def test_morton_encode_large_coordinates(self):
         """Test morton_encode with large coordinates"""
-        ix = torch.tensor([0x1FFFFF], dtype=torch.int32)  # Max 21-bit
-        iy = torch.tensor([0x1FFFFF], dtype=torch.int32)
-        iz = torch.tensor([0x1FFFFF], dtype=torch.int32)
+        indices = torch.tensor([[0x1FFFFF, 0x1FFFFF, 0x1FFFFF]], dtype=torch.int32)  # Max 21-bit
 
-        result = morton_encode(ix, iy, iz)
+        result = morton_encode(indices)
         expected_code = torch.tensor(
             [0b111111111111111111111111111111111111111111111111111111111111111],
             dtype=torch.int64,
@@ -202,37 +201,32 @@ class TestMortonDecode:
     def test_morton_decode_single_code(self):
         """Test morton_decode with single code"""
         code = torch.tensor([0b110101], dtype=torch.int64)
-        ix, iy, iz = morton_decode(code)
+        result = morton_decode(code)
 
-        torch.testing.assert_close(ix, torch.tensor([1], dtype=torch.int32))
-        torch.testing.assert_close(iy, torch.tensor([2], dtype=torch.int32))
-        torch.testing.assert_close(iz, torch.tensor([3], dtype=torch.int32))
+        torch.testing.assert_close(
+            result, torch.tensor([[1, 2, 3]], dtype=torch.int32)
+        )
 
     def test_morton_decode_multiple_codes(self):
         """Test morton_decode with multiple codes"""
         code = torch.tensor(
             [0b110100101, 0b100010001010, 0b100010011101], dtype=torch.int64
         )
-        ix, iy, iz = morton_decode(code)
+        result = morton_decode(code)
 
         torch.testing.assert_close(
-            ix, torch.tensor([1, 2, 3], dtype=torch.int32)
-        )
-        torch.testing.assert_close(
-            iy, torch.tensor([4, 5, 6], dtype=torch.int32)
-        )
-        torch.testing.assert_close(
-            iz, torch.tensor([7, 8, 9], dtype=torch.int32)
+            result,
+            torch.tensor([[1, 4, 7], [2, 5, 8], [3, 6, 9]], dtype=torch.int32),
         )
 
     def test_morton_decode_zero_code(self):
         """Test morton_decode with zero code"""
         code = torch.tensor([0], dtype=torch.int64)
-        ix, iy, iz = morton_decode(code)
+        result = morton_decode(code)
 
-        assert ix[0] == 0
-        assert iy[0] == 0
-        assert iz[0] == 0
+        torch.testing.assert_close(
+            result, torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        )
 
 
 class TestMortonEncodeDecodeRoundTrip:
@@ -240,42 +234,46 @@ class TestMortonEncodeDecodeRoundTrip:
 
     def test_round_trip_single_point(self):
         """Test encode -> decode round trip with single point"""
-        ix = torch.tensor([42], dtype=torch.int32)
-        iy = torch.tensor([17], dtype=torch.int32)
-        iz = torch.tensor([99], dtype=torch.int32)
+        indices = torch.tensor([[42, 17, 99]], dtype=torch.int32)
 
-        code = morton_encode(ix, iy, iz)
-        decoded_ix, decoded_iy, decoded_iz = morton_decode(code)
+        code = morton_encode(indices)
+        result = morton_decode(code)
 
-        assert torch.all(decoded_ix == ix)
-        assert torch.all(decoded_iy == iy)
-        assert torch.all(decoded_iz == iz)
+        torch.testing.assert_close(
+            result, indices
+        )
 
     def test_round_trip_multiple_points(self):
         """Test encode -> decode round trip with multiple points"""
-        ix = torch.tensor([1, 2, 3, 4, 5], dtype=torch.int32)
-        iy = torch.tensor([10, 20, 30, 40, 50], dtype=torch.int32)
-        iz = torch.tensor([100, 200, 300, 400, 500], dtype=torch.int32)
+        indices = torch.tensor(
+            [
+                [1, 10, 100],
+                [2, 20, 200],
+                [3, 30, 300],
+                [4, 40, 400],
+                [5, 50, 500],
+            ],
+            dtype=torch.int32,
+        )
+        code = morton_encode(indices)
+        result = morton_decode(code)
 
-        code = morton_encode(ix, iy, iz)
-        decoded_ix, decoded_iy, decoded_iz = morton_decode(code)
-
-        assert torch.all(decoded_ix == ix)
-        assert torch.all(decoded_iy == iy)
-        assert torch.all(decoded_iz == iz)
+        torch.testing.assert_close(
+            result,
+            indices
+        )
 
     def test_round_trip_large_values(self):
         """Test encode -> decode round trip with large values"""
-        ix = torch.tensor([0x1FFFFF], dtype=torch.int32)
-        iy = torch.tensor([0x1FFFFF], dtype=torch.int32)
-        iz = torch.tensor([0x1FFFFF], dtype=torch.int32)
+        indices = torch.tensor([[0x1FFFFF, 0x1FFFFF, 0x1FFFFF]], dtype=torch.int32)
 
-        code = morton_encode(ix, iy, iz)
-        decoded_ix, decoded_iy, decoded_iz = morton_decode(code)
+        code = morton_encode(indices)
+        result = morton_decode(code)
 
-        assert torch.all(decoded_ix == ix)
-        assert torch.all(decoded_iy == iy)
-        assert torch.all(decoded_iz == iz)
+        torch.testing.assert_close(
+            result,
+            indices
+        )
 
 
 class TestGetAncestorCode:
