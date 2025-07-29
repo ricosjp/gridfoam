@@ -1,6 +1,10 @@
 import torch
 
-from gridfoam.utils.index import generate_grid_indices, linearize_grid_indices
+from gridfoam.utils.index import (
+    generate_grid_indices,
+    ravel_index_3d,
+    unravel_index_3d,
+)
 
 
 class TestGetGridIndices:
@@ -47,7 +51,7 @@ class TestGetGridIndices:
 
 
 class TestLinearizeGridIndices:
-    """Test cases for linearize_grid_indices function."""
+    """Test cases for ravel_index_3d function."""
 
     def test_simple_2x2x2_grid(self):
         """Test linearization of 2x2x2 grid indices."""
@@ -66,7 +70,7 @@ class TestLinearizeGridIndices:
             dtype=torch.int32,
         )
 
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
 
         expected = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32)
         torch.testing.assert_close(linear_indices, expected)
@@ -79,7 +83,7 @@ class TestLinearizeGridIndices:
             dtype=torch.int32,
         )
 
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
 
         expected = torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.int32)
         torch.testing.assert_close(linear_indices, expected)
@@ -89,7 +93,7 @@ class TestLinearizeGridIndices:
         divisions = torch.tensor([1, 1, 1], dtype=torch.int32)
         indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
 
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
 
         expected = torch.tensor([0], dtype=torch.int32)
         torch.testing.assert_close(linear_indices, expected)
@@ -127,7 +131,7 @@ class TestLinearizeGridIndices:
             dtype=torch.int32,
         )
 
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
 
         # Verify the formula: index = x + (y + z * div_y) * div_x
         expected = []
@@ -141,7 +145,7 @@ class TestLinearizeGridIndices:
     def test_round_trip_consistency(self):
         """
         Test that generate_grid_indices and
-        linearize_grid_indices work together.
+        ravel_index_3d work together.
         """
         divisions = torch.tensor([3, 2, 2], dtype=torch.int32)
 
@@ -149,12 +153,111 @@ class TestLinearizeGridIndices:
         indices = generate_grid_indices(divisions)
 
         # Linearize them
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
 
         # Verify we get unique, consecutive indices
         assert linear_indices.shape[0] == 12  # 3 * 2 * 2
         assert set(linear_indices.tolist()) == set(range(12))
         assert linear_indices.tolist() == sorted(linear_indices.tolist())
+
+class TestUnravelIndex3d:
+    """Test cases for unravel_index_3d function."""
+
+    def test_simple_2x2x2_grid(self):
+        """Test unravelling of 2x2x2 grid indices."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32)
+
+        unraveled_indices = unravel_index_3d(indices, divisions)
+
+        expected = torch.tensor(
+            [
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [0, 0, 1],
+                [1, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+            ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(unraveled_indices, expected)
+
+    def test_3x2x1_grid(self):
+        """Test unravelling of 3x2x1 grid indices."""
+        divisions = torch.tensor([3, 2, 1], dtype=torch.int32)
+        indices = torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.int32)
+        expected = torch.tensor(
+            [[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 1, 0], [1, 1, 0], [2, 1, 0]],
+            dtype=torch.int32,
+        )
+        unraveled_indices = unravel_index_3d(indices, divisions)
+        torch.testing.assert_close(unraveled_indices, expected)
+
+    def test_1x1x1_grid(self):
+        """Test unravelling of 1x1x1 grid indices."""
+        divisions = torch.tensor([1, 1, 1], dtype=torch.int32)
+        indices = torch.tensor([0], dtype=torch.int32)
+        expected = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        unraveled_indices = unravel_index_3d(indices, divisions)
+        torch.testing.assert_close(unraveled_indices, expected)
+
+    def test_larger_grid(self):
+        """Test unravelling of a larger grid."""
+        divisions = torch.tensor([4, 3, 2], dtype=torch.int32)
+        indices = torch.arange(24, dtype=torch.int32)
+        expected = torch.tensor(
+            [
+                [0, 0, 0],
+                [1, 0, 0],
+                [2, 0, 0],
+                [3, 0, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [2, 1, 0],
+                [3, 1, 0],
+                [0, 2, 0],
+                [1, 2, 0],
+                [2, 2, 0],
+                [3, 2, 0],
+                [0, 0, 1],
+                [1, 0, 1],
+                [2, 0, 1],
+                [3, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+                [2, 1, 1],
+                [3, 1, 1],
+                [0, 2, 1],
+                [1, 2, 1],
+                [2, 2, 1],
+                [3, 2, 1],
+            ],
+            dtype=torch.int32,
+        )
+        unraveled_indices = unravel_index_3d(indices, divisions)
+        torch.testing.assert_close(unraveled_indices, expected)
+
+    def test_round_trip_consistency(self):
+        """
+        Test that generate_grid_indices and
+        unravel_index_3d work together.
+        """
+        divisions = torch.tensor([3, 2, 2], dtype=torch.int32)
+
+        # Generate grid indices
+        indices = generate_grid_indices(divisions)
+
+        # Linearize them
+        linear_indices = ravel_index_3d(indices, divisions)
+
+        # Unravel them
+        unraveled_indices = unravel_index_3d(linear_indices, divisions)
+
+        # Verify we get back the original indices
+        torch.testing.assert_close(unraveled_indices, indices)
 
 
 class TestIntegration:
@@ -169,7 +272,7 @@ class TestIntegration:
         assert indices.shape == (24, 3)  # 4 * 3 * 2 = 24
 
         # Step 2: Linearize indices
-        linear_indices = linearize_grid_indices(indices, divisions)
+        linear_indices = ravel_index_3d(indices, divisions)
         assert linear_indices.shape[0] == 24
 
         # Step 3: Verify properties
