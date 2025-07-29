@@ -11,7 +11,7 @@ from gridfoam._octree._iterator import (
 from gridfoam._octree._node import OctreeNode
 from gridfoam.settings import GridSetting
 from gridfoam.utils.flag import dilate_sparse_coords
-from gridfoam.utils.index import get_grid_indices
+from gridfoam.utils.index import generate_grid_indices
 from gridfoam.utils.log_time import log_time
 
 
@@ -69,7 +69,7 @@ class Forest:
             The mesh used to determine which nodes should be split.
         """
         unit_width = self._bbox.width / self._divisions
-        root_indices = get_grid_indices(self._divisions)
+        root_indices = generate_grid_indices(self._divisions)
         root_mins = self._bbox.min + root_indices * unit_width
         root_maxs = self._bbox.min + (root_indices + 1) * unit_width
 
