@@ -22,6 +22,7 @@ class Forest:
         self._alpha = setting.alpha
         self._roots: list[OctreeNode] = []
         self._level_limit = setting.level_limit
+        self._cube_setting = setting.cube_setting
         self._actual_max_level = 0
 
     def build_grid_from_mesh(self, mesh: TriangleMesh) -> Grid:
@@ -57,6 +58,7 @@ class Forest:
             local_code=local_code_array,
             face_ids=face_ids_array,
             face_ids_offset=face_ids_offset_array,
+            cube_setting=self._cube_setting,
         )
 
     @log_time

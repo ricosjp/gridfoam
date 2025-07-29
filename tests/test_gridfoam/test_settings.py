@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gridfoam.settings import CubeSetting, GridSetting
+from gridfoam.settings import GridSetting
 
 
 @pytest.fixture
@@ -32,28 +32,6 @@ def test_get_block_resolutions(grid_settings: GridSetting):
     )
 
 
-@pytest.fixture
-def cube_settings() -> CubeSetting:
-    return CubeSetting(
-        nx=8,
-        ny=8,
-        nz=8,
-        n_bnd_x=2,
-        n_bnd_y=2,
-        n_bnd_z=2,
-    )
-
-
-def test_properties(cube_settings: CubeSetting):
-    assert cube_settings.tnx == 12
-    assert cube_settings.tny == 12
-    assert cube_settings.tnz == 12
-    torch.testing.assert_close(
-        cube_settings.res, torch.tensor([8, 8, 8], dtype=torch.int32)
-    )
-    torch.testing.assert_close(
-        cube_settings.bnd_width, torch.tensor([2, 2, 2], dtype=torch.int32)
-    )
-    torch.testing.assert_close(
-        cube_settings.tres, torch.tensor([12, 12, 12], dtype=torch.int32)
-    )
+def test_properties(grid_settings: GridSetting):
+    assert grid_settings.cube_setting.width == 8
+    assert grid_settings.cube_setting.bnd_width == 2

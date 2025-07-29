@@ -9,6 +9,7 @@ from jaxtyping import Int32, Int64, UInt8
 
 from gridfoam._base.field_data import FieldData
 from gridfoam._geometry import AABB
+from gridfoam.settings import CubeSetting
 from gridfoam.utils.log_time import log_time
 
 
@@ -22,6 +23,7 @@ class Grid:
     local_code: Int64[torch.Tensor, " n_nodes"]
     face_ids: Int32[torch.Tensor, " n_ids"]
     face_ids_offset: Int32[torch.Tensor, " n_nodes_plus_1"]
+    cube_setting: CubeSetting
     field_data: FieldData | None = None
     device: torch.device = torch.device("cpu")
 
