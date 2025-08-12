@@ -1,5 +1,9 @@
+from itertools import product
+
 import torch
 from jaxtyping import Int32
+
+from gridfoam.utils.enums import AddressMode
 
 
 def generate_grid_indices(
@@ -88,3 +92,57 @@ def unravel_index_3d(
     iy = (linearized_index % (divisions[0] * divisions[1])) // divisions[0]
     ix = linearized_index % divisions[0]
     return torch.stack([ix, iy, iz], dim=-1)
+
+
+def neighbor_indices(
+    indices: Int32[torch.Tensor, "... 3"],
+    divisions: Int32[torch.Tensor, " 3"],
+    include_self: bool = False,
+    address_mode: AddressMode = AddressMode.CLAMP,
+) -> Int32[torch.Tensor, "... n_neighbors 3"]:
+    """
+    Get the 26-neighborhood indices for a given set of indices.
+    If neighbor indices are outside the domain,
+    their values are handled according to `address_mode`.
+    Let k be an index outside the valid range:
+    for 'WRAP', return k % n;
+    for 'CLAMP', return 0 for k < 0 and n-1 for k >= n;
+    for 'BORDER', return -1 for k < 0 or k >= n.
+
+    Parameters
+    ----------
+    indices : Int32[torch.Tensor, "... 3"]
+        Tensor of shape (..., 3) containing the indices.
+    divisions : Int32[torch.Tensor, " 3"]
+        Number of divisions along each axis (X, Y, Z).
+    include_self : bool, default=False
+        Whether to include the center index itself as a neighbor.
+    address_mode : AddressMode, default=AddressMode.CLAMP
+        Addressing mode for out-of-domain neighbors.
+
+    Returns
+    -------
+    Int32[torch.Tensor, "... n_neighbors 3"]
+        Tensor of shape (..., n_neighbors, 3)
+        containing the 26-neighborhood indices.
+    """
+    offsets = torch.tensor(
+        list(product([-1, 0, 1], repeat=3)), dtype=torch.int32
+    )
+    if not include_self:
+        offsets = offsets[(offsets != 0).any(dim=1)]
+
+    # (N, _, 3) + (26, 3) -> (N, 26, 3)
+    neighbors = indices[:, None, :] + offsets[None, :, :]
+
+    match address_mode:
+        case AddressMode.WRAP:
+            neighbors = neighbors % divisions
+        case AddressMode.CLAMP:
+            neighbors = torch.clamp(
+                neighbors, torch.zeros_like(divisions), divisions - 1
+            )
+        case AddressMode.BORDER:
+            is_inside = ((neighbors >= 0) & (neighbors < divisions)).all(dim=-1)
+            neighbors[~is_inside] = -1
+    return neighbors

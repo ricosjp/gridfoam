@@ -1,7 +1,11 @@
+import pytest
 import torch
+from beartype.roar import BeartypeCallHintParamViolation
 
+from gridfoam.utils.enums import AddressMode
 from gridfoam.utils.index import (
     generate_grid_indices,
+    neighbor_indices,
     ravel_index_3d,
     unravel_index_3d,
 )
@@ -160,6 +164,7 @@ class TestLinearizeGridIndices:
         assert set(linear_indices.tolist()) == set(range(12))
         assert linear_indices.tolist() == sorted(linear_indices.tolist())
 
+
 class TestUnravelIndex3d:
     """Test cases for unravel_index_3d function."""
 
@@ -299,3 +304,205 @@ class TestIntegration:
             indices[-1], torch.tensor([3, 2, 1], dtype=torch.int32)
         )
         assert linear_indices[-1] == 23
+
+
+class TestNeighborIndices:
+    """Test cases for neighbor_indices function."""
+
+    def test_center_point_3x3x3_grid(self):
+        """Test neighbor indices for center point in 3x3x3 grid."""
+        divisions = torch.tensor([3, 3, 3], dtype=torch.int32)
+        indices = torch.tensor([[1, 1, 1]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(indices, divisions)
+
+        # Should have 26 neighbors (3^3 - 1 = 26)
+        assert neighbors.shape == (1, 26, 3)
+
+        # Check that all neighbors are within bounds
+        assert (neighbors >= 0).all()
+        assert (neighbors < divisions).all()
+
+        # Check that center point is not included
+        center_point = torch.tensor([1, 1, 1], dtype=torch.int32)
+        assert not (neighbors == center_point).all(dim=-1).any()
+
+    def test_corner_point_2x2x2_grid(self):
+        """Test neighbor indices for corner point in 2x2x2 grid."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(indices, divisions)
+        expected = torch.tensor(
+            [
+                [
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                    [0, 1, 0],
+                    [0, 1, 0],
+                    [0, 1, 1],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                    [0, 1, 0],
+                    [0, 1, 0],
+                    [0, 1, 1],
+                    [1, 0, 0],
+                    [1, 0, 0],
+                    [1, 0, 1],
+                    [1, 0, 0],
+                    [1, 0, 0],
+                    [1, 0, 1],
+                    [1, 1, 0],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                ]
+            ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(neighbors, expected)
+
+    def test_include_self(self):
+        """Test neighbor indices with include_self=True."""
+        divisions = torch.tensor([3, 3, 3], dtype=torch.int32)
+        indices = torch.tensor([[1, 1, 1]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(indices, divisions, include_self=True)
+
+        # Should have 27 neighbors (3^3 = 27)
+        assert neighbors.shape == (1, 27, 3)
+
+        # Check that center point is included
+        center_point = torch.tensor([1, 1, 1], dtype=torch.int32)
+        assert (neighbors == center_point).all(dim=-1).any()
+
+    def test_wrap_address_mode(self):
+        """Test neighbor indices with WRAP address mode."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(
+            indices, divisions, address_mode=AddressMode.WRAP
+        )
+        expected = torch.tensor(
+            [
+                [
+                    [1, 1, 1],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                    [1, 0, 1],
+                    [1, 0, 0],
+                    [1, 0, 1],
+                    [1, 1, 1],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                    [0, 1, 1],
+                    [0, 1, 0],
+                    [0, 1, 1],
+                    [0, 0, 1],
+                    [0, 0, 1],
+                    [0, 1, 1],
+                    [0, 1, 0],
+                    [0, 1, 1],
+                    [1, 1, 1],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                    [1, 0, 1],
+                    [1, 0, 0],
+                    [1, 0, 1],
+                    [1, 1, 1],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                ]
+            ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(neighbors, expected)
+
+    def test_border_address_mode(self):
+        """Test neighbor indices with BORDER address mode."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(
+            indices, divisions, address_mode=AddressMode.BORDER
+        )
+        expected = torch.tensor(
+            [
+                [
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [0, 0, 1],
+                    [-1, -1, -1],
+                    [0, 1, 0],
+                    [0, 1, 1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [-1, -1, -1],
+                    [1, 0, 0],
+                    [1, 0, 1],
+                    [-1, -1, -1],
+                    [1, 1, 0],
+                    [1, 1, 1],
+                ]
+            ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(neighbors, expected)
+
+    def test_multiple_indices(self):
+        """Test neighbor indices for multiple input indices."""
+        divisions = torch.tensor([3, 3, 3], dtype=torch.int32)
+        indices = torch.tensor(
+            [[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=torch.int32
+        )
+
+        neighbors = neighbor_indices(indices, divisions)
+
+        # Should have shape (3, 26, 3)
+        assert neighbors.shape == (3, 26, 3)
+
+        # Each set of neighbors should be valid
+        for i in range(3):
+            neighbor_set = neighbors[i]
+            assert (neighbor_set >= 0).all()
+            assert (neighbor_set < divisions).all()
+
+    def test_edge_case_1x1x1_grid(self):
+        """Test neighbor indices for 1x1x1 grid."""
+        divisions = torch.tensor([1, 1, 1], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+
+        neighbors = neighbor_indices(
+            indices, divisions, address_mode=AddressMode.CLAMP
+        )
+
+        # Should have 26 neighbors, all clamped to (0,0,0)
+        assert neighbors.shape == (1, 26, 3)
+        assert (neighbors == 0).all()
+
+    def test_invalid_address_mode(self):
+        """Test that invalid address mode raises ValueError."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+
+        with pytest.raises(BeartypeCallHintParamViolation):
+            neighbor_indices(indices, divisions, address_mode="INVALID")
