@@ -117,3 +117,11 @@ def get_local_index(code: int, octree_depth: int) -> Int32[torch.Tensor, " 3"]:
     shift = 3 * (Constants.MAX_OCTREE_DEPTH - octree_depth)
     shifted = _code >> shift  # to coarse resolution
     return morton_decode(shifted)
+
+
+def local_index_to_codes(
+    local_index: Int32[torch.Tensor, "... 3"], octree_depth: int
+) -> Int64[torch.Tensor, "..."]:
+    code = morton_encode(local_index)
+    shift = 3 * (Constants.MAX_OCTREE_DEPTH - octree_depth)
+    return code << shift

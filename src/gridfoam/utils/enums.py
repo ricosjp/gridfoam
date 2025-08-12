@@ -1,4 +1,5 @@
 import dataclasses as dc
+from enum import Enum
 
 
 @dc.dataclass(init=False, frozen=True)
@@ -10,7 +11,30 @@ class Constants:
     """
 
     MAX_OCTREE_DEPTH = 20
-    MAX_LEVEL = MAX_OCTREE_DEPTH + 1
     MORTON_CODE_BIT_LENGTH = 64
-    DEPTH_BIT_LENGTH = 5
-    MORTON_ID_BIT_LENGTH = MORTON_CODE_BIT_LENGTH + DEPTH_BIT_LENGTH
+    ROOT_CODE_BIT_LENGTH = 20
+    DEPTH_BIT_LENGTH = 8
+
+
+class AddressMode(Enum):
+    """
+    Addressing mode for out-of-domain neighbors.
+    Let k be an index outside the valid range:
+    for 'WRAP', return k % n;
+    for 'CLAMP', return 0 for k < 0 and n-1 for k >= n;
+    for 'BORDER', return -1 for k < 0 or k >= n.
+    """
+
+    WRAP = 0
+    CLAMP = 1
+    BORDER = 2
+
+
+class CubeType(Enum):
+    """
+    Type of cube.
+    """
+
+    LEAF = 0
+    GHOST_FROM_PARENT = 1
+    GHOST_FROM_CHILD = 2
