@@ -59,8 +59,9 @@ def ravel_index_3d(
     index = ix + (iy + iz * divisions[1]) * divisions[0]
     return index
 
+
 def unravel_index_3d(
-    index: Int32[torch.Tensor, " ..."],
+    linearized_index: Int32[torch.Tensor, " ..."] | int,
     divisions: Int32[torch.Tensor, " 3"],
 ) -> Int32[torch.Tensor, "... 3"]:
     """
@@ -71,8 +72,8 @@ def unravel_index_3d(
 
     Parameters
     ----------
-    index : Int32[torch.Tensor, "..."]
-        Tensor of shape (...,) containing linearized grid indices.
+    linearized_index : Int32[torch.Tensor, "..."] | int
+        Linearized grid indices.
     divisions : Int32[torch.Tensor, " 3"]
         Number of divisions along each axis (X, Y, Z).
 
@@ -81,7 +82,9 @@ def unravel_index_3d(
     Int32[torch.Tensor, "... 3"]
         Tensor of shape (..., 3) containing 3D grid indices (ix, iy, iz).
     """
-    iz = index // (divisions[0] * divisions[1])
-    iy = (index % (divisions[0] * divisions[1])) // divisions[0]
-    ix = index % divisions[0]
+    if isinstance(linearized_index, int):
+        linearized_index = torch.tensor(linearized_index, dtype=torch.int32)
+    iz = linearized_index // (divisions[0] * divisions[1])
+    iy = (linearized_index % (divisions[0] * divisions[1])) // divisions[0]
+    ix = linearized_index % divisions[0]
     return torch.stack([ix, iy, iz], dim=-1)
