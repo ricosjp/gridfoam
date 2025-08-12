@@ -163,6 +163,14 @@ class TestLinearizeGridIndices:
 class TestUnravelIndex3d:
     """Test cases for unravel_index_3d function."""
 
+    def test_unravel_index_3d_single_int(self):
+        """Test unravelling of a single integer."""
+        divisions = torch.tensor([4, 3, 2], dtype=torch.int32)
+        indices = 13
+        expected = torch.tensor([1, 0, 1], dtype=torch.int32)
+        unraveled_indices = unravel_index_3d(indices, divisions)
+        torch.testing.assert_close(unraveled_indices, expected)
+
     def test_simple_2x2x2_grid(self):
         """Test unravelling of 2x2x2 grid indices."""
         divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
