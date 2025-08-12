@@ -204,10 +204,13 @@ class TestMortonEncode:
 
     def test_morton_encode_out_of_range_coordinates(self):
         """Test morton_encode with out-of-range coordinates"""
-        indices = torch.tensor([[0x100000, 0x100000, 0x100000]], dtype=torch.int32)
+        indices = torch.tensor(
+            [[0x100000, 0x100000, 0x100000]], dtype=torch.int32
+        )
         result = morton_encode(indices)
         assert result.dtype == torch.int64
         assert result[0] == -1
+
 
 class TestMortonDecode:
     """Test morton_decode function"""
@@ -253,9 +256,7 @@ class TestMortonEncodeDecodeRoundTrip:
         code = morton_encode(indices)
         result = morton_decode(code)
 
-        torch.testing.assert_close(
-            result, indices
-        )
+        torch.testing.assert_close(result, indices)
 
     def test_round_trip_multiple_points(self):
         """Test encode -> decode round trip with multiple points"""
@@ -272,22 +273,18 @@ class TestMortonEncodeDecodeRoundTrip:
         code = morton_encode(indices)
         result = morton_decode(code)
 
-        torch.testing.assert_close(
-            result,
-            indices
-        )
+        torch.testing.assert_close(result, indices)
 
     def test_round_trip_large_values(self):
         """Test encode -> decode round trip with large values"""
-        indices = torch.tensor([[0x1FFFFF, 0x1FFFFF, 0x1FFFFF]], dtype=torch.int32)
+        indices = torch.tensor(
+            [[0x1FFFFF, 0x1FFFFF, 0x1FFFFF]], dtype=torch.int32
+        )
 
         code = morton_encode(indices)
         result = morton_decode(code)
 
-        torch.testing.assert_close(
-            result,
-            indices
-        )
+        torch.testing.assert_close(result, indices)
 
 
 class TestGetAncestorCode:
@@ -449,6 +446,7 @@ class TestLocalIndexToCodes:
         local_index = get_local_index(code, octree_depth)
         result = local_index_to_codes(local_index, octree_depth).item()
         assert result == code
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions"""
