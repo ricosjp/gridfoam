@@ -56,7 +56,11 @@ def morton_encode(
     ix = indices[..., 0]
     iy = indices[..., 1]
     iz = indices[..., 2]
-    return (part1by2(iz) << 2) | (part1by2(iy) << 1) | part1by2(ix)
+    n = 1 << Constants.MAX_OCTREE_DEPTH
+    valid = (ix >= 0) & (ix < n) & (iy >= 0) & (iy < n) & (iz >= 0) & (iz < n)
+    codes = (part1by2(iz) << 2) | (part1by2(iy) << 1) | part1by2(ix)
+    codes[~valid] = -1
+    return codes
 
 
 def morton_decode(

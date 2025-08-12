@@ -185,15 +185,28 @@ class TestMortonEncode:
 
     def test_morton_encode_large_coordinates(self):
         """Test morton_encode with large coordinates"""
-        indices = torch.tensor([[0x1FFFFF, 0x1FFFFF, 0x1FFFFF]], dtype=torch.int32)  # Max 21-bit
-
+        indices = torch.tensor([[0xFFFFF, 0xFFFFF, 0xFFFFF]], dtype=torch.int32)
         result = morton_encode(indices)
         expected_code = torch.tensor(
-            [0b111111111111111111111111111111111111111111111111111111111111111],
+            [0xFFFFFFFFFFFFFFF],
             dtype=torch.int64,
         )
         torch.testing.assert_close(result, expected_code)
 
+    def test_morton_encode_negative_coordinates(self):
+        """Test morton_encode with negative coordinates"""
+        indices = torch.tensor([[-1, -1, -1]], dtype=torch.int32)
+
+        result = morton_encode(indices)
+        assert result.dtype == torch.int64
+        assert result[0] == -1
+
+    def test_morton_encode_out_of_range_coordinates(self):
+        """Test morton_encode with out-of-range coordinates"""
+        indices = torch.tensor([[0x100000, 0x100000, 0x100000]], dtype=torch.int32)
+        result = morton_encode(indices)
+        assert result.dtype == torch.int64
+        assert result[0] == -1
 
 class TestMortonDecode:
     """Test morton_decode function"""
