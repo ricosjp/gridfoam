@@ -131,9 +131,10 @@ def neighbor_indices(
     )
     if not include_self:
         offsets = offsets[(offsets != 0).any(dim=1)]
+    offsets = offsets[:, [2, 1, 0]]
 
-    # (N, _, 3) + (26, 3) -> (N, 26, 3)
-    neighbors = indices[:, None, :] + offsets[None, :, :]
+    # (..., 3) + (26, 3) -> (..., 26, 3)
+    neighbors = indices[..., None, :] + offsets
 
     match address_mode:
         case AddressMode.WRAP:

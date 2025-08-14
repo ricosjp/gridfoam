@@ -312,57 +312,76 @@ class TestNeighborIndices:
     def test_center_point_3x3x3_grid(self):
         """Test neighbor indices for center point in 3x3x3 grid."""
         divisions = torch.tensor([3, 3, 3], dtype=torch.int32)
-        indices = torch.tensor([[1, 1, 1]], dtype=torch.int32)
-
-        neighbors = neighbor_indices(indices, divisions)
-
-        # Should have 26 neighbors (3^3 - 1 = 26)
-        assert neighbors.shape == (1, 26, 3)
-
-        # Check that all neighbors are within bounds
-        assert (neighbors >= 0).all()
-        assert (neighbors < divisions).all()
-
-        # Check that center point is not included
-        center_point = torch.tensor([1, 1, 1], dtype=torch.int32)
-        assert not (neighbors == center_point).all(dim=-1).any()
-
-    def test_corner_point_2x2x2_grid(self):
-        """Test neighbor indices for corner point in 2x2x2 grid."""
-        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
-        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        indices = torch.tensor([1, 1, 1], dtype=torch.int32)
 
         neighbors = neighbor_indices(indices, divisions)
         expected = torch.tensor(
             [
-                [
-                    [0, 0, 0],
-                    [0, 0, 0],
-                    [0, 0, 1],
-                    [0, 0, 0],
-                    [0, 0, 0],
-                    [0, 0, 1],
-                    [0, 1, 0],
-                    [0, 1, 0],
-                    [0, 1, 1],
-                    [0, 0, 0],
-                    [0, 0, 0],
-                    [0, 0, 1],
-                    [0, 0, 0],
-                    [0, 0, 1],
-                    [0, 1, 0],
-                    [0, 1, 0],
-                    [0, 1, 1],
-                    [1, 0, 0],
-                    [1, 0, 0],
-                    [1, 0, 1],
-                    [1, 0, 0],
-                    [1, 0, 0],
-                    [1, 0, 1],
-                    [1, 1, 0],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                ]
+                [0, 0, 0],
+                [1, 0, 0],
+                [2, 0, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [2, 1, 0],
+                [0, 2, 0],
+                [1, 2, 0],
+                [2, 2, 0],
+                [0, 0, 1],
+                [1, 0, 1],
+                [2, 0, 1],
+                [0, 1, 1],
+                [2, 1, 1],
+                [0, 2, 1],
+                [1, 2, 1],
+                [2, 2, 1],
+                [0, 0, 2],
+                [1, 0, 2],
+                [2, 0, 2],
+                [0, 1, 2],
+                [1, 1, 2],
+                [2, 1, 2],
+                [0, 2, 2],
+                [1, 2, 2],
+                [2, 2, 2],
+            ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(neighbors, expected)
+
+    def test_corner_point_2x2x2_grid(self):
+        """Test neighbor indices for corner point in 2x2x2 grid."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        indices = torch.tensor([0, 0, 0], dtype=torch.int32)
+
+        neighbors = neighbor_indices(indices, divisions)
+        expected = torch.tensor(
+            [
+                [0, 0, 0],
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [0, 0, 1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [0, 0, 1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [0, 1, 1],
+                [0, 1, 1],
+                [1, 1, 1],
             ],
             dtype=torch.int32,
         )
@@ -385,41 +404,39 @@ class TestNeighborIndices:
     def test_wrap_address_mode(self):
         """Test neighbor indices with WRAP address mode."""
         divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
-        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        indices = torch.tensor([0, 0, 0], dtype=torch.int32)
 
         neighbors = neighbor_indices(
             indices, divisions, address_mode=AddressMode.WRAP
         )
         expected = torch.tensor(
             [
-                [
-                    [1, 1, 1],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                    [1, 0, 1],
-                    [1, 0, 0],
-                    [1, 0, 1],
-                    [1, 1, 1],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                    [0, 1, 1],
-                    [0, 1, 0],
-                    [0, 1, 1],
-                    [0, 0, 1],
-                    [0, 0, 1],
-                    [0, 1, 1],
-                    [0, 1, 0],
-                    [0, 1, 1],
-                    [1, 1, 1],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                    [1, 0, 1],
-                    [1, 0, 0],
-                    [1, 0, 1],
-                    [1, 1, 1],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                ]
+                [1, 1, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+                [1, 0, 1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [1, 1, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+                [1, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [1, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [1, 1, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+                [1, 0, 1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [1, 1, 1],
+                [0, 1, 1],
+                [1, 1, 1],
             ],
             dtype=torch.int32,
         )
@@ -428,41 +445,39 @@ class TestNeighborIndices:
     def test_border_address_mode(self):
         """Test neighbor indices with BORDER address mode."""
         divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
-        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        indices = torch.tensor([0, 0, 0], dtype=torch.int32)
 
         neighbors = neighbor_indices(
             indices, divisions, address_mode=AddressMode.BORDER
         )
         expected = torch.tensor(
             [
-                [
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [0, 0, 1],
-                    [-1, -1, -1],
-                    [0, 1, 0],
-                    [0, 1, 1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [-1, -1, -1],
-                    [1, 0, 0],
-                    [1, 0, 1],
-                    [-1, -1, -1],
-                    [1, 1, 0],
-                    [1, 1, 1],
-                ]
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [1, 0, 0],
+                [-1, -1, -1],
+                [0, 1, 0],
+                [1, 1, 0],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [-1, -1, -1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [-1, -1, -1],
+                [0, 1, 1],
+                [1, 1, 1],
             ],
             dtype=torch.int32,
         )
