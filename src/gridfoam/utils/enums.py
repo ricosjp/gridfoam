@@ -13,7 +13,6 @@ class Constants:
     MAX_OCTREE_DEPTH = 20
     MORTON_CODE_BIT_LENGTH = 64
     ROOT_CODE_BIT_LENGTH = 20
-    DEPTH_BIT_LENGTH = 8
 
 
 class AddressMode(Enum):
