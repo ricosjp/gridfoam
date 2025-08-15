@@ -115,12 +115,14 @@ class GridSetting(BaseModel, frozen=True):
 
     @model_validator(mode="before")
     @classmethod
-    def fill_missing_keys(
-        cls, v: dict
-    ) -> dict:
+    def fill_missing_keys(cls, v: dict) -> dict:
         field_data_dict: dict = v.get("field_data_dict", {})
-        field_data_dict.setdefault("U", FieldDataAttribute(shape=(3,), dtype=torch.float32))
-        field_data_dict.setdefault("p", FieldDataAttribute(shape=(1,), dtype=torch.float32))
+        field_data_dict.setdefault(
+            "U", FieldDataAttribute(shape=(3,), dtype=torch.float32)
+        )
+        field_data_dict.setdefault(
+            "p", FieldDataAttribute(shape=(1,), dtype=torch.float32)
+        )
         v["field_data_dict"] = field_data_dict
         return v
 
@@ -129,7 +131,7 @@ class GridSetting(BaseModel, frozen=True):
         max_pt = torch.tensor([self.blockXMax, self.blockYMax, self.blockZMax])
         return AABB(min_pt, max_pt)
 
-    def get_block_resolutions(self) -> Int32[torch.Tensor, " 3"]:
+    def get_block_divisions(self) -> Int32[torch.Tensor, " 3"]:
         return torch.tensor(
             [self.nBlockX, self.nBlockY, self.nBlockZ], dtype=torch.int32
         )

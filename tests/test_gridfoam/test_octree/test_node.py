@@ -249,21 +249,21 @@ class TestOctreeNodeMethods:
 
     def test_root_code(self, simple_node: OctreeNode):
         """Test root_code method."""
-        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
         expected_root_code = 0
-        assert simple_node.root_code(root_resolution) == expected_root_code
+        assert simple_node.root_code(divisions) == expected_root_code
 
     def test_cube_code(self, simple_node: OctreeNode):
         """Test cube_code method."""
-        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
         expected_cube_code = 0
-        assert simple_node.cube_code(root_resolution) == expected_cube_code
+        assert simple_node.cube_code(divisions) == expected_cube_code
 
 
     def test_neighbor_cube_codes(self, simple_node: OctreeNode):
         """Test neighbor_cube_codes method."""
-        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
-        neighbor_codes = simple_node.neighbor_cube_codes(root_resolution)
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        neighbor_codes = simple_node.neighbor_cube_codes(divisions)
 
         expected_neighbor_cube_codes = [
             None,

@@ -330,19 +330,19 @@ class TestGridSetting:
         assert torch.equal(domain.min, torch.tensor([0.0, 0.0, -2.0]))
         assert torch.equal(domain.max, torch.tensor([1.0, 1.0, 3.0]))
 
-    def test_grid_setting_get_block_resolutions(
+    def test_grid_setting_get_block_divisions(
         self, basic_grid_setting: GridSetting
     ):
-        """Test GridSetting get_block_resolutions method"""
-        resolutions = basic_grid_setting.get_block_resolutions()
-        assert resolutions.shape == (3,)
-        assert resolutions.dtype == torch.int32
+        """Test GridSetting get_block_divisions method"""
+        divisions = basic_grid_setting.get_block_divisions()
+        assert divisions.shape == (3,)
+        assert divisions.dtype == torch.int32
         assert torch.equal(
-            resolutions, torch.tensor([10, 10, 1], dtype=torch.int32)
+            divisions, torch.tensor([10, 10, 1], dtype=torch.int32)
         )
 
-    def test_grid_setting_get_block_resolutions_custom(self):
-        """Test GridSetting get_block_resolutions method with custom values"""
+    def test_grid_setting_get_block_divisions_custom(self):
+        """Test GridSetting get_block_divisions method with custom values"""
         grid_setting = GridSetting(
             blockXMin=0.0,
             blockXMax=1.0,
@@ -352,7 +352,7 @@ class TestGridSetting:
             nBlockY=15,
             nBlockZ=5,
         )
-        resolutions = grid_setting.get_block_resolutions()
+        divisions = grid_setting.get_block_divisions()
         assert torch.equal(
-            resolutions, torch.tensor([20, 15, 5], dtype=torch.int32)
+            divisions, torch.tensor([20, 15, 5], dtype=torch.int32)
         )

@@ -92,32 +92,32 @@ class OctreeNode:
 
     def calculate_width(
         self,
-        divisions: Int32[torch.Tensor, " 3"],
+        block_divisions: Int32[torch.Tensor, " 3"],
         domain_width: Float[torch.Tensor, " 3"],
     ) -> Float[torch.Tensor, " 3"]:
         octree_size = 2**self.octree_depth
-        total_divisions = divisions * octree_size
-        return domain_width / total_divisions
+        global_divisions = block_divisions * octree_size
+        return domain_width / global_divisions
 
-    def root_code(self, root_resolution: Int32[torch.Tensor, " 3"]) -> int:
+    def root_code(self, block_divisions: Int32[torch.Tensor, " 3"]) -> int:
         """Root code"""
-        return ravel_index_3d(self.root_index, root_resolution).item()
+        return ravel_index_3d(self.root_index, block_divisions).item()
 
-    def cube_code(self, root_resolution: Int32[torch.Tensor, " 3"]) -> CubeCode:
+    def cube_code(self, block_divisions: Int32[torch.Tensor, " 3"]) -> CubeCode:
         """Cube code"""
-        root_code = self.root_code(root_resolution)
+        root_code = self.root_code(block_divisions)
         morton_code = self.morton_code
         return gen_cube_code(root_code, morton_code)
 
     def neighbor_cube_codes(
-        self, root_resolution: Int32[torch.Tensor, " 3"]
+        self, block_divisions: Int32[torch.Tensor, " 3"]
     ) -> NeighborCodeList:
         """Neighbor cube codes"""
         global_index = self.global_index
         octree_size = 2**self.octree_depth
-        global_resolution = root_resolution * octree_size
+        global_divisions = block_divisions * octree_size
         neighbor_global_indices = neighbor_indices(
-            global_index, global_resolution, address_mode=AddressMode.BORDER
+            global_index, global_divisions, address_mode=AddressMode.BORDER
         )
 
         # to root indices and local indices (26, 3)
@@ -126,7 +126,7 @@ class OctreeNode:
 
         # to codes (26,)
         neighbor_root_codes = ravel_index_3d(
-            neighbor_root_indices, root_resolution
+            neighbor_root_indices, block_divisions
         )
         neighbor_morton_codes = local_index_to_codes(
             neighbor_local_indices, self.octree_depth
