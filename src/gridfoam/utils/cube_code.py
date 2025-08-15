@@ -5,10 +5,10 @@ from gridfoam.utils.annotated_type import CubeCode
 from gridfoam.utils.enums import Constants
 from gridfoam.utils.index import ravel_index_3d, unravel_index_3d
 from gridfoam.utils.morton import (
-    code_to_local_index,
     get_child_codes,
     get_parent_code,
-    local_index_to_code,
+    local_index_to_morton_code,
+    morton_code_to_local_index,
 )
 
 
@@ -63,7 +63,7 @@ def global_indices_to_codes(
     local_indices = global_indices % octree_size
 
     root_codes = ravel_index_3d(root_indices, block_divisions)
-    morton_codes = local_index_to_code(local_indices, depth)
+    morton_codes = local_index_to_morton_code(local_indices, depth)
     cube_codes = []
     for root_code, morton_code in zip(root_codes, morton_codes, strict=True):
         cube_codes.append(gen_cube_code(root_code.item(), morton_code.item()))
@@ -78,5 +78,5 @@ def code_to_global_index(
     octree_size = 1 << depth
     root_code, morton_code = parse_cube_code(cube_code)
     root_indices = unravel_index_3d(root_code, block_divisions)
-    local_indices = code_to_local_index(morton_code, depth)
+    local_indices = morton_code_to_local_index(morton_code, depth)
     return root_indices * octree_size + local_indices
