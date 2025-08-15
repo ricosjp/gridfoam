@@ -16,7 +16,7 @@ class Cube:
     cube_type: CubeType
     depth: int
     global_index: Int32[torch.Tensor, " 3"]
-    face_ids: Int32[torch.Tensor, " n_faces"] | None = None
+    face_ids: Int32[torch.Tensor, " n_faces"]
     field_tensors: dict[str, FieldTensor] = field(default_factory=dict)
     device: torch.device = torch.device("cpu")
 

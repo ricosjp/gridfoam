@@ -57,15 +57,16 @@ class TestCube:
     def test_cube_default_values(self):
         """Test Cube with default values"""
         global_index = torch.tensor([0, 0, 0], dtype=torch.int32)
+        face_ids = torch.tensor([], dtype=torch.int32)
         cube = Cube(
             width=8,
             bnd_width=2,
             cube_type=CubeType.LEAF,
             depth=0,
             global_index=global_index,
+            face_ids=face_ids,
         )
 
-        assert cube.face_ids is None
         assert cube.device == torch.device("cpu")
         assert len(cube.field_tensors) == 0
 
