@@ -397,7 +397,7 @@ class TestCodeToLocalIndex:
     """Test code_to_local_index function"""
 
     def test_code_to_local_index(self):
-        """Test get_local_index"""
+        """Test code_to_local_index"""
         code = 0b110101111
         octree_depth = 19
 
@@ -432,15 +432,15 @@ class TestLocalIndexToCode:
         torch.testing.assert_close(result, expected_result)
 
     def test_round_trip_simple(self):
-        """Test round-trip local index and codes"""
+        """Test round-trip local index and code"""
         code = 0x780000000000000
         octree_depth = 2
         local_index = code_to_local_index(code, octree_depth)
         result = local_index_to_code(local_index, octree_depth).item()
         assert result == code
 
-    def test_round_trip_large_values(self):
-        """Test round-trip local index and codes with large values"""
+    def test_round_trip_large_value(self):
+        """Test round-trip local index and code with large value"""
         code = 0xFFFFFFFFFFFFFFF
         octree_depth = 20
         local_index = code_to_local_index(code, octree_depth)
