@@ -108,7 +108,7 @@ def get_child_codes(code: int, octree_depth: int) -> list[int]:
         )
     child_octree_depth = octree_depth + 1
     shift = 3 * (Constants.MAX_OCTREE_DEPTH - child_octree_depth)
-    return [code + (i << shift) for i in range(2**3)]
+    return [code + (i << shift) for i in range(1<<3)]
 
 
 def code_to_local_index(

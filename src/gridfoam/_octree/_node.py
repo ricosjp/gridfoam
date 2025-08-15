@@ -95,7 +95,7 @@ class OctreeNode:
         block_divisions: Int32[torch.Tensor, " 3"],
         domain_width: Float[torch.Tensor, " 3"],
     ) -> Float[torch.Tensor, " 3"]:
-        octree_size = 2**self.octree_depth
+        octree_size = 1 << self.octree_depth
         global_divisions = block_divisions * octree_size
         return domain_width / global_divisions
 
@@ -114,7 +114,7 @@ class OctreeNode:
     ) -> NeighborCodeList:
         """Neighbor cube codes"""
         global_index = self.global_index
-        octree_size = 2**self.octree_depth
+        octree_size = 1 <<self.octree_depth
         global_divisions = block_divisions * octree_size
         neighbor_global_indices = neighbor_indices(
             global_index, global_divisions, address_mode=AddressMode.BORDER
@@ -176,7 +176,7 @@ class OctreeNode:
         """Global index [gx, gy, gz] at given octree depth"""
         root_index = self.root_index
         local_index = self.local_index
-        octree_size = 2**self.octree_depth
+        octree_size = 1 << self.octree_depth
         global_index = root_index * octree_size + local_index
         return global_index
 
