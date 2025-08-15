@@ -80,7 +80,7 @@ class GridSetting(BaseModel, frozen=True):
         based on the cube size and mesh curvature.
     """
 
-    depth_limit: int = Field(default=5, ge=1, le=Constants.MAX_OCTREE_DEPTH)
+    depth_limit: int = Field(default=5, ge=0, le=Constants.MAX_OCTREE_DEPTH)
     """
     depth_limit : int
         Maximum depth of the octree.

@@ -254,7 +254,7 @@ class TestGridSetting:
                 blockYMax=1.0,
                 nBlockX=10,
                 nBlockY=10,
-                depth_limit=0,
+                depth_limit=-1,
             )
 
     def test_grid_setting_cube_setting(self):
