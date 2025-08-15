@@ -2,27 +2,30 @@ import pytest
 import torch
 from trimesh.triangles import bounds_tree
 
+from gridfoam._base.grid import Grid
 from gridfoam._geometry import AABB, TriangleMesh
 from gridfoam._octree._forest import Forest
-from gridfoam._octree._iterator import iterate_octree_bfs
+from gridfoam._octree._node import OctreeNode
 from gridfoam.settings import GridSetting
+from gridfoam.utils.cube_code import global_indices_to_codes
+from gridfoam.utils.enums import CubeType
 
 
 @pytest.fixture
-def grid_setting() -> GridSetting:
+def basic_grid_setting() -> GridSetting:
     """Create a basic GridSetting for testing."""
     return GridSetting(
-        blockXMin=0.0,
+        blockXMin=-2.0,
         blockXMax=2.0,
-        blockYMin=0.0,
+        blockYMin=-1.0,
         blockYMax=1.0,
-        blockZMin=0.0,
+        blockZMin=-1.0,
         blockZMax=1.0,
-        nBlockX=2,
-        nBlockY=1,
-        nBlockZ=1,
+        nBlockX=4,
+        nBlockY=2,
+        nBlockZ=2,
         alpha=0.3,
-        level_limit=3,
+        depth_limit=3,
     )
 
 
@@ -53,7 +56,7 @@ def simple_mesh() -> TriangleMesh:
             [5, 7, 6],
         ]
     )
-    gaussian_curvatures = torch.tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+    gaussian_curvatures = torch.tensor([0.1] * 8)
     tree = bounds_tree(points[faces])
     return TriangleMesh(
         points=points,
@@ -64,12 +67,35 @@ def simple_mesh() -> TriangleMesh:
 
 
 @pytest.fixture
-def empty_mesh() -> TriangleMesh:
-    """Create an empty mesh for testing."""
-    points = torch.empty((0, 3))
-    faces = torch.empty((0, 3), dtype=torch.int32)
-    gaussian_curvatures = torch.empty(0)
-    tree = None
+def high_curvature_mesh() -> TriangleMesh:
+    """Create a mesh with high curvature for testing splitting."""
+    points = torch.tensor(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 1.0, 0.0],
+            [1.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ]
+    )
+    faces = torch.tensor(
+        [
+            [0, 1, 2],
+            [0, 2, 3],
+            [0, 3, 1],
+            [1, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [4, 7, 5],
+            [5, 7, 6],
+        ]
+    )
+    # High curvature values to trigger splitting
+    gaussian_curvatures = torch.ones(8) * 10.0
+    tree = bounds_tree(points[faces])
     return TriangleMesh(
         points=points,
         faces=faces,
@@ -81,344 +107,481 @@ def empty_mesh() -> TriangleMesh:
 class TestForestInitialization:
     """Test Forest initialization."""
 
-    def test_init_basic(self, grid_setting: GridSetting):
-        """Test basic initialization."""
-        forest = Forest(grid_setting)
+    def test_init_basic(self, basic_grid_setting: GridSetting):
+        """Test basic Forest initialization."""
+        forest = Forest(basic_grid_setting)
 
-        torch.testing.assert_close(
-            forest._bbox.center, grid_setting.get_domain().center
+        assert torch.equal(forest._bbox.min, torch.tensor([-2.0, -1.0, -1.0]))
+        assert torch.equal(forest._bbox.max, torch.tensor([2.0, 1.0, 1.0]))
+        assert torch.equal(
+            forest._block_divisions, torch.tensor([4, 2, 2], dtype=torch.int32)
         )
-        torch.testing.assert_close(
-            forest._bbox.halfwidth, grid_setting.get_domain().halfwidth
-        )
-        torch.testing.assert_close(
-            forest._divisions, grid_setting.get_block_resolutions()
-        )
-        assert forest._alpha == grid_setting.alpha
-        assert forest._level_limit == grid_setting.level_limit
-        assert forest._actual_max_level == 0
-        assert len(forest._roots) == 0
+        assert forest._alpha == 0.3
+        assert forest._depth_limit == 3
+        assert forest._actual_max_depth == 0
+        assert forest._nodes == {}
+        assert forest._cubes == {}
+        assert forest._device == torch.device("cpu")
 
-    def test_init_with_custom_alpha(self):
-        """Test initialization with custom alpha value."""
-        setting = GridSetting(
+    def test_init_custom_device(self):
+        """Test Forest initialization with custom device."""
+        grid_setting = GridSetting(
             blockXMin=0.0,
             blockXMax=1.0,
             blockYMin=0.0,
             blockYMax=1.0,
             nBlockX=2,
             nBlockY=2,
-            alpha=0.4,
-            level_limit=4,
+            device="cuda:0",
         )
-        forest = Forest(setting)
-        assert forest._alpha == 0.4
-        assert forest._level_limit == 4
-
-
-class TestForestGenerateRoots:
-    """Test Forest._generate_roots method."""
-
-    def test_generate_roots_basic(
-        self, grid_setting: GridSetting, simple_mesh: TriangleMesh
-    ):
-        """Test basic root generation."""
         forest = Forest(grid_setting)
-        forest._generate_roots(simple_mesh)
-        roots = forest._roots
+        assert forest._device == torch.device("cuda:0")
 
-        # Should generate 2 roots (nBlockX=2, nBlockY=1, nBlockZ=1)
-        assert len(roots) == 2
-
-        # Check root properties
-        for root in roots:
-            assert root.octree_depth == 0
-            assert root.morton_code == 0
-            assert root.level == 1
-            assert isinstance(root.face_ids, list)
-
-        # Check root indices
-        expected_indices = [[0, 0, 0], [1, 0, 0]]
-        for root, expected_index in zip(roots, expected_indices, strict=False):
-            torch.testing.assert_close(
-                root.root_index, torch.tensor(expected_index, dtype=torch.int32)
-            )
-
-    def test_generate_roots_empty_mesh(
-        self, grid_setting: GridSetting, empty_mesh: TriangleMesh
-    ):
-        """Test root generation with empty mesh."""
-        forest = Forest(grid_setting)
-        forest._generate_roots(empty_mesh)
-        roots = forest._roots
-
-        # Should still generate roots even with empty mesh
-        assert len(roots) == 2
-
-        # All roots should have empty face_ids
-        for root in roots:
-            assert root.face_ids == []
-
-    def test_generate_roots_large_domain(self):
-        """Test root generation with larger domain."""
-        setting = GridSetting(
+    def test_init_custom_alpha_and_depth(self):
+        """Test Forest initialization with custom alpha and depth_limit."""
+        grid_setting = GridSetting(
             blockXMin=0.0,
-            blockXMax=4.0,
+            blockXMax=1.0,
             blockYMin=0.0,
-            blockYMax=2.0,
-            blockZMin=0.0,
-            blockZMax=2.0,
-            nBlockX=4,
+            blockYMax=1.0,
+            nBlockX=2,
             nBlockY=2,
-            nBlockZ=2,
+            alpha=0.5,
+            depth_limit=5,
         )
-        mesh = TriangleMesh(
-            points=torch.tensor([[1.0, 1.0, 1.0]]),
-            faces=torch.tensor([[0, 0, 0]]),
-            gaussian_curvatures=torch.tensor([0.1]),
-        )
-        forest = Forest(setting)
-        forest._generate_roots(mesh)
-        roots = forest._roots
-
-        # Should generate 16 roots (4 * 2 * 2)
-        assert len(roots) == 16
+        forest = Forest(grid_setting)
+        assert forest._alpha == 0.5
+        assert forest._depth_limit == 5
 
 
 class TestForestShouldSplitNode:
-    """Test Forest._should_split_node method."""
+    """Test Forest _should_split_node method."""
 
     def test_should_split_node_curvature_condition(
-        self, grid_setting: GridSetting, simple_mesh: TriangleMesh
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
     ):
-        """Test split condition based on curvature."""
-        forest = Forest(grid_setting)
+        """Test _should_split_node with high curvature."""
+        forest = Forest(basic_grid_setting)
 
-        # Create a node with large width (should split)
-        large_bbox = AABB(
-            min_pt=torch.tensor([-0.5, -0.5, -0.5]),
-            max_pt=torch.tensor([1.5, 1.5, 1.5]),  # Large width
+        # Create a node that should be split due to high curvature
+        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
+        bbox = AABB(
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([0.5, 0.5, 0.5]),
         )
-        large_node = forest._roots[0] if forest._roots else None
-        if large_node:
-            large_node._bbox = large_bbox
-            # Should split due to large width compared to curvature
-            assert forest._should_split_node(large_node, simple_mesh)
+        node = OctreeNode(
+            root_index=root_index,
+            bbox=bbox,
+            octree_depth=0,
+            morton_code=0,
+            face_ids=torch.tensor([0, 1, 2, 3], dtype=torch.int32),
+        )
 
-    def test_should_split_node_level_limit(
-        self, grid_setting: GridSetting, simple_mesh: TriangleMesh
+        # Should split due to high curvature and depth < limit
+        assert forest._should_split_node(node, high_curvature_mesh) is True
+
+    def test_should_split_node_depth_limit(
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
     ):
-        """Test split condition with level limit."""
-        forest = Forest(grid_setting)
+        """Test _should_split_node with depth limit."""
+        forest = Forest(basic_grid_setting)
 
-        # Create a node at max level (should not split)
-        max_level_node = forest._roots[0] if forest._roots else None
-        if max_level_node:
-            max_level_node._octree_depth = grid_setting.level_limit - 1
-            # Should not split due to level limit
-            assert not forest._should_split_node(max_level_node, simple_mesh)
-
-    def test_should_split_node_small_curvature(self, grid_setting: GridSetting):
-        """Test split condition with small curvature (large radius)."""
-        # Create mesh with very small curvature (large radius)
-        points = torch.tensor(
-            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
+        bbox = AABB(
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([0.5, 0.5, 0.5]),
         )
-        faces = torch.tensor([[0, 1, 2]])
-        gaussian_curvatures = torch.tensor(
-            [0.001, 0.001, 0.001]
-        )  # Very small curvature
-        mesh = TriangleMesh(
-            points=points, faces=faces, gaussian_curvatures=gaussian_curvatures
+        node = OctreeNode(
+            root_index=root_index,
+            bbox=bbox,
+            octree_depth=3,  # At depth limit
+            morton_code=0,
+            face_ids=torch.tensor([0, 1, 2, 3], dtype=torch.int32),
         )
 
-        forest = Forest(grid_setting)
-        node = forest._roots[0] if forest._roots else None
-        if node:
-            # Should not split due to small curvature (large radius)
-            assert not forest._should_split_node(node, mesh)
+        # Should not split due to depth limit
+        assert forest._should_split_node(node, high_curvature_mesh) is False
 
+    def test_should_split_node_low_curvature(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
+    ):
+        """Test _should_split_node with low curvature."""
+        forest = Forest(basic_grid_setting)
 
-class TestForestDilateSplitFlag:
-    """Test Forest._dilate_split_flag method."""
+        from gridfoam._octree._node import OctreeNode
 
-    def test_dilate_split_flag_basic(self):
-        """Test basic flag dilation."""
-        setting = GridSetting(
-            blockXMin=0.0,
-            blockXMax=5.0,
-            blockYMin=0.0,
-            blockYMax=3.0,
-            blockZMin=0.0,
-            blockZMax=3.0,
-            nBlockX=5,
-            nBlockY=3,
-            nBlockZ=3,
+        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
+        bbox = AABB(
+            min_pt=torch.tensor([0.0, 0.0, 0.0]),
+            max_pt=torch.tensor([0.5, 0.5, 0.5]),
         )
-        forest = Forest(setting)
-        flag_coords = [[2, 1, 1]]
+        node = OctreeNode(
+            root_index=root_index,
+            bbox=bbox,
+            octree_depth=0,
+            morton_code=0,
+            face_ids=torch.tensor([0, 1, 2, 3], dtype=torch.int32),
+        )
+
+        # Should not split due to low curvature
+        assert forest._should_split_node(node, simple_mesh) is False
+
+
+class TestForestDilateCoords:
+    """Test Forest _dilate_coords method."""
+
+    def test_dilate_coords_basic(self, basic_grid_setting: GridSetting):
+        """Test basic _dilate_coords functionality."""
+        forest = Forest(basic_grid_setting)
+        block_divisions = forest._block_divisions
+
+        coords_list = [[0, 0, 0]]
         octree_depth = 0
 
-        dilated = forest._dilate_split_flag(flag_coords, octree_depth)
+        result = forest._dilate_coords(coords_list, octree_depth)
+        expected_coords = torch.tensor(
+            [
+                [0, 0, 0],
+                [0, 0, 1],
+                [0, 1, 0],
+                [0, 1, 1],
+                [1, 0, 0],
+                [1, 0, 1],
+                [1, 1, 0],
+                [1, 1, 1],
+            ],
+            dtype=torch.int32,
+        )
+        expected_codes = global_indices_to_codes(
+            expected_coords, block_divisions, octree_depth
+        )
+        torch.testing.assert_close(result, expected_codes)
 
-        # Should dilate to 27-neighborhood (including original point)
-        assert len(dilated) == 27
+    def test_dilate_coords_multiple_coords(
+        self, basic_grid_setting: GridSetting
+    ):
+        """Test _dilate_coords with multiple coordinates."""
+        forest = Forest(basic_grid_setting)
+        block_divisions = forest._block_divisions
 
-        # Original point should be included
-        assert (2, 1, 1) in dilated
-
-        # Some neighboring points should be included
-        for i in range(1, 4):
-            for j in range(0, 3):
-                for k in range(0, 3):
-                    assert (i, j, k) in dilated
-
-    def test_dilate_split_flag_boundary(self, grid_setting: GridSetting):
-        """Test flag dilation at domain boundaries."""
-        forest = Forest(grid_setting)
-        flag_coords = [[0, 0, 0]]  # At boundary
+        coords_list = [[0, 0, 0], [1, 1, 1]]
         octree_depth = 0
 
-        dilated = forest._dilate_split_flag(flag_coords, octree_depth)
+        result = forest._dilate_coords(coords_list, octree_depth)
+        expected_coords = torch.tensor(
+            [
+                [0, 0, 0],
+                [0, 0, 1],
+                [0, 1, 0],
+                [0, 1, 1],
+                [1, 0, 0],
+                [1, 0, 1],
+                [1, 1, 0],
+                [1, 1, 1],
+                [2, 0, 0],
+                [2, 0, 1],
+                [2, 1, 0],
+                [2, 1, 1],
+            ],
+            dtype=torch.int32,
+        )
+        expected_codes = global_indices_to_codes(
+            expected_coords, block_divisions, octree_depth
+        )
+        torch.testing.assert_close(result, expected_codes)
 
-        # Should not include negative coordinates
-        assert (-1, 0, 0) not in dilated
-        assert (0, -1, 0) not in dilated
-        assert (0, 0, -1) not in dilated
+    def test_dilate_coords_deeper_depth(self, basic_grid_setting: GridSetting):
+        """Test _dilate_coords with deeper octree depth."""
+        forest = Forest(basic_grid_setting)
+        block_divisions = forest._block_divisions
 
-    def test_dilate_split_flag_multiple_points(self, grid_setting: GridSetting):
-        """Test flag dilation with multiple points."""
-        forest = Forest(grid_setting)
-        flag_coords = [[0, 0, 0], [1, 0, 0]]
-        octree_depth = 0
+        coords_list = [[1, 1, 1]]
+        octree_depth = 1
 
-        dilated = forest._dilate_split_flag(flag_coords, octree_depth)
+        result = forest._dilate_coords(coords_list, octree_depth)
+        expected_coords = torch.tensor(
+            [
+                [0, 0, 0],
+                [0, 0, 1],
+                [0, 0, 2],
+                [0, 1, 0],
+                [0, 1, 1],
+                [0, 1, 2],
+                [0, 2, 0],
+                [0, 2, 1],
+                [0, 2, 2],
+                [1, 0, 0],
+                [1, 0, 1],
+                [1, 0, 2],
+                [1, 1, 0],
+                [1, 1, 1],
+                [1, 1, 2],
+                [1, 2, 0],
+                [1, 2, 1],
+                [1, 2, 2],
+                [2, 0, 0],
+                [2, 0, 1],
+                [2, 0, 2],
+                [2, 1, 0],
+                [2, 1, 1],
+                [2, 1, 2],
+                [2, 2, 0],
+                [2, 2, 1],
+                [2, 2, 2],
+            ],
+            dtype=torch.int32,
+        )
+        expected_codes = global_indices_to_codes(
+            expected_coords, block_divisions, octree_depth
+        )
+        torch.testing.assert_close(result, expected_codes)
 
-        # Should include both original points
-        assert (0, 0, 0) in dilated
-        assert (1, 0, 0) in dilated
 
+class TestForestGenerateRoots:
+    """Test Forest _generate_roots method."""
 
-class TestForestBuildGridFromMesh:
-    """Test Forest.build_from_mesh method."""
-
-    def test_build_grid_from_mesh_basic(
-        self, grid_setting: GridSetting, simple_mesh: TriangleMesh
+    def test_generate_roots_basic(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
     ):
-        """Test basic mesh building."""
-        forest = Forest(grid_setting)
-        _ = forest.build_grid_from_mesh(simple_mesh)
+        """Test basic _generate_roots functionality."""
+        forest = Forest(basic_grid_setting)
+        forest._generate_roots(simple_mesh)
 
-        # Should have roots
-        assert len(forest._roots) == 2
+        # Should create 8 root nodes (4x2x2)
+        assert len(forest._nodes[0]) == 16
 
-        # Should have actual_max_level set
-        assert forest._actual_max_level > 0
+        # Check that all root nodes have correct properties
+        for node in forest._nodes[0].values():
+            assert node.octree_depth == 0
+            assert node.morton_code == 0
+            assert node.is_leaf
 
-    def test_build_grid_from_mesh_empty(
-        self, grid_setting: GridSetting, empty_mesh: TriangleMesh
-    ):
-        """Test building from empty mesh."""
-        forest = Forest(grid_setting)
-        _ = forest.build_grid_from_mesh(empty_mesh)
-
-        # Should still have roots
-        assert len(forest._roots) == 2
-
-        # All roots should be leaves (no splitting)
-        for root in forest._roots:
-            assert root.is_leaf()
-
-    def test_build_grid_from_mesh_recursive_splitting(self):
-        """Test recursive splitting during mesh building."""
-        # Create setting with small alpha to encourage splitting
-        setting = GridSetting(
+    def test_generate_roots_single_block(self, simple_mesh: TriangleMesh):
+        """Test _generate_roots with single block division."""
+        grid_setting = GridSetting(
             blockXMin=0.0,
             blockXMax=1.0,
             blockYMin=0.0,
             blockYMax=1.0,
             nBlockX=1,
             nBlockY=1,
-            alpha=0.0,
-            level_limit=3,
+            nBlockZ=1,
         )
+        forest = Forest(grid_setting)
+        forest._generate_roots(simple_mesh)
 
-        # Create mesh with high curvature
-        points = torch.tensor(
-            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        # Should create 1 root node
+        assert len(forest._nodes[0]) == 1
+
+        root_node = list(forest._nodes[0].values())[0]
+        assert root_node.octree_depth == 0
+        assert root_node.morton_code == 0
+
+    def test_generate_roots_face_ids(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
+    ):
+        """Test that root nodes have correct face_ids."""
+        forest = Forest(basic_grid_setting)
+        forest._generate_roots(simple_mesh)
+
+        # Check that face_ids are properly assigned
+        for node in forest._nodes[0].values():
+            assert isinstance(node.face_ids, torch.Tensor)
+            # All face_ids should be valid indices
+            for face_id in node.face_ids:
+                assert 0 <= face_id < simple_mesh.n_triangles
+
+
+class TestForestRecursiveSplitByMesh:
+    """Test Forest _recursive_split_by_mesh method."""
+
+    def test_recursive_split_by_mesh_basic(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
+    ):
+        """Test basic _recursive_split_by_mesh functionality."""
+        forest = Forest(basic_grid_setting)
+        forest._generate_roots(simple_mesh)
+
+        forest._recursive_split_by_mesh(simple_mesh)
+
+        # depth should be 0
+        assert len(forest._nodes) == 1
+        assert forest._actual_max_depth == 0
+
+    def test_recursive_split_by_mesh_with_high_curvature(
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
+    ):
+        """Test _recursive_split_by_mesh with high curvature mesh."""
+        forest = Forest(basic_grid_setting)
+        forest._generate_roots(high_curvature_mesh)
+
+        forest._recursive_split_by_mesh(high_curvature_mesh)
+
+        # Should have more nodes due to splitting
+        assert len(forest._nodes) > 1
+
+        # Should reach deeper levels due to high curvature
+        assert forest._actual_max_depth > 0
+
+    def test_recursive_split_by_mesh_depth_limit(
+        self, high_curvature_mesh: TriangleMesh
+    ):
+        """Test _recursive_split_by_mesh respects depth limit."""
+        grid_setting = GridSetting(
+            blockXMin=0.0,
+            blockXMax=1.0,
+            blockYMin=0.0,
+            blockYMax=1.0,
+            nBlockX=2,
+            nBlockY=2,
+            depth_limit=1,  # Very low depth limit
         )
-        faces = torch.tensor([[0, 1, 2]])
-        gaussian_curvatures = torch.tensor([1.0, 1.0, 1.0])  # High curvature
-        tree = bounds_tree(points[faces])
-        mesh = TriangleMesh(
+        forest = Forest(grid_setting)
+        forest._generate_roots(high_curvature_mesh)
+
+        forest._recursive_split_by_mesh(high_curvature_mesh)
+
+        # Should not exceed depth limit
+        assert len(forest._nodes) <= 2
+        assert forest._actual_max_depth <= 1
+
+
+class TestForestGenerateCubes:
+    """Test Forest _generate_cubes method."""
+
+    def test_generate_cubes_basic(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
+    ):
+        """Test basic _generate_cubes functionality."""
+        forest = Forest(basic_grid_setting)
+
+        # First generate roots and split some nodes
+        forest._generate_roots(simple_mesh)
+        forest._recursive_split_by_mesh(simple_mesh)
+
+        # Then generate cubes
+        forest._generate_cubes()
+
+        # Should have cubes for each depth
+        for depth in forest._nodes:
+            assert depth in forest._cubes
+            assert len(forest._cubes[depth]) > 0
+
+    def test_generate_cubes_leaf_and_ghost(
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
+    ):
+        """Test that both leaf and ghost cubes are generated."""
+        forest = Forest(basic_grid_setting)
+
+        # Generate a simple structure
+        forest._generate_roots(high_curvature_mesh)
+        forest._recursive_split_by_mesh(high_curvature_mesh)
+        forest._generate_cubes()
+
+        # Check that we have both leaf and ghost cubes
+        leaf_cubes = 0
+        ghost_cubes = 0
+
+        for depth, cubes in forest._cubes.items():
+            for cube in cubes.values():
+                if cube.cube_type == CubeType.LEAF:
+                    leaf_cubes += 1
+                elif cube.cube_type in [
+                    CubeType.GHOST_FROM_PARENT,
+                    CubeType.GHOST_FROM_CHILD,
+                ]:
+                    ghost_cubes += 1
+
+        assert leaf_cubes > 0
+        assert ghost_cubes > 0
+
+
+class TestForestBuildGridFromMesh:
+    """Test Forest build_grid_from_mesh method."""
+
+    def test_build_grid_from_mesh_basic(
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
+    ):
+        """Test basic build_grid_from_mesh functionality."""
+        forest = Forest(basic_grid_setting)
+
+        grid = forest.build_grid_from_mesh(simple_mesh)
+
+        # Should return a Grid object
+        assert isinstance(grid, Grid)
+
+        # Should have correct properties
+        assert grid.domain == forest._bbox
+        assert grid.actual_max_depth == forest._actual_max_depth
+        assert torch.equal(grid.block_divisions, forest._block_divisions)
+        assert grid.cube_setting == forest._cube_setting
+        assert grid.device == forest._device
+
+    def test_build_grid_from_mesh_with_splitting(
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
+    ):
+        """Test build_grid_from_mesh with mesh that causes splitting."""
+        forest = Forest(basic_grid_setting)
+
+        grid = forest.build_grid_from_mesh(high_curvature_mesh)
+
+        # Should have cubes at multiple depths
+        assert len(grid.cubes) > 1
+
+        # Should have actual_max_depth > 0
+        assert grid.actual_max_depth > 0
+
+    def test_build_grid_from_mesh_empty_mesh(
+        self, basic_grid_setting: GridSetting
+    ):
+        """Test build_grid_from_mesh with empty mesh."""
+        # Create an empty mesh
+        points = torch.empty((0, 3))
+        faces = torch.empty((0, 3), dtype=torch.int32)
+        gaussian_curvatures = torch.empty(0)
+        empty_mesh = TriangleMesh(
             points=points,
             faces=faces,
             gaussian_curvatures=gaussian_curvatures,
-            tree=tree,
+            tree=None,
         )
 
-        forest = Forest(setting)
-        _ = forest.build_grid_from_mesh(mesh)
+        forest = Forest(basic_grid_setting)
+        grid = forest.build_grid_from_mesh(empty_mesh)
 
-        leaves = list(iterate_octree_bfs(forest._roots, only_leaves=True))
-        for leaf in leaves:
-            assert leaf.level == 3
+        # Should still return a valid grid
+        assert isinstance(grid, Grid)
+        assert grid.actual_max_depth >= 0
 
 
 class TestForestIntegration:
-    """Integration tests for Forest."""
+    """Test Forest integration scenarios."""
 
     def test_forest_complete_workflow(
-        self, grid_setting: GridSetting, simple_mesh: TriangleMesh
+        self, basic_grid_setting: GridSetting, simple_mesh: TriangleMesh
     ):
-        """Test complete forest workflow."""
-        forest = Forest(grid_setting)
-        _ = forest.build_grid_from_mesh(simple_mesh)
+        """Test complete Forest workflow."""
+        forest = Forest(basic_grid_setting)
 
-        # Verify forest structure
-        assert len(forest._roots) == 2
-        assert forest._actual_max_level > 0
+        # Build grid
+        grid = forest.build_grid_from_mesh(simple_mesh)
 
-        # Verify root properties
-        for root in forest._roots:
-            assert root.octree_depth == 0
-            assert root.morton_code == 0
-            assert root.level == 1
+        # Verify internal state
+        assert len(forest._nodes) == 1
+        assert len(forest._cubes) == 1
+        assert forest._actual_max_depth == 0
 
-    def test_forest_with_different_settings(self):
-        """Test forest with different grid settings."""
-        settings = [
-            GridSetting(
-                blockXMin=0.0,
-                blockXMax=1.0,
-                blockYMin=0.0,
-                blockYMax=1.0,
-                nBlockX=1,
-                nBlockY=1,
-                alpha=0.3,
-                level_limit=2,
-            ),
-            GridSetting(
-                blockXMin=0.0,
-                blockXMax=2.0,
-                blockYMin=0.0,
-                blockYMax=2.0,
-                nBlockX=4,
-                nBlockY=4,
-                alpha=0.4,
-                level_limit=3,
-            ),
-        ]
+        # Verify grid properties
+        assert grid.domain == forest._bbox
+        assert grid.actual_max_depth == forest._actual_max_depth
+        assert len(grid.cubes) == len(forest._cubes)
 
-        mesh = TriangleMesh(
-            points=torch.tensor([[0.5, 0.5, 0.5]]),
-            faces=torch.tensor([[0, 0, 0]]),
-            gaussian_curvatures=torch.tensor([0.1]),
-        )
+    def test_forest_multiple_depths(self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh):
+        """Test Forest with multiple depth levels."""
+        forest = Forest(basic_grid_setting)
 
-        for setting in settings:
-            forest = Forest(setting)
-            _ = forest.build_grid_from_mesh(mesh)
+        _ = forest.build_grid_from_mesh(high_curvature_mesh)
 
-            expected_roots = setting.nBlockX * setting.nBlockY * setting.nBlockZ
-            assert len(forest._roots) == expected_roots
+        # Should have multiple depth levels
+        assert len(forest._nodes) > 1
+        assert len(forest._cubes) > 1
