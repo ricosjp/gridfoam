@@ -3,11 +3,11 @@ import torch
 
 from gridfoam.utils.enums import Constants
 from gridfoam.utils.morton import (
-    code_to_local_index,
     get_ancestor_code,
     get_child_codes,
     get_parent_code,
-    local_index_to_code,
+    local_index_to_morton_code,
+    morton_code_to_local_index,
     morton_decode,
     morton_encode,
     part1by2,
@@ -393,40 +393,40 @@ class TestGetChildCodes:
             get_child_codes(code, octree_depth)
 
 
-class TestCodeToLocalIndex:
-    """Test code_to_local_index function"""
+class TestMortonCodeToLocalIndex:
+    """Test morton_code_to_local_index function"""
 
-    def test_code_to_local_index(self):
-        """Test code_to_local_index"""
-        code = 0b110101111
+    def test_morton_code_to_local_index(self):
+        """Test morton_code_to_local_index"""
+        morton_code = 0b110101111
         octree_depth = 19
 
-        result = code_to_local_index(code, octree_depth)
+        result = morton_code_to_local_index(morton_code, octree_depth)
         expected_result = torch.tensor([0b01, 0b10, 0b11], dtype=torch.int32)
         torch.testing.assert_close(result, expected_result)
 
-    def test_code_to_local_index_max_depth(self):
-        """Test code_to_local_index at max depth"""
-        code = 0b110101111
+    def test_morton_code_to_local_index_max_depth(self):
+        """Test morton_code_to_local_index at max depth"""
+        morton_code = 0b110101111
         octree_depth = Constants.MAX_OCTREE_DEPTH
 
-        result = code_to_local_index(code, octree_depth)
+        result = morton_code_to_local_index(morton_code, octree_depth)
         expected_result = torch.tensor([0b011, 0b101, 0b111], dtype=torch.int32)
         torch.testing.assert_close(result, expected_result)
 
 
-class TestLocalIndexToCode:
-    """Test local_index_to_code function"""
+class TestLocalIndexToMortonCode:
+    """Test local_index_to_morton_code function"""
 
-    def test_local_index_to_code(self):
-        """Test local_index_to_code"""
+    def test_local_index_to_morton_code(self):
+        """Test local_index_to_morton_code"""
         # x: 1000 0000 0000 0000 0000
         # y: 1100 0000 0000 0000 0000
         # z: 0100 0000 0000 0000 0000
         local_index = torch.tensor([[2, 3, 1]], dtype=torch.int32)
         octree_depth = 2
 
-        result = local_index_to_code(local_index, octree_depth)
+        result = local_index_to_morton_code(local_index, octree_depth)
         # 0111 1000 0000 ....
         expected_result = torch.tensor([0x780000000000000], dtype=torch.int64)
         torch.testing.assert_close(result, expected_result)
@@ -435,16 +435,16 @@ class TestLocalIndexToCode:
         """Test round-trip local index and code"""
         code = 0x780000000000000
         octree_depth = 2
-        local_index = code_to_local_index(code, octree_depth)
-        result = local_index_to_code(local_index, octree_depth).item()
+        local_index = morton_code_to_local_index(code, octree_depth)
+        result = local_index_to_morton_code(local_index, octree_depth).item()
         assert result == code
 
     def test_round_trip_large_value(self):
         """Test round-trip local index and code with large value"""
         code = 0xFFFFFFFFFFFFFFF
         octree_depth = 20
-        local_index = code_to_local_index(code, octree_depth)
-        result = local_index_to_code(local_index, octree_depth).item()
+        local_index = morton_code_to_local_index(code, octree_depth)
+        result = local_index_to_morton_code(local_index, octree_depth).item()
         assert result == code
 
 
