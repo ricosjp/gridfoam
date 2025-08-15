@@ -19,7 +19,7 @@ def simple_node() -> OctreeNode:
         bbox=bbox,
         octree_depth=0,
         morton_code=0,
-        face_ids=[0, 1, 2, 3, 4, 5, 6, 7],
+        face_ids=torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32),
     )
 
 
@@ -66,7 +66,7 @@ class TestOctreeNodeInitialization:
     def test_init_basic(self):
         """Test basic initialization."""
         root_index = torch.tensor([1, 2, 3], dtype=torch.int32)
-        face_ids = [0, 1, 2, 3]
+        face_ids = torch.tensor([0, 1, 2, 3], dtype=torch.int32)
         bbox = AABB(
             min_pt=torch.tensor([0.0, 0.0, 0.0]),
             max_pt=torch.tensor([1.0, 1.0, 1.0]),
@@ -83,12 +83,13 @@ class TestOctreeNodeInitialization:
         assert torch.equal(node.root_index, root_index)
         assert node.octree_depth == 2
         assert node.morton_code == 42
-        assert node.face_ids == face_ids
+        torch.testing.assert_close(node.face_ids, face_ids)
         assert node.is_leaf is True
 
     def test_init_empty_face_ids(self):
         """Test initialization with empty face_ids."""
         root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
+        face_ids = torch.tensor([], dtype=torch.int32)
         bbox = AABB(
             min_pt=torch.tensor([0.0, 0.0, 0.0]),
             max_pt=torch.tensor([1.0, 1.0, 1.0]),
@@ -98,10 +99,9 @@ class TestOctreeNodeInitialization:
             bbox=bbox,
             octree_depth=0,
             morton_code=0,
-            face_ids=[],
+            face_ids=face_ids,
         )
-
-        assert node.face_ids == []
+        torch.testing.assert_close(node.face_ids, face_ids)
 
 
 class TestOctreeNodeProperties:
@@ -159,7 +159,7 @@ class TestOctreeNodeProperties:
             bbox=bbox,
             octree_depth=1,
             morton_code=7,  # [1, 1, 1] in binary
-            face_ids=[],
+            face_ids=torch.tensor([], dtype=torch.int32),
         )
         local_index = node.local_index
         assert local_index.shape == (3,)
@@ -189,7 +189,7 @@ class TestOctreeNodeProperties:
             bbox=bbox,
             octree_depth=depth,
             morton_code=5,
-            face_ids=[],
+            face_ids=torch.tensor([], dtype=torch.int32),
         )
         global_index = node.global_index
         assert global_index.shape == (3,)
@@ -200,7 +200,7 @@ class TestOctreeNodeProperties:
 
     def test_face_ids_property(self, simple_node: OctreeNode):
         """Test face_ids property."""
-        assert simple_node.face_ids == [0, 1, 2, 3, 4, 5, 6, 7]
+        torch.testing.assert_close(simple_node.face_ids, torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32))
 
 class TestOctreeNodeMethods:
     """Test OctreeNode methods."""
@@ -262,8 +262,8 @@ class TestOctreeNodeSplitByMesh:
             assert code == expected_codes[i]
             assert code == child.cube_code(block_divisions)
             assert torch.allclose(child.bbox.halfwidth, expected_halfwidth)
-            child_face_ids.update(child.face_ids)
-        assert child_face_ids == set(simple_node.face_ids)
+            child_face_ids.update(child.face_ids.tolist())
+        assert child_face_ids == set(simple_node.face_ids.tolist())
 
     def test_split_by_mesh_already_split_error(
         self, simple_node: OctreeNode, simple_mesh: TriangleMesh
@@ -299,7 +299,7 @@ class TestOctreeNodeIntegration:
                 bbox=bbox,
                 octree_depth=0,
                 morton_code=0,
-                face_ids=[],
+                face_ids=torch.tensor([], dtype=torch.int32),
             )
             assert torch.equal(node.root_index, root_index)
 
@@ -316,7 +316,7 @@ class TestOctreeNodeIntegration:
             bbox=bbox,
             octree_depth=0,
             morton_code=0,
-            face_ids=[0, 1, 2],
+            face_ids=torch.tensor([0, 1, 2], dtype=torch.int32),
         )
 
         # Split root node

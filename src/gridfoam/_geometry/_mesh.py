@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pyvista as pv
 import rtree
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Float, Int, Int32
 from trimesh.triangles import bounds_tree
 
 from gridfoam._geometry import AABB
@@ -38,7 +38,7 @@ class TriangleMesh:
         tree = bounds_tree(points[faces])
         return cls(points, faces, gaussian_curvatures, tree)
 
-    def find_intersecting_face_ids(self, aabb: AABB) -> list[int]:
+    def find_intersecting_face_ids(self, aabb: AABB) -> Int32[torch.Tensor, " n_faces"]:
         """Find the IDs of faces that intersect with the given AABB bounds.
 
         Parameters
@@ -48,15 +48,16 @@ class TriangleMesh:
 
         Returns
         -------
-        list[int]
-            List of intersecting face IDs.
+        Int32[torch.Tensor, " n_faces"]
+            Intersecting face IDs.
         """
         if self.tree is None:
-            return []
+            return torch.tensor([], dtype=torch.int32)
         aabb_bounds = aabb.bounds
-        return list(self.tree.intersection(aabb_bounds.tolist()))
+        hit_indices = list(self.tree.intersection(aabb_bounds.tolist()))
+        return torch.tensor(hit_indices, dtype=torch.int32)
 
-    def calculate_radii2_of_curvature(self, face_ids: list[int]) -> float:
+    def calculate_radii2_of_curvature(self, face_ids: Int32[torch.Tensor, " n_faces"]) -> float:
         if len(face_ids) == 0:
             return float("inf")
         point_ids = torch.unique(torch.flatten(self.faces[face_ids]))

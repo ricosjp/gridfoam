@@ -27,7 +27,7 @@ class OctreeNode:
         Depth of this node in the octree
     morton_code: int
         Morton code of this node
-    face_ids: list[int]
+    face_ids: Int32[torch.Tensor, " n_faces"]
         Indices of the faces that are intersected by this node
     """
 
@@ -37,7 +37,7 @@ class OctreeNode:
         bbox: AABB,
         octree_depth: int,
         morton_code: int,
-        face_ids: list[int],
+        face_ids: Int32[torch.Tensor, " n_faces"],
     ):
         self._bbox = bbox
         self._root_index = root_index
@@ -141,5 +141,5 @@ class OctreeNode:
         return global_index
 
     @property
-    def face_ids(self) -> list[int]:
+    def face_ids(self) -> Int32[torch.Tensor, " n_faces"]:
         return self._face_ids

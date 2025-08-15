@@ -3,6 +3,7 @@ import pathlib
 import pytest
 import pyvista as pv
 import torch
+from jaxtyping import Int32
 
 from gridfoam._geometry import AABB, TriangleMesh
 
@@ -42,12 +43,14 @@ def test_find_intersecting_face_ids(simple_mesh: TriangleMesh):
 @pytest.mark.parametrize(
     "face_ids, expected_radius2",
     [
-        ([0, 1, 2, 3, 4, 5], 4.0),
-        ([1, 2, 3, 4, 5, 6], 4.0),
+        (torch.tensor([0, 1, 2, 3, 4, 5], dtype=torch.int32), 4.0),
+        (torch.tensor([1, 2, 3, 4, 5, 6], dtype=torch.int32), 4.0),
     ],
 )
 def test_get_radii2_of_curvature(
-    sphere_mesh: TriangleMesh, face_ids: list[int], expected_radius2: float
+    sphere_mesh: TriangleMesh,
+    face_ids: Int32[torch.Tensor, " n_faces"],
+    expected_radius2: float,
 ):
     """Test get_radii_of_curvature."""
     actual_radius2 = sphere_mesh.calculate_radii2_of_curvature(face_ids)
