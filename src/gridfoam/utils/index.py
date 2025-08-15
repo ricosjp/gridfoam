@@ -104,10 +104,11 @@ def neighbor_indices(
     Get the 26-neighborhood indices for a given set of indices.
     If neighbor indices are outside the domain,
     their values are handled according to `address_mode`.
+
     Let k be an index outside the valid range:
-    for 'WRAP', return k % n;
-    for 'CLAMP', return 0 for k < 0 and n-1 for k >= n;
-    for 'BORDER', return -1 for k < 0 or k >= n.
+    - for `WRAP`, return k % n
+    - for `CLAMP`, return 0 for k < 0 and n-1 for k >= n
+    - for `BORDER`, return -1 for k < 0 or k >= n
 
     Parameters
     ----------
