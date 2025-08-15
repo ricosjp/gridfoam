@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from functools import cached_property
-
 import torch
 from jaxtyping import Float, Int32
 
 from gridfoam._geometry import AABB, TriangleMesh
-from gridfoam.utils.enums import Constants
-from gridfoam.utils.morton import get_child_codes, get_local_index
+from gridfoam.utils.annotated_type import CubeCode, NeighborCodeList
+from gridfoam.utils.cube_code import gen_cube_code
+from gridfoam.utils.enums import AddressMode
+from gridfoam.utils.index import neighbor_indices, ravel_index_3d
+from gridfoam.utils.morton import (
+    get_child_codes,
+    get_local_index,
+    local_index_to_codes,
+)
 
 
 class OctreeNode:
@@ -94,6 +99,55 @@ class OctreeNode:
         total_divisions = divisions * octree_size
         return domain_width / total_divisions
 
+    def root_code(self, root_resolution: Int32[torch.Tensor, " 3"]) -> int:
+        """Root code"""
+        return ravel_index_3d(self.root_index, root_resolution).item()
+
+    def cube_code(self, root_resolution: Int32[torch.Tensor, " 3"]) -> CubeCode:
+        """Cube code"""
+        root_code = self.root_code(root_resolution)
+        morton_code = self.morton_code
+        return gen_cube_code(root_code, morton_code)
+
+    def neighbor_cube_codes(
+        self, root_resolution: Int32[torch.Tensor, " 3"]
+    ) -> NeighborCodeList:
+        """Neighbor cube codes"""
+        global_index = self.global_index
+        octree_size = 2**self.octree_depth
+        global_resolution = root_resolution * octree_size
+        neighbor_global_indices = neighbor_indices(
+            global_index, global_resolution, address_mode=AddressMode.BORDER
+        )
+
+        # to root indices and local indices (26, 3)
+        neighbor_root_indices = neighbor_global_indices // octree_size
+        neighbor_local_indices = neighbor_global_indices % octree_size
+
+        # to codes (26,)
+        neighbor_root_codes = ravel_index_3d(
+            neighbor_root_indices, root_resolution
+        )
+        neighbor_morton_codes = local_index_to_codes(
+            neighbor_local_indices, self.octree_depth
+        )
+
+        # to cube keys
+        neighbor_cube_keys = []
+        for root_code, morton_code in zip(
+            neighbor_root_codes, neighbor_morton_codes, strict=True
+        ):
+            if root_code < 0:
+                neighbor_cube_keys.append(None)
+                continue
+            neighbor_cube_keys.append(
+                gen_cube_code(
+                    root_code.item(), morton_code.item()
+                )
+            )
+
+        return neighbor_cube_keys
+
     @property
     def root_index(self) -> Int32[torch.Tensor, " 3"]:
         return self._root_index
@@ -101,11 +155,6 @@ class OctreeNode:
     @property
     def bbox(self) -> AABB:
         return self._bbox
-
-    @property
-    def level(self) -> int:
-        """The layer number from the forest"""
-        return self._octree_depth + 1
 
     @property
     def octree_depth(self) -> int:
@@ -118,17 +167,11 @@ class OctreeNode:
         return self._morton_code
 
     @property
-    def morton_id(self) -> int:
-        """Morton code with depth information"""
-        depth_code = self.octree_depth << Constants.MORTON_CODE_BIT_LENGTH
-        return depth_code | self.morton_code
-
-    @property
     def local_index(self) -> Int32[torch.Tensor, " 3"]:
         """Local index [ix, iy, iz] at given octree depth"""
         return get_local_index(self.morton_code, self.octree_depth)
 
-    @cached_property
+    @property
     def global_index(self) -> Int32[torch.Tensor, " 3"]:
         """Global index [gx, gy, gz] at given octree depth"""
         root_index = self.root_index

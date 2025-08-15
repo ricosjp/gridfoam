@@ -119,10 +119,6 @@ class TestOctreeNodeProperties:
         assert torch.equal(simple_node.bbox.min, expected_min)
         assert torch.equal(simple_node.bbox.max, expected_max)
 
-    def test_level_property(self, simple_node: OctreeNode):
-        """Test level property."""
-        assert simple_node.level == 1  # octree_depth + 1
-
     def test_octree_depth_property(self, simple_node: OctreeNode):
         """Test octree_depth property."""
         assert simple_node.octree_depth == 0
@@ -130,28 +126,6 @@ class TestOctreeNodeProperties:
     def test_morton_code_property(self, simple_node: OctreeNode):
         """Test morton_code property."""
         assert simple_node.morton_code == 0
-
-    def test_morton_id_property(self, simple_node: OctreeNode):
-        """Test morton_id property."""
-        expected_morton_id = 0 << Constants.MORTON_CODE_BIT_LENGTH | 0
-        assert simple_node.morton_id == expected_morton_id
-
-    def test_morton_id_property_with_depth(self):
-        """Test morton_id property with non-zero depth."""
-        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
-        bbox = AABB(
-            min_pt=torch.tensor([0.0, 0.0, 0.0]),
-            max_pt=torch.tensor([1.0, 1.0, 1.0]),
-        )
-        node = OctreeNode(
-            root_index=root_index,
-            bbox=bbox,
-            octree_depth=5,
-            morton_code=42,
-            face_ids=[],
-        )
-        expected_morton_id = 5 << Constants.MORTON_CODE_BIT_LENGTH | 42
-        assert node.morton_id == expected_morton_id
 
     def test_local_index_property(self, simple_node: OctreeNode):
         """Test local_index property."""
@@ -263,6 +237,67 @@ class TestOctreeNodeMethods:
         simple_node.split_by_mesh(simple_mesh)
         assert simple_node.has_boundary() is False
 
+    def test_calculate_width(self, simple_node: OctreeNode):
+        """Test calculate_width method."""
+        divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
+        domain_width = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        expected_width = torch.tensor([0.5, 0.5, 0.5], dtype=torch.float32)
+        torch.testing.assert_close(
+            simple_node.calculate_width(divisions, domain_width),
+            expected_width,
+        )
+
+    def test_root_code(self, simple_node: OctreeNode):
+        """Test root_code method."""
+        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
+        expected_root_code = 0
+        assert simple_node.root_code(root_resolution) == expected_root_code
+
+    def test_cube_code(self, simple_node: OctreeNode):
+        """Test cube_code method."""
+        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
+        expected_cube_code = 0
+        assert simple_node.cube_code(root_resolution) == expected_cube_code
+
+
+    def test_neighbor_cube_codes(self, simple_node: OctreeNode):
+        """Test neighbor_cube_codes method."""
+        root_resolution = torch.tensor([2, 2, 2], dtype=torch.int32)
+        neighbor_codes = simple_node.neighbor_cube_codes(root_resolution)
+
+        expected_neighbor_cube_codes = [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            18446744073709551616, #x=1,y=0,z=0
+            None,
+            36893488147419103232, # x=0, y=1, z=0
+            55340232221128654848,  # x=1, y=1, z=0
+            None,
+            None,
+            None,
+            None,
+            73786976294838206464, #x=0,y=0,z=1
+            92233720368547758080, #x=1,y=0,z=1
+            None,
+            110680464442257309696, #x=0,y=1,z=1
+            129127208515966861312, #x=1,y=1,z=1
+        ]
+        for neighbor_code, expected_neighbor_code in zip(
+            neighbor_codes, expected_neighbor_cube_codes, strict=True
+        ):
+            assert neighbor_code == expected_neighbor_code
+
 
 class TestOctreeNodeSplitByMesh:
     """Test OctreeNode split_by_mesh method."""
@@ -345,45 +380,6 @@ class TestOctreeNodeSplitByMesh:
 
         with pytest.raises(ValueError, match="This node is already split"):
             simple_node.split_by_mesh(simple_mesh)
-
-
-class TestOctreeNodeEdgeCases:
-    """Test OctreeNode edge cases and error conditions."""
-
-    def test_morton_id_large_depth(self):
-        """Test morton_id with large depth."""
-        root_index = torch.tensor([0, 0, 0], dtype=torch.int32)
-        bbox = AABB(
-            min_pt=torch.tensor([0.0, 0.0, 0.0]),
-            max_pt=torch.tensor([1.0, 1.0, 1.0]),
-        )
-        node = OctreeNode(
-            root_index=root_index,
-            bbox=bbox,
-            octree_depth=Constants.MAX_OCTREE_DEPTH,
-            morton_code=12345,
-            face_ids=[],
-        )
-        # TODO: check
-
-        expected_morton_id = (
-            Constants.MAX_OCTREE_DEPTH << Constants.MORTON_CODE_BIT_LENGTH
-            | 12345
-        )
-        assert node.morton_id == expected_morton_id
-
-    def test_global_index_cached_property(self, simple_node: OctreeNode):
-        """Test that global_index is cached."""
-        # First call should compute the value
-        first_call = simple_node.global_index
-
-        # Second call should return cached value
-        second_call = simple_node.global_index
-
-        assert torch.equal(first_call, second_call)
-
-        # Check that it's actually the same object (cached)
-        assert first_call is second_call
 
 
 class TestOctreeNodeIntegration:
