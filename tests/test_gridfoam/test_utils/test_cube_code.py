@@ -1,9 +1,12 @@
 import pytest
+import torch
 
 from gridfoam.utils.cube_code import (
     _extract_bits,
     child_cube_codes,
+    code_to_global_index,
     gen_cube_code,
+    global_indices_to_codes,
     parent_cube_code,
     parse_cube_code,
 )
@@ -79,7 +82,7 @@ class TestGenCubeCode:
         """Test cube code generation with maximum values."""
         root_code = (1 << Constants.ROOT_CODE_BIT_LENGTH) - 1
         morton_code = (1 << Constants.MORTON_CODE_BIT_LENGTH) - 1
-        expected_code = 0xfffffffffffffffffffff
+        expected_code = 0xFFFFFFFFFFFFFFFFFFFFF
         cube_code = gen_cube_code(root_code, morton_code)
         assert cube_code == expected_code
 
@@ -155,7 +158,9 @@ class TestChildCubeCodes:
         for child_code, expected_child_morton in zip(
             child_codes, expected_child_mortons, strict=False
         ):
-            expected_child_code = gen_cube_code(root_code, expected_child_morton)
+            expected_child_code = gen_cube_code(
+                root_code, expected_child_morton
+            )
             assert child_code == expected_child_code
 
     def test_child_cube_codes_max_depth(self):
@@ -194,7 +199,9 @@ class TestChildCubeCodes:
         for child_code, expected_child_morton in zip(
             child_codes, expected_child_mortons, strict=False
         ):
-            expected_child_code = gen_cube_code(root_code, expected_child_morton)
+            expected_child_code = gen_cube_code(
+                root_code, expected_child_morton
+            )
             assert child_code == expected_child_code
 
 
@@ -225,7 +232,6 @@ class TestParentCubeCode:
         with pytest.raises(ValueError, match="Depth must be greater than 0"):
             parent_cube_code(cube_code, depth)
 
-
     def test_parent_cube_code_depth_one(self):
         """Test parent cube code generation at depth one."""
         depth = 1
@@ -251,3 +257,76 @@ class TestParentCubeCode:
 
         parent_children = child_cube_codes(parent_code, depth - 1)
         assert cube_code in parent_children
+
+
+class TestGlobalIndicesToCodes:
+    """Test cases for global_indices_to_codes function."""
+
+    def test_global_indices_to_codes_simple(self):
+        """Test simple global index to code conversion."""
+        global_indices = torch.tensor([[5, 1, 2], [1, 2, 3]], dtype=torch.int32)
+        block_divisions = torch.tensor([4, 2, 2], dtype=torch.int32)
+        depth = 1
+        expected_codes = [0xA0600000000000000, 0xC0A00000000000000]
+        cube_codes = global_indices_to_codes(
+            global_indices, block_divisions, depth
+        )
+        for cube_code, expected_code in zip(
+            cube_codes, expected_codes, strict=True
+        ):
+            assert cube_code == expected_code
+
+    def test_global_indices_to_codes_round_trip(self):
+        """Test round trip: global indices to codes -> codes to global indices."""
+        n_indices = 20
+        depth = 5
+        block_divisions = torch.tensor([4, 2, 2], dtype=torch.int32)
+        colx = torch.randint(
+            0,
+            block_divisions[0] * (1 << depth),
+            (n_indices,),
+            dtype=torch.int32,
+        )
+        coly = torch.randint(
+            0,
+            block_divisions[1] * (1 << depth),
+            (n_indices,),
+            dtype=torch.int32,
+        )
+        colz = torch.randint(
+            0,
+            block_divisions[2] * (1 << depth),
+            (n_indices,),
+            dtype=torch.int32,
+        )
+        global_indices = torch.stack([colx, coly, colz], dim=1)
+        cube_codes = global_indices_to_codes(
+            global_indices, block_divisions, depth
+        )
+        result = []
+        for cube_code in cube_codes:
+            global_indices_2 = code_to_global_index(
+                cube_code, block_divisions, depth
+            )
+            result.append(global_indices_2)
+        torch.testing.assert_close(global_indices, torch.stack(result, dim=0))
+
+
+class TestCodeToGlobalIndex:
+    """Test cases for code_to_global_index function."""
+
+    def test_code_to_global_index_simple(self):
+        """Test simple code to global index conversion."""
+        cube_codes = [0xA0600000000000000, 0xC0A00000000000000]
+        block_divisions = torch.tensor([4, 2, 2], dtype=torch.int32)
+        depth = 1
+        expected_global_indices = torch.tensor(
+            [[5, 1, 2], [1, 2, 3]], dtype=torch.int32
+        )
+        for cube_code, expected_global_index in zip(
+            cube_codes, expected_global_indices, strict=True
+        ):
+            global_index = code_to_global_index(
+                cube_code, block_divisions, depth
+            )
+            torch.testing.assert_close(global_index, expected_global_index)
