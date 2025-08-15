@@ -4,14 +4,12 @@ import torch
 from jaxtyping import Float, Int32
 
 from gridfoam._geometry import AABB, TriangleMesh
-from gridfoam.utils.annotated_type import CubeCode, NeighborCodeList
+from gridfoam.utils.annotated_type import CubeCode
 from gridfoam.utils.cube_code import gen_cube_code
-from gridfoam.utils.enums import AddressMode
-from gridfoam.utils.index import neighbor_indices, ravel_index_3d
+from gridfoam.utils.index import ravel_index_3d
 from gridfoam.utils.morton import (
     get_child_codes,
-    get_local_index,
-    local_index_to_codes,
+    morton_code_to_local_index,
 )
 
 
@@ -46,12 +44,13 @@ class OctreeNode:
         self._octree_depth = octree_depth
         self._morton_code = morton_code
         self._face_ids = face_ids
-        self._children: list[OctreeNode] = []
+        self._is_leaf = True
 
     def split_by_mesh(
         self,
         mesh: TriangleMesh,
-    ) -> None:
+        block_divisions: Int32[torch.Tensor, " 3"],
+    ) -> dict[CubeCode, OctreeNode]:
         """
         Split this node into its child nodes.
 
@@ -64,31 +63,30 @@ class OctreeNode:
         mesh : TriangleMesh
             To find the intersecting face IDs for each child node.
         """
-        if not self.is_leaf():
+        if not self.is_leaf:
             raise ValueError("This node is already split")
+        self._is_leaf = False
         child_bboxes = self.bbox.split()
         child_codes = get_child_codes(self.morton_code, self.octree_depth)
         child_octree_depth = self.octree_depth + 1
 
+        nodes = {}
         for child_bbox, child_code in zip(
             child_bboxes, child_codes, strict=True
         ):
             child_face_ids = mesh.find_intersecting_face_ids(child_bbox)
-            self._children.append(
-                OctreeNode(
-                    root_index=self.root_index,
-                    bbox=child_bbox,
-                    octree_depth=child_octree_depth,
-                    morton_code=child_code,
-                    face_ids=child_face_ids,
-                )
+            node = OctreeNode(
+                root_index=self.root_index,
+                bbox=child_bbox,
+                octree_depth=child_octree_depth,
+                morton_code=child_code,
+                face_ids=child_face_ids,
             )
-
-    def is_leaf(self) -> bool:
-        return len(self.children) == 0
+            nodes[node.cube_code(block_divisions)] = node
+        return nodes
 
     def has_boundary(self) -> bool:
-        return self.is_leaf() and len(self.face_ids) > 0
+        return len(self.face_ids) > 0
 
     def calculate_width(
         self,
@@ -109,44 +107,9 @@ class OctreeNode:
         morton_code = self.morton_code
         return gen_cube_code(root_code, morton_code)
 
-    def neighbor_cube_codes(
-        self, block_divisions: Int32[torch.Tensor, " 3"]
-    ) -> NeighborCodeList:
-        """Neighbor cube codes"""
-        global_index = self.global_index
-        octree_size = 1 <<self.octree_depth
-        global_divisions = block_divisions * octree_size
-        neighbor_global_indices = neighbor_indices(
-            global_index, global_divisions, address_mode=AddressMode.BORDER
-        )
-
-        # to root indices and local indices (26, 3)
-        neighbor_root_indices = neighbor_global_indices // octree_size
-        neighbor_local_indices = neighbor_global_indices % octree_size
-
-        # to codes (26,)
-        neighbor_root_codes = ravel_index_3d(
-            neighbor_root_indices, block_divisions
-        )
-        neighbor_morton_codes = local_index_to_codes(
-            neighbor_local_indices, self.octree_depth
-        )
-
-        # to cube keys
-        neighbor_cube_keys = []
-        for root_code, morton_code in zip(
-            neighbor_root_codes, neighbor_morton_codes, strict=True
-        ):
-            if root_code < 0:
-                neighbor_cube_keys.append(None)
-                continue
-            neighbor_cube_keys.append(
-                gen_cube_code(
-                    root_code.item(), morton_code.item()
-                )
-            )
-
-        return neighbor_cube_keys
+    @property
+    def is_leaf(self) -> bool:
+        return self._is_leaf
 
     @property
     def root_index(self) -> Int32[torch.Tensor, " 3"]:
@@ -169,7 +132,7 @@ class OctreeNode:
     @property
     def local_index(self) -> Int32[torch.Tensor, " 3"]:
         """Local index [ix, iy, iz] at given octree depth"""
-        return get_local_index(self.morton_code, self.octree_depth)
+        return morton_code_to_local_index(self.morton_code, self.octree_depth)
 
     @property
     def global_index(self) -> Int32[torch.Tensor, " 3"]:
@@ -183,7 +146,3 @@ class OctreeNode:
     @property
     def face_ids(self) -> list[int]:
         return self._face_ids
-
-    @property
-    def children(self) -> list[OctreeNode]:
-        return self._children
