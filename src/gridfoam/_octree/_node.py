@@ -85,9 +85,6 @@ class OctreeNode:
             nodes[node.cube_code(block_divisions)] = node
         return nodes
 
-    def has_boundary(self) -> bool:
-        return len(self.face_ids) > 0
-
     def calculate_width(
         self,
         block_divisions: Int32[torch.Tensor, " 3"],
