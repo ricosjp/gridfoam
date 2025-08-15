@@ -2,10 +2,10 @@ from collections.abc import ItemsView
 from dataclasses import dataclass, field
 
 import torch
+from jaxtyping import Int32
 
 from gridfoam._base.field_tensor import FieldTensor
 from gridfoam.settings import FieldDataAttribute
-from gridfoam.utils.annotated_type import CubeCode
 from gridfoam.utils.enums import CubeType
 
 
@@ -15,7 +15,8 @@ class Cube:
     bnd_width: int
     cube_type: CubeType
     depth: int
-    cube_code: CubeCode
+    global_index: Int32[torch.Tensor, " 3"]
+    face_ids: Int32[torch.Tensor, " n_faces"] | None = None
     field_tensors: dict[str, FieldTensor] = field(default_factory=dict)
     device: torch.device = torch.device("cpu")
 

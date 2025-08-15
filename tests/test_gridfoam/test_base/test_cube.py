@@ -1,10 +1,9 @@
 import pytest
 import torch
 
-from gridfoam._base.cube import Cube
+from gridfoam._base._cube import Cube
 from gridfoam._base.field_tensor import FieldTensor
 from gridfoam.settings import FieldDataAttribute
-from gridfoam.utils.cube_code import gen_cube_code
 from gridfoam.utils.enums import CubeType
 
 
@@ -14,13 +13,13 @@ class TestCube:
     @pytest.fixture
     def basic_cube(self) -> Cube:
         """Create a basic Cube for testing"""
-        cube_code = gen_cube_code(root_code=123, morton_code=456)
+        global_index = torch.tensor([123, 456, 789], dtype=torch.int32)
         return Cube(
             width=8,
             bnd_width=2,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=5,
-            cube_code=cube_code,
+            global_index=global_index,
         )
 
     @pytest.fixture
@@ -34,13 +33,15 @@ class TestCube:
 
     def test_cube_initialization(self):
         """Test Cube initialization"""
-        cube_code = gen_cube_code(root_code=42, morton_code=789)
+        global_index = torch.tensor([42, 789, 123], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
         cube = Cube(
             width=10,
             bnd_width=1,
             cube_type=CubeType.GHOST_FROM_PARENT,
             depth=3,
-            cube_code=cube_code,
+            global_index=global_index,
+            face_ids=face_ids,
             device=torch.device("cuda:0"),
         )
 
@@ -48,21 +49,23 @@ class TestCube:
         assert cube.bnd_width == 1
         assert cube.cube_type == CubeType.GHOST_FROM_PARENT
         assert cube.depth == 3
-        assert cube.cube_code == cube_code
+        torch.testing.assert_close(cube.global_index, global_index)
+        torch.testing.assert_close(cube.face_ids, face_ids)
         assert cube.device == torch.device("cuda:0")
         assert len(cube.field_tensors) == 0
 
     def test_cube_default_values(self):
         """Test Cube with default values"""
-        cube_code = gen_cube_code(root_code=0, morton_code=0)
+        global_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         cube = Cube(
             width=8,
             bnd_width=2,
             cube_type=CubeType.LEAF,
             depth=0,
-            cube_code=cube_code,
+            global_index=global_index,
         )
 
+        assert cube.face_ids is None
         assert cube.device == torch.device("cpu")
         assert len(cube.field_tensors) == 0
 
@@ -103,13 +106,13 @@ class TestCube:
         self, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test allocate_field_tensors with different device"""
-        cube_code = gen_cube_code(root_code=1, morton_code=1)
+        global_index = torch.tensor([1, 1, 1], dtype=torch.int32)
         cube = Cube(
             width=6,
             bnd_width=1,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=1,
-            cube_code=cube_code,
+            global_index=global_index,
             device=torch.device("cuda:0"),
         )
 
@@ -123,13 +126,13 @@ class TestCube:
         self, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test allocate_field_tensors with different cube sizes"""
-        cube_code = gen_cube_code(root_code=2, morton_code=2)
+        global_index = torch.tensor([2, 2, 2], dtype=torch.int32)
         cube = Cube(
             width=4,
             bnd_width=3,
             cube_type=CubeType.LEAF,
             depth=2,
-            cube_code=cube_code,
+            global_index=global_index,
         )
 
         cube.allocate_field_tensors(field_data_dict)
@@ -186,7 +189,7 @@ class TestCube:
 
     def test_cube_types(self):
         """Test different cube types"""
-        cube_code = gen_cube_code(root_code=1, morton_code=1)
+        global_index = torch.tensor([1, 1, 1], dtype=torch.int32)
 
         # Test LEAF cube
         leaf_cube = Cube(
@@ -194,7 +197,7 @@ class TestCube:
             bnd_width=2,
             cube_type=CubeType.LEAF,
             depth=1,
-            cube_code=cube_code,
+            global_index=global_index,
         )
         assert leaf_cube.cube_type == CubeType.LEAF
 
@@ -204,7 +207,7 @@ class TestCube:
             bnd_width=2,
             cube_type=CubeType.GHOST_FROM_PARENT,
             depth=1,
-            cube_code=cube_code,
+            global_index=global_index,
         )
         assert ghost_parent_cube.cube_type == CubeType.GHOST_FROM_PARENT
 
@@ -214,7 +217,7 @@ class TestCube:
             bnd_width=2,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=1,
-            cube_code=cube_code,
+            global_index=global_index,
         )
         assert ghost_child_cube.cube_type == CubeType.GHOST_FROM_CHILD
 
@@ -238,13 +241,13 @@ class TestCube:
             "scalar_field": FieldDataAttribute(shape=(1,), dtype=torch.float32),
         }
 
-        cube_code = gen_cube_code(root_code=3, morton_code=3)
+        global_index = torch.tensor([3, 3, 3], dtype=torch.int32)
         cube = Cube(
             width=6,
             bnd_width=1,
             cube_type=CubeType.LEAF,
             depth=3,
-            cube_code=cube_code,
+            global_index=global_index,
         )
 
         cube.allocate_field_tensors(complex_field_data)
