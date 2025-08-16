@@ -97,6 +97,7 @@ class TestCube:
         assert t_tensor.raw.shape == (12, 12, 12, 1)
         assert t_tensor.raw.dtype == torch.float64
 
+    @pytest.mark.with_device
     def test_allocate_field_tensors_different_device(
         self, field_data_dict: dict[str, FieldDataAttribute]
     ):
