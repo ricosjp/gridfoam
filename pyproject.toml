@@ -96,7 +96,7 @@ markers = [
 addopts = [
   "--import-mode=importlib",
   "-m",
-  "not with_benchmark and not with_profile",
+  "not with_benchmark and not with_profile and not with_device",
 ]
 
 [tool.coverage.report]
