@@ -55,7 +55,8 @@ class Grid:
                 [cube.global_index for cube in cubes.values()], dim=0
             )
             cube_types = torch.tensor(
-                [cube.cube_type.value for cube in cubes.values()], dtype=torch.int32
+                [cube.cube_type.value for cube in cubes.values()],
+                dtype=torch.int32,
             )
             depth_data = torch.full((n_nodes,), depth, dtype=torch.int32)
             octree_size = 1 << depth
@@ -95,4 +96,3 @@ class Grid:
                 _ = level_group.create_group("FieldData")
                 for field_name, field_data in depth_data["CellData"].items():
                     cell_data.create_dataset(field_name, data=field_data)
-

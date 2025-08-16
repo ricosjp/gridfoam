@@ -110,7 +110,6 @@ class Forest:
                 self._nodes[depth + 1].update(new_nodes)
             queue.append(depth + 1)
 
-
     @log_time
     def _generate_cubes(self) -> None:
         """Generate cubes from the octree leaf nodes."""
@@ -132,7 +131,9 @@ class Forest:
                 continue
             # 2. dilate leaf_coord_list
             dilated_code_list = self._dilate_coords(leaf_coord_list, depth)
-            ghost_code_set = set(dilated_code_list) - set(self._cubes[depth].keys())
+            ghost_code_set = set(dilated_code_list) - set(
+                self._cubes[depth].keys()
+            )
             # 3. generate ghost cubes
             for code in ghost_code_set:
                 global_index = code_to_global_index(
@@ -148,7 +149,6 @@ class Forest:
                     face_ids=torch.tensor([], dtype=torch.int32),
                     device=self._device,
                 )
-
 
     def _should_split_node(self, node: OctreeNode, mesh: TriangleMesh) -> bool:
         """Check if the node should be split based on curvature and depth.

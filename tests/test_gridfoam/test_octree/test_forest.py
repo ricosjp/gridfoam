@@ -482,7 +482,7 @@ class TestForestGenerateCubes:
         leaf_cubes = 0
         ghost_cubes = 0
 
-        for depth, cubes in forest._cubes.items():
+        for _, cubes in forest._cubes.items():
             for cube in cubes.values():
                 if cube.cube_type == CubeType.LEAF:
                     leaf_cubes += 1
@@ -576,7 +576,9 @@ class TestForestIntegration:
         assert grid.actual_max_depth == forest._actual_max_depth
         assert len(grid.cubes) == len(forest._cubes)
 
-    def test_forest_multiple_depths(self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh):
+    def test_forest_multiple_depths(
+        self, basic_grid_setting: GridSetting, high_curvature_mesh: TriangleMesh
+    ):
         """Test Forest with multiple depth levels."""
         forest = Forest(basic_grid_setting)
 

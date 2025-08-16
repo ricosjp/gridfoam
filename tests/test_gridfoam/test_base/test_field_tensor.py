@@ -30,12 +30,15 @@ class TestFieldTensor:
         assert field_tensor.bnd == 2
         assert torch.equal(field_tensor.raw, raw_tensor)
 
-    def test_interior_property_vector_field(self, vector_field_tensor: FieldTensor):
+    def test_interior_property_vector_field(
+        self, vector_field_tensor: FieldTensor
+    ):
         """Test interior property for vector field"""
         interior = vector_field_tensor.interior
 
         # Should extract the interior region (excluding boundary layers)
-        # With bnd=2, interior should be from index 2 to -2 in each spatial dimension
+        # With bnd=2, interior should be
+        # from index 2 to -2 in each spatial dimension
         expected_shape = (4, 4, 4, 3)  # (8-2-2, 8-2-2, 8-2-2, 3)
         assert interior.shape == expected_shape
 
@@ -44,7 +47,9 @@ class TestFieldTensor:
         expected_start_value = vector_field_tensor.raw[2, 2, 2, 0]
         assert interior[0, 0, 0, 0] == expected_start_value
 
-    def test_interior_property_scalar_field(self, scalar_field_tensor: FieldTensor):
+    def test_interior_property_scalar_field(
+        self, scalar_field_tensor: FieldTensor
+    ):
         """Test interior property for scalar field"""
         interior = scalar_field_tensor.interior
 
@@ -122,7 +127,9 @@ class TestFieldTensor:
         # zp should contain values from z=-bnd to z=-1
         assert torch.equal(zp, vector_field_tensor.raw[2:6, 2:6, 6:8, :])
 
-    def test_boundary_properties_scalar_field(self, scalar_field_tensor: FieldTensor):
+    def test_boundary_properties_scalar_field(
+        self, scalar_field_tensor: FieldTensor
+    ):
         """Test boundary properties for scalar field"""
         # Test all boundary properties for scalar field
         xm = scalar_field_tensor.xm

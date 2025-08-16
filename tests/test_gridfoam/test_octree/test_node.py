@@ -111,7 +111,9 @@ class TestOctreeNodeProperties:
         """Test is_leaf property."""
         assert simple_node.is_leaf is True
 
-    def test_is_leaf_property_false(self, simple_node: OctreeNode, simple_mesh: TriangleMesh):
+    def test_is_leaf_property_false(
+        self, simple_node: OctreeNode, simple_mesh: TriangleMesh
+    ):
         """Test is_leaf property when node is not a leaf."""
         block_divisions = torch.tensor([2, 2, 2], dtype=torch.int32)
         _ = simple_node.split_by_mesh(simple_mesh, block_divisions)
@@ -200,7 +202,11 @@ class TestOctreeNodeProperties:
 
     def test_face_ids_property(self, simple_node: OctreeNode):
         """Test face_ids property."""
-        torch.testing.assert_close(simple_node.face_ids, torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32))
+        torch.testing.assert_close(
+            simple_node.face_ids,
+            torch.tensor([0, 1, 2, 3, 4, 5, 6, 7], dtype=torch.int32),
+        )
+
 
 class TestOctreeNodeMethods:
     """Test OctreeNode methods."""
@@ -243,9 +249,9 @@ class TestOctreeNodeSplitByMesh:
             0x400000000000000,
             0x600000000000000,
             0x800000000000000,
-            0xa00000000000000,
-            0xc00000000000000,
-            0xe00000000000000,
+            0xA00000000000000,
+            0xC00000000000000,
+            0xE00000000000000,
         ]
         expected_halfwidth = simple_node.bbox.halfwidth / 2
 
@@ -320,11 +326,13 @@ class TestOctreeNodeIntegration:
         )
 
         # Split root node
-        depth1_nodes =root_node.split_by_mesh(simple_mesh, block_divisions)
+        depth1_nodes = root_node.split_by_mesh(simple_mesh, block_divisions)
 
         # Split one of the children
         child_to_split = depth1_nodes[0]
-        depth2_nodes = child_to_split.split_by_mesh(simple_mesh, block_divisions)
+        depth2_nodes = child_to_split.split_by_mesh(
+            simple_mesh, block_divisions
+        )
 
         # Verify hierarchy
         assert not root_node.is_leaf

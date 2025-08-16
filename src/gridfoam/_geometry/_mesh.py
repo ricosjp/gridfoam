@@ -38,7 +38,9 @@ class TriangleMesh:
         tree = bounds_tree(points[faces])
         return cls(points, faces, gaussian_curvatures, tree)
 
-    def find_intersecting_face_ids(self, aabb: AABB) -> Int32[torch.Tensor, " n_faces"]:
+    def find_intersecting_face_ids(
+        self, aabb: AABB
+    ) -> Int32[torch.Tensor, " n_faces"]:
         """Find the IDs of faces that intersect with the given AABB bounds.
 
         Parameters
@@ -57,7 +59,9 @@ class TriangleMesh:
         hit_indices = list(self.tree.intersection(aabb_bounds.tolist()))
         return torch.tensor(hit_indices, dtype=torch.int32)
 
-    def calculate_radii2_of_curvature(self, face_ids: Int32[torch.Tensor, " n_faces"]) -> float:
+    def calculate_radii2_of_curvature(
+        self, face_ids: Int32[torch.Tensor, " n_faces"]
+    ) -> float:
         if len(face_ids) == 0:
             return float("inf")
         point_ids = torch.unique(torch.flatten(self.faces[face_ids]))

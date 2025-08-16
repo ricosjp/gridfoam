@@ -30,85 +30,88 @@ def basic_cube_setting() -> CubeSetting:
 def basic_cubes() -> dict[int, dict[int, Cube]]:
     """Create basic cubes for testing."""
     cubes = {}
-    depth0_global_indices = torch.tensor([
-        [0, 0, 0],
-        [3, 0, 0],
-        [0, 1, 0],
-        [3, 1, 0],
-        [0, 0, 1],
-        [3, 0, 1],
-        [0, 1, 1],
-        [3, 1, 1],
-    ], dtype=torch.int32)
-    depth1_global_indices = torch.tensor([
-        [2, 0, 0],
-        [3, 0, 0],
-        [4, 0, 0],
-        [5, 0, 0],
-        [2, 1, 0],
-        [3, 1, 0],
-        [4, 1, 0],
-        [5, 1, 0],
-        [2, 2, 0],
-        [3, 2, 0],
-        [4, 2, 0],
-        [5, 2, 0],
-        [2, 3, 0],
-        [3, 3, 0],
-        [4, 3, 0],
-        [5, 3, 0],
-
-        [2, 0, 1],
-        [3, 0, 1],
-        [4, 0, 1],
-        [5, 0, 1],
-        [2, 1, 1],
-        [3, 1, 1],
-        [4, 1, 1],
-        [5, 1, 1],
-        [2, 2, 1],
-        [3, 2, 1],
-        [4, 2, 1],
-        [5, 2, 1],
-        [2, 3, 1],
-        [3, 3, 1],
-        [4, 3, 1],
-        [5, 3, 1],
-
-        [2, 0, 2],
-        [3, 0, 2],
-        [4, 0, 2],
-        [5, 0, 2],
-        [2, 1, 2],
-        [3, 1, 2],
-        [4, 1, 2],
-        [5, 1, 2],
-        [2, 2, 2],
-        [3, 2, 2],
-        [4, 2, 2],
-        [5, 2, 2],
-        [2, 3, 2],
-        [3, 3, 2],
-        [4, 3, 2],
-        [5, 3, 2],
-
-        [2, 0, 3],
-        [3, 0, 3],
-        [4, 0, 3],
-        [5, 0, 3],
-        [2, 1, 3],
-        [3, 1, 3],
-        [4, 1, 3],
-        [5, 1, 3],
-        [2, 2, 3],
-        [3, 2, 3],
-        [4, 2, 3],
-        [5, 2, 3],
-        [2, 3, 3],
-        [3, 3, 3],
-        [4, 3, 3],
-        [5, 3, 3],
-    ], dtype=torch.int32)
+    depth0_global_indices = torch.tensor(
+        [
+            [0, 0, 0],
+            [3, 0, 0],
+            [0, 1, 0],
+            [3, 1, 0],
+            [0, 0, 1],
+            [3, 0, 1],
+            [0, 1, 1],
+            [3, 1, 1],
+        ],
+        dtype=torch.int32,
+    )
+    depth1_global_indices = torch.tensor(
+        [
+            [2, 0, 0],
+            [3, 0, 0],
+            [4, 0, 0],
+            [5, 0, 0],
+            [2, 1, 0],
+            [3, 1, 0],
+            [4, 1, 0],
+            [5, 1, 0],
+            [2, 2, 0],
+            [3, 2, 0],
+            [4, 2, 0],
+            [5, 2, 0],
+            [2, 3, 0],
+            [3, 3, 0],
+            [4, 3, 0],
+            [5, 3, 0],
+            [2, 0, 1],
+            [3, 0, 1],
+            [4, 0, 1],
+            [5, 0, 1],
+            [2, 1, 1],
+            [3, 1, 1],
+            [4, 1, 1],
+            [5, 1, 1],
+            [2, 2, 1],
+            [3, 2, 1],
+            [4, 2, 1],
+            [5, 2, 1],
+            [2, 3, 1],
+            [3, 3, 1],
+            [4, 3, 1],
+            [5, 3, 1],
+            [2, 0, 2],
+            [3, 0, 2],
+            [4, 0, 2],
+            [5, 0, 2],
+            [2, 1, 2],
+            [3, 1, 2],
+            [4, 1, 2],
+            [5, 1, 2],
+            [2, 2, 2],
+            [3, 2, 2],
+            [4, 2, 2],
+            [5, 2, 2],
+            [2, 3, 2],
+            [3, 3, 2],
+            [4, 3, 2],
+            [5, 3, 2],
+            [2, 0, 3],
+            [3, 0, 3],
+            [4, 0, 3],
+            [5, 0, 3],
+            [2, 1, 3],
+            [3, 1, 3],
+            [4, 1, 3],
+            [5, 1, 3],
+            [2, 2, 3],
+            [3, 2, 3],
+            [4, 2, 3],
+            [5, 2, 3],
+            [2, 3, 3],
+            [3, 3, 3],
+            [4, 3, 3],
+            [5, 3, 3],
+        ],
+        dtype=torch.int32,
+    )
 
     # Create cubes for depth 0
     cubes[0] = {}
@@ -140,7 +143,12 @@ def basic_cubes() -> dict[int, dict[int, Cube]]:
 class TestGridInitialization:
     """Test Grid initialization."""
 
-    def test_init_basic(self, basic_aabb: AABB, basic_cube_setting: CubeSetting, basic_cubes: dict[int, dict[int, Cube]]):
+    def test_init_basic(
+        self,
+        basic_aabb: AABB,
+        basic_cube_setting: CubeSetting,
+        basic_cubes: dict[int, dict[int, Cube]],
+    ):
         """Test basic Grid initialization."""
         block_divisions = torch.tensor([4, 2, 2], dtype=torch.int32)
         actual_max_depth = 1
@@ -160,8 +168,13 @@ class TestGridInitialization:
         assert grid.cube_setting == basic_cube_setting
         assert grid.device == torch.device("cpu")
 
+
 @pytest.fixture
-def basic_grid(basic_aabb: AABB, basic_cube_setting: CubeSetting, basic_cubes: dict[int, dict[int, Cube]]) -> Grid:
+def basic_grid(
+    basic_aabb: AABB,
+    basic_cube_setting: CubeSetting,
+    basic_cubes: dict[int, dict[int, Cube]],
+) -> Grid:
     """Create a basic Grid for testing."""
     return Grid(
         domain=basic_aabb,
@@ -170,6 +183,7 @@ def basic_grid(basic_aabb: AABB, basic_cube_setting: CubeSetting, basic_cubes: d
         cubes=basic_cubes,
         cube_setting=basic_cube_setting,
     )
+
 
 class TestGridCalcAmrBox:
     """Test Grid _calc_amr_box method."""
@@ -192,11 +206,15 @@ class TestGridCalcAmrBox:
         result = basic_grid._calc_amr_box(indices)
 
         # Check that result contains [min, max] for each dimension
-        expected = torch.tensor([
-            [0, 0, 0, 0, 0, 0],
-            [1, 1, 1, 1, 0, 0],
-        ], dtype=torch.int32)
+        expected = torch.tensor(
+            [
+                [0, 0, 0, 0, 0, 0],
+                [1, 1, 1, 1, 0, 0],
+            ],
+            dtype=torch.int32,
+        )
         torch.testing.assert_close(result, expected)
+
 
 class TestGridSaveStructure:
     """Test Grid save_structure method."""

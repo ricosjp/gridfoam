@@ -70,7 +70,9 @@ def load_benchmark(path: pathlib.Path) -> BenchmarkFile:
         return BenchmarkFile.model_validate_json(f.read())
 
 
-def plot_level_vs_time(benchmark_files: list[BenchmarkFile], output_dir: pathlib.Path):
+def plot_level_vs_time(
+    benchmark_files: list[BenchmarkFile], output_dir: pathlib.Path
+):
     fig = go.Figure()
     fig.update_layout(
         template="google",
@@ -143,7 +145,9 @@ def plot_level_vs_time(benchmark_files: list[BenchmarkFile], output_dir: pathlib
     fig.write_html(output_dir / "level_vs_time.html")
 
 
-def plot_version_vs_time(benchmark_files: list[BenchmarkFile], output_dir: pathlib.Path):
+def plot_version_vs_time(
+    benchmark_files: list[BenchmarkFile], output_dir: pathlib.Path
+):
     fig = go.Figure()
     fig.update_layout(
         template="google",

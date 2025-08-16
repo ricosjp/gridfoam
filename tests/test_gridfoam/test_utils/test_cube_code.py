@@ -277,7 +277,10 @@ class TestGlobalIndicesToCodes:
             assert cube_code == expected_code
 
     def test_global_indices_to_codes_round_trip(self):
-        """Test round trip: global indices to codes -> codes to global indices."""
+        """
+        Test round trip:
+        global indices to codes -> codes to global indices.
+        """
         n_indices = 20
         depth = 5
         block_divisions = torch.tensor([4, 2, 2], dtype=torch.int32)
