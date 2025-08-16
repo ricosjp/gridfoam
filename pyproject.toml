@@ -7,19 +7,21 @@ name = "gridfoam"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Daichi Ishida", email = "ishida@ricos.co.jp" }
-]
+authors = [{ name = "Daichi Ishida", email = "ishida@ricos.co.jp" }]
 requires-python = ">=3.12"
 dependencies = [
-    "pyvista>=0.44.2",
-    "torch>=2.6.0",
-    "pydantic>=2.11.7",
-    "h5py>=3.14.0",
-    "nanofoam",
-    "trimesh>=4.7.1",
-    "rtree>=1.4.0",
+  "pyvista>=0.44.2",
+  "pydantic>=2.11.7",
+  "h5py>=3.14.0",
+  "nanofoam",
+  "trimesh>=4.7.1",
+  "rtree>=1.4.0",
 ]
+
+[project.optional-dependencies]
+cpu = ["torch>=2.5.1", "torchvision>=0.20.1"]
+cu118 = ["torch>=2.5.1", "torchvision>=0.20.1"]
+cu124 = ["torch>=2.5.1", "torchvision>=0.20.1"]
 
 [dependency-groups]
 dev = [
@@ -31,11 +33,7 @@ dev = [
   "polars",
   "plotly",
 ]
-lint = [
-  "ruff",
-  "jaxtyping",
-  "beartype",
-]
+lint = ["ruff", "jaxtyping", "beartype"]
 docs = [
   "sphinx",
   "furo",
@@ -56,23 +54,49 @@ note = [
 
 [tool.uv]
 default-groups = ["dev", "lint", "docs", "note"]
+conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
 nanofoam = { path = "./src/nanofoam", editable = true }
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cu124", extra = "cu124" },
+]
+torchvision = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cu124", extra = "cu124" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
 
 [tool.pytest]
 testpaths = ["tests"]
 
 [tool.pytest.ini_options]
 markers = [
-    "with_benchmark: Run test with pytest-benchmark",
-    "with_profile: Run test with memray / pyinstrument",
-    "with_device: Run test on cuda device",
+  "with_benchmark: Run test with pytest-benchmark",
+  "with_profile: Run test with memray / pyinstrument",
+  "with_device: Run test on cuda device",
 ]
 addopts = [
-    "--import-mode=importlib",
-    "-m",
-    "not with_benchmark and not with_profile",
+  "--import-mode=importlib",
+  "-m",
+  "not with_benchmark and not with_profile",
 ]
 
 [tool.coverage.report]
@@ -80,6 +104,6 @@ ignore_errors = false
 show_missing = true
 # Regexes for lines to exclude from consideration
 exclude_also = [
-    # Don't complain about abstract methods, they aren't run:
-    "@(abc\\.)?abstractmethod",
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod",
 ]

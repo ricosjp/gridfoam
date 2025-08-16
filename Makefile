@@ -1,3 +1,5 @@
+CUDA_TAG = cu124
+
 .PHONY: reset
 reset:
 	rm -r ./.venv || true
@@ -5,7 +7,7 @@ reset:
 
 .PHONY: install
 install:
-	uv sync --refresh --reinstall
+	uv sync --refresh --reinstall --extra ${CUDA_TAG}
 
 .PHONY: mypy
 mypy:
