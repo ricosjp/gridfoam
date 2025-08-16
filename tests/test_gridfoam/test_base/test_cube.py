@@ -255,5 +255,11 @@ class TestCube:
 
         # Check shapes for complex fields
         assert cube.field_tensors["vector_field"].raw.shape == (12, 12, 12, 3)
-        assert cube.field_tensors["tensor_field"].raw.shape == (12, 12, 12, 3, 3)
+        assert cube.field_tensors["tensor_field"].raw.shape == (
+            12,
+            12,
+            12,
+            3,
+            3,
+        )
         assert cube.field_tensors["scalar_field"].raw.shape == (12, 12, 12, 1)
