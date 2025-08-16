@@ -3,7 +3,7 @@ import torch
 
 from gridfoam._base._cube import Cube
 from gridfoam._base.field_tensor import FieldTensor
-from gridfoam.settings import FieldDataAttribute
+from gridfoam.settings import CubeSetting, FieldDataAttribute
 from gridfoam.utils.enums import CubeType
 
 
@@ -14,12 +14,12 @@ class TestCube:
     def basic_cube(self) -> Cube:
         """Create a basic Cube for testing"""
         global_index = torch.tensor([123, 456, 789], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
         return Cube(
-            width=8,
-            bnd_width=2,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=5,
             global_index=global_index,
+            face_ids=face_ids,
         )
 
     @pytest.fixture
@@ -36,17 +36,12 @@ class TestCube:
         global_index = torch.tensor([42, 789, 123], dtype=torch.int32)
         face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
         cube = Cube(
-            width=10,
-            bnd_width=1,
             cube_type=CubeType.GHOST_FROM_PARENT,
             depth=3,
             global_index=global_index,
             face_ids=face_ids,
             device=torch.device("cuda:0"),
         )
-
-        assert cube.width == 10
-        assert cube.bnd_width == 1
         assert cube.cube_type == CubeType.GHOST_FROM_PARENT
         assert cube.depth == 3
         torch.testing.assert_close(cube.global_index, global_index)
@@ -59,8 +54,6 @@ class TestCube:
         global_index = torch.tensor([0, 0, 0], dtype=torch.int32)
         face_ids = torch.tensor([], dtype=torch.int32)
         cube = Cube(
-            width=8,
-            bnd_width=2,
             cube_type=CubeType.LEAF,
             depth=0,
             global_index=global_index,
@@ -74,7 +67,8 @@ class TestCube:
         self, basic_cube: Cube, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test allocate_field_tensors method"""
-        basic_cube.allocate_field_tensors(field_data_dict)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
+        basic_cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Check that field tensors were created
         assert len(basic_cube.field_tensors) == 3
@@ -108,16 +102,17 @@ class TestCube:
     ):
         """Test allocate_field_tensors with different device"""
         global_index = torch.tensor([1, 1, 1], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
         cube = Cube(
-            width=6,
-            bnd_width=1,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=1,
             global_index=global_index,
+            face_ids=face_ids,
             device=torch.device("cuda:0"),
         )
 
-        cube.allocate_field_tensors(field_data_dict)
+        cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Check that tensors are allocated on the correct device
         for field_tensor in cube.field_tensors.values():
@@ -128,26 +123,28 @@ class TestCube:
     ):
         """Test allocate_field_tensors with different cube sizes"""
         global_index = torch.tensor([2, 2, 2], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
         cube = Cube(
-            width=4,
-            bnd_width=3,
             cube_type=CubeType.LEAF,
             depth=2,
             global_index=global_index,
+            face_ids=face_ids,
         )
 
-        cube.allocate_field_tensors(field_data_dict)
+        cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Check tensor shapes for different sizes
         u_tensor = cube.field_tensors["U"]
-        expected_shape = (10, 10, 10, 3)  # (4 + 2*3, 4 + 2*3, 4 + 2*3, 3)
+        expected_shape = (12, 12, 12, 3)  # (8 + 2*2, 8 + 2*2, 8 + 2*2, 3)
         assert u_tensor.raw.shape == expected_shape
 
     def test_getitem_access(
         self, basic_cube: Cube, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test __getitem__ method for field access"""
-        basic_cube.allocate_field_tensors(field_data_dict)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
+        basic_cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Test valid field access
         _ = basic_cube["U"]
@@ -161,7 +158,8 @@ class TestCube:
         self, basic_cube: Cube, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test __getattr__ method for attribute-style access"""
-        basic_cube.allocate_field_tensors(field_data_dict)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
+        basic_cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Test valid field access
         _ = basic_cube.U
@@ -171,7 +169,8 @@ class TestCube:
         self, basic_cube: Cube, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test items method"""
-        basic_cube.allocate_field_tensors(field_data_dict)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
+        basic_cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         # Check that values are FieldTensor objects
         for name, field_tensor in basic_cube.items():
@@ -191,34 +190,32 @@ class TestCube:
     def test_cube_types(self):
         """Test different cube types"""
         global_index = torch.tensor([1, 1, 1], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
 
         # Test LEAF cube
         leaf_cube = Cube(
-            width=8,
-            bnd_width=2,
             cube_type=CubeType.LEAF,
             depth=1,
             global_index=global_index,
+            face_ids=face_ids,
         )
         assert leaf_cube.cube_type == CubeType.LEAF
 
         # Test GHOST_FROM_PARENT cube
         ghost_parent_cube = Cube(
-            width=8,
-            bnd_width=2,
             cube_type=CubeType.GHOST_FROM_PARENT,
             depth=1,
             global_index=global_index,
+            face_ids=face_ids,
         )
         assert ghost_parent_cube.cube_type == CubeType.GHOST_FROM_PARENT
 
         # Test GHOST_FROM_CHILD cube
         ghost_child_cube = Cube(
-            width=8,
-            bnd_width=2,
             cube_type=CubeType.GHOST_FROM_CHILD,
             depth=1,
             global_index=global_index,
+            face_ids=face_ids,
         )
         assert ghost_child_cube.cube_type == CubeType.GHOST_FROM_CHILD
 
@@ -226,7 +223,8 @@ class TestCube:
         self, basic_cube: Cube, field_data_dict: dict[str, FieldDataAttribute]
     ):
         """Test that allocated tensors are initialized with zeros"""
-        basic_cube.allocate_field_tensors(field_data_dict)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
+        basic_cube.allocate_field_tensors(cube_setting, field_data_dict)
 
         for field_tensor in basic_cube.field_tensors.values():
             # Check that all values are zero
@@ -243,17 +241,18 @@ class TestCube:
         }
 
         global_index = torch.tensor([3, 3, 3], dtype=torch.int32)
+        face_ids = torch.tensor([1, 4, 7, 9], dtype=torch.int32)
+        cube_setting = CubeSetting(width=8, bnd_width=2)
         cube = Cube(
-            width=6,
-            bnd_width=1,
             cube_type=CubeType.LEAF,
             depth=3,
             global_index=global_index,
+            face_ids=face_ids,
         )
 
-        cube.allocate_field_tensors(complex_field_data)
+        cube.allocate_field_tensors(cube_setting, complex_field_data)
 
         # Check shapes for complex fields
-        assert cube.field_tensors["vector_field"].raw.shape == (8, 8, 8, 3)
-        assert cube.field_tensors["tensor_field"].raw.shape == (8, 8, 8, 3, 3)
-        assert cube.field_tensors["scalar_field"].raw.shape == (8, 8, 8, 1)
+        assert cube.field_tensors["vector_field"].raw.shape == (12, 12, 12, 3)
+        assert cube.field_tensors["tensor_field"].raw.shape == (12, 12, 12, 3, 3)
+        assert cube.field_tensors["scalar_field"].raw.shape == (12, 12, 12, 1)
