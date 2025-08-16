@@ -28,21 +28,21 @@ def grid_setting_bunny() -> GridSetting:
         nBlockY=4,
         nBlockZ=4,
         alpha=0.3,
-        level_limit=7,
+        depth_limit=7,
     )
 
 
 @pytest.mark.with_benchmark
-@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8])
+@pytest.mark.parametrize("depth_limit", [2, 3, 4, 5, 6, 7, 8])
 @benchmark_with_group
 def test_gridgen_bunny(
     benchmark: BenchmarkFixture,
     grid_setting_bunny: GridSetting,
-    level_limit: int,
+    depth_limit: int,
 ):
     """Test the grid generation process."""
     benchmark_grid_setting_bunny = grid_setting_bunny.model_copy(
-        update={"level_limit": level_limit}
+        update={"depth_limit": depth_limit}
     )
 
     def gridgen_process() -> None:
@@ -51,7 +51,7 @@ def test_gridgen_bunny(
         forest = Forest(benchmark_grid_setting_bunny)
         grid = forest.build_grid_from_mesh(mesh)
         file_name = pathlib.Path(
-            f"tests/outputs/grid/bunny_level{level_limit}.vtkhdf"
+            f"tests/outputs/grid/bunny_depth{depth_limit}.vtkhdf"
         )
         grid.save_structure(file_name)
 
@@ -77,16 +77,16 @@ def grid_setting_DrivAer() -> GridSetting:
 
 
 @pytest.mark.with_benchmark
-@pytest.mark.parametrize("level_limit", [2, 3, 4, 5, 6, 7, 8])
+@pytest.mark.parametrize("depth_limit", [2, 3, 4, 5, 6, 7, 8])
 @benchmark_with_group
 def test_gridgen_DrivAer(
     benchmark: BenchmarkFixture,
     grid_setting_DrivAer: GridSetting,
-    level_limit: int,
+    depth_limit: int,
 ):
     """Test the grid generation process."""
     benchmark_grid_setting_DrivAer = grid_setting_DrivAer.model_copy(
-        update={"level_limit": level_limit}
+        update={"depth_limit": depth_limit}
     )
 
     def gridgen_process() -> None:
@@ -95,7 +95,7 @@ def test_gridgen_DrivAer(
         forest = Forest(benchmark_grid_setting_DrivAer)
         grid = forest.build_grid_from_mesh(mesh)
         file_name = pathlib.Path(
-            f"tests/outputs/grid/DrivAer_level{level_limit}.vtkhdf"
+            f"tests/outputs/grid/DrivAer_depth{depth_limit}.vtkhdf"
         )
         grid.save_structure(file_name)
 

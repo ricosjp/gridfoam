@@ -22,7 +22,7 @@ def grid_setting_bunny() -> GridSetting:
         nBlockY=4,
         nBlockZ=4,
         alpha=0.3,
-        level_limit=7,
+        depth_limit=7,
     )
 
 
@@ -54,7 +54,7 @@ def grid_setting_DrivAer() -> GridSetting:
         nBlockY=4,
         nBlockZ=2,
         alpha=0.3,
-        level_limit=7,
+        depth_limit=7,
     )
 
 
