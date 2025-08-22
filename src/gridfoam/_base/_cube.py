@@ -84,3 +84,6 @@ class Cube:
             Iterator over field data items.
         """
         return self.field_tensors.items()
+
+    def is_leaf(self) -> bool:
+        return self.cube_type == CubeType.LEAF

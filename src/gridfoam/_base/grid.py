@@ -1,5 +1,4 @@
 import pathlib
-from collections import defaultdict
 from dataclasses import dataclass
 
 import h5py as h5
@@ -29,9 +28,17 @@ class Grid:
         stacked = torch.stack([indices, indices + n_cell], dim=1)
         return stacked.permute(0, 2, 1).reshape(-1, 6)
 
+    def spacing(self, level: int) -> torch.Tensor:
+        octree_size = 1 << level
+        bounds = self.block_divisions * octree_size
+        return self.domain.width / bounds
+
     @log_time
     def save_structure(
-        self, file_name: pathlib.Path, overwrite_file: bool = True
+        self,
+        file_name: pathlib.Path,
+        only_leaves: bool = True,
+        overwrite_file: bool = True,
     ) -> None:
         """Save the hierarchical grid structure as a VTK HDF file.
 
@@ -46,30 +53,6 @@ class Grid:
         if file_name.exists() and not overwrite_file:
             raise FileExistsError(f"File {file_name} already exists")
         file_name.parent.mkdir(parents=True, exist_ok=True)
-
-        data = defaultdict(dict)
-        for depth, cubes in self.cubes.items():
-            key = f"Level{depth}"
-            n_nodes = len(cubes)
-            global_indices = torch.stack(
-                [cube.global_index for cube in cubes.values()], dim=0
-            )
-            cube_types = torch.tensor(
-                [cube.cube_type.value for cube in cubes.values()],
-                dtype=torch.int32,
-            )
-            depth_data = torch.full((n_nodes,), depth, dtype=torch.int32)
-            octree_size = 1 << depth
-            bounds = self.block_divisions * octree_size
-            spacing = self.domain.width / bounds
-            data[key]["Spacing"] = spacing.cpu().numpy()
-            data[key]["AMRBox"] = (
-                self._calc_amr_box(global_indices).cpu().numpy()
-            )
-            data[key]["CellData"] = {
-                "depth": depth_data.cpu().numpy(),
-                "cube_type": cube_types.cpu().numpy(),
-            }
 
         with h5.File(file_name, "w") as f:
             vtk_group = f.create_group("VTKHDF", track_order=True)
@@ -87,12 +70,30 @@ class Grid:
                 descriptionAsASCII,
                 dtype=h5.string_dtype("ascii", len(descriptionAsASCII)),
             )
-            for key, depth_data in data.items():
-                level_group = vtk_group.create_group(key)
-                level_group.attrs["Spacing"] = depth_data["Spacing"]
-                level_group.create_dataset("AMRBox", data=depth_data["AMRBox"])
+            for depth, cubes in self.cubes.items():
+                global_indices = []
+                cube_types = []
+                for cube in cubes.values():
+                    if only_leaves and not cube.is_leaf():
+                        continue
+                    global_indices.append(cube.global_index)
+                    cube_types.append(cube.cube_type.value)
+                n_nodes = len(global_indices)
+                depth_data = torch.full((n_nodes,), depth, dtype=torch.int32)
+                global_indices = torch.stack(global_indices, dim=0)
+                cube_types = torch.tensor(cube_types, dtype=torch.int32)
+
+                level_group = vtk_group.create_group(f"Level{depth}")
+                level_group.attrs["Spacing"] = self.spacing(depth).cpu().numpy()
+                level_group.create_dataset(
+                    "AMRBox",
+                    data=self._calc_amr_box(global_indices).cpu().numpy(),
+                )
                 _ = level_group.create_group("PointData")
                 cell_data = level_group.create_group("CellData")
                 _ = level_group.create_group("FieldData")
-                for field_name, field_data in depth_data["CellData"].items():
-                    cell_data.create_dataset(field_name, data=field_data)
+
+                cell_data.create_dataset("depth", data=depth_data.cpu().numpy())
+                cell_data.create_dataset(
+                    "cube_type", data=cube_types.cpu().numpy()
+                )
