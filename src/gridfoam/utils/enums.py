@@ -29,6 +29,15 @@ class AddressMode(Enum):
     BORDER = 2
 
 
+class GridCalculationMode(Enum):
+    """
+    Calculation mode for the grid.
+    """
+
+    CELL = 0
+    NODE = 1
+
+
 class CubeType(Enum):
     """
     Type of cube.

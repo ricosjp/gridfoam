@@ -230,3 +230,15 @@ class TestGridSaveStructure:
 
             # Check that file was created
             assert file_path.exists()
+
+    def test_save_grid_basic(self, basic_grid: Grid):
+        """Test basic save_grid functionality."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = pathlib.Path(temp_dir) / "test_grid.vtkhdf"
+
+            # Should not raise any exceptions
+            basic_grid.save_grid(file_path)
+
+            # Check that file was created
+            assert file_path.exists()
