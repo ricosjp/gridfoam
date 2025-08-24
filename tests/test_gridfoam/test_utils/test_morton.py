@@ -5,6 +5,7 @@ from gridfoam.utils.enums import Constants
 from gridfoam.utils.morton import (
     get_ancestor_code,
     get_child_codes,
+    get_parent_and_offsets,
     get_parent_code,
     local_index_to_morton_code,
     morton_code_to_local_index,
@@ -348,6 +349,19 @@ class TestGetParentCode:
 
         with pytest.raises(ValueError):
             get_parent_code(code, octree_depth)
+
+class TestGetParentAndOffsets:
+    """Test get_parent_and_offsets function"""
+
+    def test_get_parent_and_offsets(self):
+        """Test get_parent_and_offsets"""
+        code = 0b110101011
+        octree_depth = 20
+
+        result = get_parent_and_offsets(code, octree_depth)
+        expected_code = 0b110101000
+        expected_offsets = (1, 1, 0)
+        assert result == (expected_code, expected_offsets)
 
 
 class TestGetChildCodes:

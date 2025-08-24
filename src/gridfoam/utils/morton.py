@@ -100,6 +100,15 @@ def get_parent_code(code: int, octree_depth: int) -> int:
     return get_ancestor_code(code, octree_depth, parent_octree_depth)
 
 
+def get_parent_and_offsets(
+    code: int, octree_depth: int
+) -> tuple[int, tuple[int, int, int]]:
+    parent_code = get_parent_code(code, octree_depth)
+    x, y, z = morton_code_to_local_index(code, octree_depth)
+    offsets = (x.item() & 1, y.item() & 1, z.item() & 1)
+    return parent_code, offsets
+
+
 def get_child_codes(code: int, octree_depth: int) -> list[int]:
     if octree_depth >= Constants.MAX_OCTREE_DEPTH:
         raise ValueError(

@@ -7,7 +7,7 @@ from gridfoam.utils.cube_code import (
     code_to_global_index,
     gen_cube_code,
     global_indices_to_codes,
-    parent_cube_code,
+    parent_cube_code_and_offsets,
     parse_cube_code,
 )
 from gridfoam.utils.enums import Constants
@@ -205,24 +205,25 @@ class TestChildCubeCodes:
             assert child_code == expected_child_code
 
 
-class TestParentCubeCode:
-    """Test cases for parent_cube_code function."""
+class TestParentCubeCodeAndOffsets:
+    """Test cases for parent_cube_code_and_offsets function."""
 
-    def test_parent_cube_code_normal_depth(self):
+    def test_parent_cube_code_and_offsets_normal_depth(self):
         """Test parent cube code generation for normal depth."""
         depth = 5
         root_code = 123
         morton_code = 0x2E4A00000000000
 
         cube_code = gen_cube_code(root_code, morton_code)
-        parent_code = parent_cube_code(cube_code, depth)
+        parent_code, offsets = parent_cube_code_and_offsets(cube_code, depth)
 
         expected_parent_morton = 0x2E4000000000000
         expected_parent_code = gen_cube_code(root_code, expected_parent_morton)
 
         assert parent_code == expected_parent_code
+        assert offsets == (1, 0, 1)
 
-    def test_parent_cube_code_zero_depth(self):
+    def test_parent_cube_code_and_offsets_zero_depth(self):
         """Test parent cube code generation at zero depth."""
         depth = 0
         root_code = 123
@@ -230,21 +231,22 @@ class TestParentCubeCode:
 
         cube_code = gen_cube_code(root_code, morton_code)
         with pytest.raises(ValueError, match="Depth must be greater than 0"):
-            parent_cube_code(cube_code, depth)
+            parent_cube_code_and_offsets(cube_code, depth)
 
-    def test_parent_cube_code_depth_one(self):
+    def test_parent_cube_code_and_offsets_depth_one(self):
         """Test parent cube code generation at depth one."""
         depth = 1
         root_code = 123
         morton_code = 0x600000000000000
 
         cube_code = gen_cube_code(root_code, morton_code)
-        parent_code = parent_cube_code(cube_code, depth)
+        parent_code, offsets = parent_cube_code_and_offsets(cube_code, depth)
 
         expected_parent_morton = 0x0
         expected_parent_code = gen_cube_code(root_code, expected_parent_morton)
 
         assert parent_code == expected_parent_code
+        assert offsets == (1, 1, 0)
 
     def test_parent_child_round_trip(self):
         """Test round trip: child -> parent -> child."""
@@ -253,10 +255,11 @@ class TestParentCubeCode:
         morton_code = 0x2E4A00000000000
 
         cube_code = gen_cube_code(root_code, morton_code)
-        parent_code = parent_cube_code(cube_code, depth)
+        parent_code, offsets = parent_cube_code_and_offsets(cube_code, depth)
 
         parent_children = child_cube_codes(parent_code, depth - 1)
-        assert cube_code in parent_children
+        offset = offsets[0] + offsets[1] * 2 + offsets[2] * 4
+        assert parent_children[offset] == cube_code
 
 
 class TestGlobalIndicesToCodes:

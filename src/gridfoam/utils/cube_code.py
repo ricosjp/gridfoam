@@ -6,7 +6,7 @@ from gridfoam.utils.enums import Constants
 from gridfoam.utils.index import ravel_index_3d, unravel_index_3d
 from gridfoam.utils.morton import (
     get_child_codes,
-    get_parent_code,
+    get_parent_and_offsets,
     local_index_to_morton_code,
     morton_code_to_local_index,
 )
@@ -45,12 +45,12 @@ def child_cube_codes(cube_code: CubeCode, depth: int) -> list[CubeCode]:
     return [gen_cube_code(root_code, child_code) for child_code in child_codes]
 
 
-def parent_cube_code(child_code: CubeCode, depth: int) -> CubeCode:
+def parent_cube_code_and_offsets(cube_code: CubeCode, depth: int) -> tuple[CubeCode, tuple[int, int, int]]:
     if depth == 0:
         raise ValueError("Depth must be greater than 0")
-    root_code, morton_code = parse_cube_code(child_code)
-    parent_code = get_parent_code(morton_code, depth)
-    return gen_cube_code(root_code, parent_code)
+    root_code, morton_code = parse_cube_code(cube_code)
+    parent_code, offsets = get_parent_and_offsets(morton_code, depth)
+    return gen_cube_code(root_code, parent_code), offsets
 
 
 def global_indices_to_codes(
