@@ -195,3 +195,115 @@ class TestFieldTensor:
         assert field_tensor.yp.shape == (0, 2, 0, 1)
         assert field_tensor.zm.shape == (0, 0, 2, 1)
         assert field_tensor.zp.shape == (0, 0, 2, 1)
+
+    def test_interior_setter_vector_field(
+        self, vector_field_tensor: FieldTensor
+    ):
+        """Test interior setter for vector field"""
+        # Create a new tensor to set as interior
+        new_interior = torch.ones(4, 4, 4, 3) * 999.0
+
+        # Set the interior
+        vector_field_tensor.interior = new_interior
+
+        # Verify the interior was set correctly
+        assert torch.equal(vector_field_tensor.interior, new_interior)
+
+    def test_interior_setter_scalar_field(
+        self, scalar_field_tensor: FieldTensor
+    ):
+        """Test interior setter for scalar field"""
+        # Create a new tensor to set as interior
+        new_interior = torch.ones(4, 4, 4) * 888.0
+
+        # Set the interior
+        scalar_field_tensor.interior = new_interior
+
+        # Verify the interior was set correctly
+        assert torch.equal(scalar_field_tensor.interior, new_interior)
+
+    def test_xm_setter(self, vector_field_tensor: FieldTensor):
+        """Test xm (x-minus) boundary setter"""
+        # Create a new tensor to set as xm boundary
+        new_xm = torch.ones(2, 4, 4, 3) * 777.0
+
+        # Set the xm boundary
+        vector_field_tensor.xm = new_xm
+
+        # Verify the xm boundary was set correctly
+        assert torch.equal(vector_field_tensor.xm, new_xm)
+
+    def test_xp_setter(self, vector_field_tensor: FieldTensor):
+        """Test xp (x-plus) boundary setter"""
+        # Create a new tensor to set as xp boundary
+        new_xp = torch.ones(2, 4, 4, 3) * 666.0
+
+        # Set the xp boundary
+        vector_field_tensor.xp = new_xp
+
+        # Verify the xp boundary was set correctly
+        assert torch.equal(vector_field_tensor.xp, new_xp)
+
+    def test_ym_setter(self, vector_field_tensor: FieldTensor):
+        """Test ym (y-minus) boundary setter"""
+        # Create a new tensor to set as ym boundary
+        new_ym = torch.ones(4, 2, 4, 3) * 555.0
+
+        # Set the ym boundary
+        vector_field_tensor.ym = new_ym
+
+        # Verify the ym boundary was set correctly
+        assert torch.equal(vector_field_tensor.ym, new_ym)
+
+    def test_yp_setter(self, vector_field_tensor: FieldTensor):
+        """Test yp (y-plus) boundary setter"""
+        # Create a new tensor to set as yp boundary
+        new_yp = torch.ones(4, 2, 4, 3) * 444.0
+
+        # Set the yp boundary
+        vector_field_tensor.yp = new_yp
+
+        # Verify the yp boundary was set correctly
+        assert torch.equal(vector_field_tensor.yp, new_yp)
+
+    def test_zm_setter(self, vector_field_tensor: FieldTensor):
+        """Test zm (z-minus) boundary setter"""
+        # Create a new tensor to set as zm boundary
+        new_zm = torch.ones(4, 4, 2, 3) * 333.0
+
+        # Set the zm boundary
+        vector_field_tensor.zm = new_zm
+
+        # Verify the zm boundary was set correctly
+        assert torch.equal(vector_field_tensor.zm, new_zm)
+
+    def test_zp_setter(self, vector_field_tensor: FieldTensor):
+        """Test zp (z-plus) boundary setter"""
+        # Create a new tensor to set as zp boundary
+        new_zp = torch.ones(4, 4, 2, 3) * 222.0
+
+        # Set the zp boundary
+        vector_field_tensor.zp = new_zp
+
+        # Verify the zp boundary was set correctly
+        assert torch.equal(vector_field_tensor.zp, new_zp)
+
+    def test_setter_preserves_other_regions(
+        self, vector_field_tensor: FieldTensor
+    ):
+        """Test that setters only modify the intended region and preserve others"""
+        # Store original values
+        original_interior = vector_field_tensor.interior.clone()
+        original_xm = vector_field_tensor.xm.clone()
+        original_xp = vector_field_tensor.xp.clone()
+
+        # Set only the interior
+        new_interior = torch.ones_like(original_interior) * 999.0
+        vector_field_tensor.interior = new_interior
+
+        # Verify interior was changed
+        assert torch.equal(vector_field_tensor.interior, new_interior)
+
+        # Verify other regions were not affected
+        assert torch.equal(vector_field_tensor.xm, original_xm)
+        assert torch.equal(vector_field_tensor.xp, original_xp)
