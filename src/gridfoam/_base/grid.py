@@ -7,7 +7,7 @@ from jaxtyping import Float, Int32
 
 from gridfoam._base._cube import Cube
 from gridfoam._geometry import AABB
-from gridfoam.settings import CubeSetting
+from gridfoam.settings import CubeSetting, FieldDataAttribute
 from gridfoam.utils.annotated_type import CubeCode
 from gridfoam.utils.enums import GridCalculationMode
 from gridfoam.utils.log_time import log_time
@@ -20,7 +20,13 @@ class Grid:
     block_divisions: Int32[torch.Tensor, " 3"]
     cubes: dict[int, dict[CubeCode, Cube]]
     cube_setting: CubeSetting
+    field_data_dict: dict[str, FieldDataAttribute]
     device: torch.device = torch.device("cpu")
+
+    def allocate_field_tensors(self) -> None:
+        for cubes_by_depth in self.cubes.values():
+            for cube in cubes_by_depth.values():
+                cube.allocate_field_tensors(self.cube_setting, self.field_data_dict)
 
     def _calc_amr_box(
         self,
@@ -29,12 +35,14 @@ class Grid:
     ) -> Int32[torch.Tensor, "n_nodes 6"]:
         match mode:
             case GridCalculationMode.CELL:
-                end = indices + self.cube_setting.width - 1
+                start = indices * self.cube_setting.width
+                end = start + self.cube_setting.width - 1
             case GridCalculationMode.NODE:
+                start = indices
                 end = indices
             case _:
                 raise ValueError(f"Invalid calculation mode: {mode}")
-        stacked = torch.stack([indices, end], dim=1)
+        stacked = torch.stack([start, end], dim=1)
         return stacked.permute(0, 2, 1).reshape(-1, 6)
 
     def spacing(
@@ -83,10 +91,10 @@ class Grid:
             )
 
             # level 0
-            cubes = self.cubes[0]
+            cubes_by_depth0 = self.cubes[0]
             global_indices = []
             cube_types = []
-            for cube in cubes.values():
+            for cube in cubes_by_depth0.values():
                 if only_leaves and not cube.is_leaf():
                     continue
                 global_indices.append(cube.global_index)
@@ -113,20 +121,17 @@ class Grid:
             cell_data.create_dataset("cube_type", data=cube_types.cpu().numpy())
 
             # level 1 and above
-            for depth, cubes in self.cubes.items():
-                cell_origin_indices = []
+            for depth, cubes_by_depth in self.cubes.items():
+                global_indices = []
                 cube_types = []
-                for cube in cubes.values():
+                for cube in cubes_by_depth.values():
                     if only_leaves and not cube.is_leaf():
                         continue
-                    cell_origin = cube.global_index * self.cube_setting.width
-                    cell_origin_indices.append(cell_origin)
-                    cell_types = [
-                        cube.cube_type.value
-                    ] * self.cube_setting.width**3
-                    cube_types.extend(cell_types)
-                cell_origin_indices = torch.stack(cell_origin_indices, dim=0)
+                    global_indices.append(cube.global_index)
+                    cube_types.append(cube.cube_type.value)
+                global_indices = torch.stack(global_indices, dim=0)
                 cube_types = torch.tensor(cube_types, dtype=torch.int32)
+                cube_types = torch.repeat_interleave(cube_types, repeats=self.cube_setting.width**3)
 
                 level_group = vtk_group.create_group(f"Level{depth + 1}")
                 level_group.attrs["Spacing"] = (
@@ -135,7 +140,7 @@ class Grid:
                 level_group.create_dataset(
                     "AMRBox",
                     data=self._calc_amr_box(
-                        cell_origin_indices, GridCalculationMode.CELL
+                        global_indices, GridCalculationMode.CELL
                     )
                     .cpu()
                     .numpy(),
@@ -185,10 +190,10 @@ class Grid:
                 descriptionAsASCII,
                 dtype=h5.string_dtype("ascii", len(descriptionAsASCII)),
             )
-            for depth, cubes in self.cubes.items():
+            for depth, cubes_by_depth in self.cubes.items():
                 global_indices = []
                 cube_types = []
-                for cube in cubes.values():
+                for cube in cubes_by_depth.values():
                     if only_leaves and not cube.is_leaf():
                         continue
                     global_indices.append(cube.global_index)

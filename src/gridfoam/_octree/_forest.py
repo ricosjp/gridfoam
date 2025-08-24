@@ -24,6 +24,7 @@ class Forest:
         self._alpha = setting.alpha
         self._depth_limit = setting.depth_limit
         self._cube_setting = setting.cube_setting
+        self._field_data_dict = setting.field_data_dict
         self._device = setting.device
         self._actual_max_depth = 0
         self._nodes: dict[int, dict[int, OctreeNode]] = defaultdict(dict)
@@ -39,6 +40,7 @@ class Forest:
             block_divisions=self._block_divisions,
             cubes=self._cubes,
             cube_setting=self._cube_setting,
+            field_data_dict=self._field_data_dict,
             device=self._device,
         )
 

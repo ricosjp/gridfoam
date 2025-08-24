@@ -7,8 +7,8 @@ import torch
 from gridfoam._base._cube import Cube
 from gridfoam._base.grid import Grid
 from gridfoam._geometry import AABB
-from gridfoam.settings import CubeSetting
-from gridfoam.utils.enums import CubeType
+from gridfoam.settings import CubeSetting, FieldDataAttribute
+from gridfoam.utils.enums import CubeType, GridCalculationMode
 
 
 @pytest.fixture
@@ -25,6 +25,13 @@ def basic_cube_setting() -> CubeSetting:
     """Create a basic CubeSetting for testing."""
     return CubeSetting(width=8, bnd_width=2)
 
+@pytest.fixture
+def basic_field_data_dict() -> dict[str, FieldDataAttribute]:
+    """Create a basic FieldDataAttribute for testing."""
+    return {
+        "U": FieldDataAttribute(shape=(3,), dtype=torch.float32),
+        "p": FieldDataAttribute(shape=(1,), dtype=torch.float32),
+    }
 
 @pytest.fixture
 def basic_cubes() -> dict[int, dict[int, Cube]]:
@@ -147,6 +154,7 @@ class TestGridInitialization:
         self,
         basic_aabb: AABB,
         basic_cube_setting: CubeSetting,
+        basic_field_data_dict: dict[str, FieldDataAttribute],
         basic_cubes: dict[int, dict[int, Cube]],
     ):
         """Test basic Grid initialization."""
@@ -159,6 +167,7 @@ class TestGridInitialization:
             block_divisions=block_divisions,
             cubes=basic_cubes,
             cube_setting=basic_cube_setting,
+            field_data_dict=basic_field_data_dict,
         )
 
         assert grid.domain == basic_aabb
@@ -173,6 +182,7 @@ class TestGridInitialization:
 def basic_grid(
     basic_aabb: AABB,
     basic_cube_setting: CubeSetting,
+    basic_field_data_dict: dict[str, FieldDataAttribute],
     basic_cubes: dict[int, dict[int, Cube]],
 ) -> Grid:
     """Create a basic Grid for testing."""
@@ -182,28 +192,29 @@ def basic_grid(
         block_divisions=torch.tensor([4, 2, 2], dtype=torch.int32),
         cubes=basic_cubes,
         cube_setting=basic_cube_setting,
+        field_data_dict=basic_field_data_dict,
     )
 
 
 class TestGridCalcAmrBox:
     """Test Grid _calc_amr_box method."""
 
-    def test_calc_amr_box_basic(self, basic_grid: Grid):
+    def test_calc_amr_box_node_basic(self, basic_grid: Grid):
         """Test basic _calc_amr_box functionality."""
         # Test with single index
         indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
-        result = basic_grid._calc_amr_box(indices)
+        result = basic_grid._calc_amr_box(indices, mode=GridCalculationMode.NODE)
 
         # Check that result contains [min, max] for each dimension
         expected = torch.tensor([[0, 0, 0, 0, 0, 0]], dtype=torch.int32)
         torch.testing.assert_close(result, expected)
 
-    def test_calc_amr_box_multiple_indices(self, basic_grid: Grid):
+    def test_calc_amr_box_node_multiple_indices(self, basic_grid: Grid):
         """Test _calc_amr_box with multiple indices."""
 
         # Test with multiple indices
         indices = torch.tensor([[0, 0, 0], [1, 1, 0]], dtype=torch.int32)
-        result = basic_grid._calc_amr_box(indices)
+        result = basic_grid._calc_amr_box(indices, mode=GridCalculationMode.NODE)
 
         # Check that result contains [min, max] for each dimension
         expected = torch.tensor(
@@ -211,6 +222,32 @@ class TestGridCalcAmrBox:
                 [0, 0, 0, 0, 0, 0],
                 [1, 1, 1, 1, 0, 0],
             ],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(result, expected)
+
+    def test_calc_amr_box_cell_basic(self, basic_grid: Grid):
+        """Test basic _calc_amr_box functionality."""
+        # Test with single index
+        indices = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        result = basic_grid._calc_amr_box(indices, mode=GridCalculationMode.CELL)
+
+        # Check that result contains [min, max] for each dimension
+        expected = torch.tensor(
+            [[0, 7, 0, 7, 0, 7]],
+            dtype=torch.int32,
+        )
+        torch.testing.assert_close(result, expected)
+
+    def test_calc_amr_box_cell_multiple_indices(self, basic_grid: Grid):
+        """Test _calc_amr_box with multiple indices."""
+        # Test with multiple indices
+        indices = torch.tensor([[0, 0, 0], [1, 1, 0]], dtype=torch.int32)
+        result = basic_grid._calc_amr_box(indices, mode=GridCalculationMode.CELL)
+
+        # Check that result contains [min, max] for each dimension
+        expected = torch.tensor(
+            [[0, 7, 0, 7, 0, 7], [8, 15, 8, 15, 0, 7]],
             dtype=torch.int32,
         )
         torch.testing.assert_close(result, expected)
