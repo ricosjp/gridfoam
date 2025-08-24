@@ -131,7 +131,9 @@ class Grid:
                     cube_types.append(cube.cube_type.value)
                 global_indices = torch.stack(global_indices, dim=0)
                 cube_types = torch.tensor(cube_types, dtype=torch.int32)
-                cube_types = torch.repeat_interleave(cube_types, repeats=self.cube_setting.width**3)
+                cube_types = torch.repeat_interleave(
+                    cube_types, repeats=self.cube_setting.width**3
+                )
 
                 level_group = vtk_group.create_group(f"Level{depth + 1}")
                 level_group.attrs["Spacing"] = (
