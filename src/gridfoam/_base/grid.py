@@ -91,48 +91,74 @@ class Grid:
             )
 
             # level 0
+            global_indices0 = []
+            cube_types0 = []
+            field_data_by_name0 = defaultdict(list)
             cubes_by_depth0 = self.cubes[0]
-            global_indices = []
-            cube_types = []
             for cube in cubes_by_depth0.values():
                 if only_leaves and not cube.is_leaf():
                     continue
-                global_indices.append(cube.global_index)
-                cube_types.append(cube.cube_type.value)
-            global_indices = torch.stack(global_indices, dim=0)
-            cube_types = torch.tensor(cube_types, dtype=torch.int32)
+                global_indices0.append(cube.global_index)
+                cube_types0.append(cube.cube_type.value)
 
-            level_group = vtk_group.create_group("Level0")
-            level_group.attrs["Spacing"] = (
+                for name, field_tensor in cube.field_tensors.items():
+                    _, _, _, *extra_shape = field_tensor.interior.shape
+                    data = torch.zeros(
+                        (1, *extra_shape), dtype=field_tensor.interior.dtype
+                    )
+                    field_data_by_name0[name].append(data)
+
+            global_indices0 = torch.stack(global_indices0, dim=0)
+            cube_types0 = torch.tensor(cube_types0, dtype=torch.int32)
+            depths0 = torch.zeros(global_indices0.shape[0], dtype=torch.int32)
+
+            level_group0 = vtk_group.create_group("Level0")
+            level_group0.attrs["Spacing"] = (
                 self.spacing(0, GridCalculationMode.NODE).cpu().numpy()
             )
-            level_group.create_dataset(
+            level_group0.create_dataset(
                 "AMRBox",
                 data=self._calc_amr_box(
-                    global_indices, GridCalculationMode.NODE
+                    global_indices0, GridCalculationMode.NODE
                 )
                 .cpu()
                 .numpy(),
             )
-            _ = level_group.create_group("PointData")
-            cell_data = level_group.create_group("CellData")
-            _ = level_group.create_group("FieldData")
+            _ = level_group0.create_group("PointData")
+            cell_data0 = level_group0.create_group("CellData")
+            _ = level_group0.create_group("FieldData")
 
-            cell_data.create_dataset("cube_type", data=cube_types.cpu().numpy())
+            cell_data0.create_dataset(
+                "cube_type", data=cube_types0.cpu().numpy()
+            )
+            cell_data0.create_dataset("depth", data=depths0.cpu().numpy())
+            for name, data_list in field_data_by_name0.items():
+                concatenated_data = torch.cat(data_list, dim=0).cpu().numpy()
+                cell_data0.create_dataset(name, data=concatenated_data)
 
             # level 1 and above
             for depth, cubes_by_depth in self.cubes.items():
                 global_indices = []
                 cube_types = []
+                field_data_by_name = defaultdict(list)
                 for cube in cubes_by_depth.values():
                     if only_leaves and not cube.is_leaf():
                         continue
                     global_indices.append(cube.global_index)
                     cube_types.append(cube.cube_type.value)
+
+                    for name, field_tensor in cube.field_tensors.items():
+                        _, _, _, *extra_shape = field_tensor.interior.shape
+                        data = field_tensor.interior.reshape(-1, *extra_shape)
+                        field_data_by_name[name].append(data)
+
                 global_indices = torch.stack(global_indices, dim=0)
                 cube_types = torch.tensor(cube_types, dtype=torch.int32)
                 cube_types = torch.repeat_interleave(
                     cube_types, repeats=self.cube_setting.width**3
+                )
+                depths = torch.full(
+                    (cube_types.shape[0],), depth, dtype=torch.int32
                 )
 
                 level_group = vtk_group.create_group(f"Level{depth + 1}")
@@ -154,6 +180,12 @@ class Grid:
                 cell_data.create_dataset(
                     "cube_type", data=cube_types.cpu().numpy()
                 )
+                cell_data.create_dataset("depth", data=depths.cpu().numpy())
+                for name, data_list in field_data_by_name.items():
+                    concatenated_data = (
+                        torch.cat(data_list, dim=0).cpu().numpy()
+                    )
+                    cell_data.create_dataset(name, data=concatenated_data)
 
     @log_time
     def save_structure(
