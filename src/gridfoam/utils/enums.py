@@ -38,6 +38,18 @@ class GridCalculationMode(Enum):
     NODE = 1
 
 
+class Direction(Enum):
+    """
+    Direction of the grid.
+    """
+
+    XM = 12
+    XP = 13
+    YM = 10
+    YP = 15
+    ZM = 4
+    ZP = 21
+
 class CubeType(Enum):
     """
     Type of cube.
