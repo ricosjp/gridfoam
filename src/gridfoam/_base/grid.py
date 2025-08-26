@@ -352,6 +352,8 @@ class Grid:
                     for name, field_tensor in child_cube.field_tensors.items():
                         interior = field_tensor.interior
                         width, _, _, *extra_shape = interior.shape
+
+                        # to (X, width, width, width)
                         interior_reshaped = interior.reshape(
                             width, width, width, -1
                         )
@@ -364,7 +366,7 @@ class Grid:
                         coarsened_tensor = F.avg_pool3d(
                             interior_reshaped, kernel_size=2, stride=2
                         )
-                        # to (width/2, width/2, width/2, 3)
+                        # to (width/2, width/2, width/2, X)
                         coarsened_tensor = (
                             coarsened_tensor.squeeze(0)
                             .permute(1, 2, 3, 0)
