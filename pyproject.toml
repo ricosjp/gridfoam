@@ -13,7 +13,6 @@ dependencies = [
   "pyvista>=0.44.2",
   "pydantic>=2.11.7",
   "h5py>=3.14.0",
-  "nanofoam",
   "trimesh>=4.7.1",
   "rtree>=1.4.0",
 ]
@@ -57,7 +56,6 @@ default-groups = ["dev", "lint", "docs", "note"]
 conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
-nanofoam = { path = "./src/nanofoam", editable = true }
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu118", extra = "cu118" },
