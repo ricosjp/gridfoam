@@ -45,7 +45,9 @@ def child_cube_codes(cube_code: CubeCode, depth: int) -> list[CubeCode]:
     return [gen_cube_code(root_code, child_code) for child_code in child_codes]
 
 
-def parent_cube_code_and_offsets(cube_code: CubeCode, depth: int) -> tuple[CubeCode, tuple[int, int, int]]:
+def parent_cube_code_and_offsets(
+    cube_code: CubeCode, depth: int
+) -> tuple[CubeCode, tuple[int, int, int]]:
     if depth == 0:
         raise ValueError("Depth must be greater than 0")
     root_code, morton_code = parse_cube_code(cube_code)

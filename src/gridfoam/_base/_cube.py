@@ -26,7 +26,9 @@ class Cube:
         for name, attr in field_data_dict.items():
             self.add_field_tensor(cube_setting, name, attr)
 
-    def add_field_tensor(self, cube_setting: CubeSetting, name: str, attr: FieldDataAttribute) -> None:
+    def add_field_tensor(
+        self, cube_setting: CubeSetting, name: str, attr: FieldDataAttribute
+    ) -> None:
         data_width = cube_setting.width + 2 * cube_setting.bnd_width
         shape = (data_width, data_width, data_width, *attr.shape)
         data = torch.zeros(shape, dtype=attr.dtype, device=self.device)

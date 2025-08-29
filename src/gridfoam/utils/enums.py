@@ -50,6 +50,7 @@ class Direction(Enum):
     ZM = 4
     ZP = 21
 
+
 class CubeType(Enum):
     """
     Type of cube.

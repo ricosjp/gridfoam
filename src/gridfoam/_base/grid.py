@@ -1,5 +1,6 @@
 import pathlib
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import h5py as h5
@@ -23,7 +24,7 @@ from gridfoam.utils.enums import (
     Direction,
     GridCalculationMode,
 )
-from gridfoam.utils.index import generate_grid_indices, neighbor_indices
+from gridfoam.utils.index import neighbor_indices
 from gridfoam.utils.log_time import log_time
 
 
@@ -38,107 +39,21 @@ class Grid:
     device: torch.device = torch.device("cpu")
 
     def allocate_field_tensors(self) -> None:
-        """Allocate field tensors for all cubes and add gradient field.
+        """Allocate field tensors for all cubes.
 
-        This method allocates field tensors for all cubes based on the field_data_dict
-        and additionally adds a gradient field tensor for pressure gradient calculations.
+        This method allocates field tensors for all cubes
+        based on the field_data_dict.
         """
-        dtype = torch.float32
         for cubes_by_depth in self.cubes.values():
             for cube in cubes_by_depth.values():
                 cube.allocate_field_tensors(
                     self.cube_setting, self.field_data_dict
                 )
-                cube.add_field_tensor(
-                    self.cube_setting,
-                    "grad_p",
-                    FieldDataAttribute(shape=(3,), dtype=dtype),
-                )
 
-    def init_p(self) -> None:
-        """Initialize pressure field with radial distance from origin.
-
-        This method initializes the pressure field for all cubes by calculating
-        the radial distance from the origin for each cell center. The pressure
-        is set to the distance from the origin (sqrt(x^2 + y^2 + z^2)).
-
-        After initialization, ghost cells are synchronized from children and
-        halo cells are updated.
-        """
-        dtype = torch.float32
+    def iterate_by_depth(self) -> Iterator[tuple[int, Cube]]:
         for depth, cubes_by_depth in self.cubes.items():
             for cube in cubes_by_depth.values():
-                # if cube.cube_type != CubeType.LEAF:
-                #     continue
-                half_spacing = (
-                    self.spacing(depth, GridCalculationMode.CELL) * 0.5
-                )
-                width = self.cube_setting.width
-                divisions = torch.tensor([width] * 3, dtype=torch.int32)
-                local_cell_indices = generate_grid_indices(divisions).reshape(
-                    width, width, width, 3
-                )
-                global_cell_indices = (
-                    cube.global_index[None, None, None, :] * width
-                    + local_cell_indices
-                )
-                global_cell_position = (
-                    self.domain.min
-                    + (2.0 * global_cell_indices.to(dtype=dtype)[..., :] + 1)
-                    * half_spacing
-                )
-                x = global_cell_position[..., 0]
-                y = global_cell_position[..., 1]
-                z = global_cell_position[..., 2]
-                r = torch.sqrt(x**2 + y**2 + z**2)
-                # r = (z-self.domain.center[2])**2
-                # r = x+y+z
-                cube.field_tensors["p"].interior = r[..., None]
-        # propagate to ghost cubes
-        self.sync_ghost_from_children()
-        # self.sync_ghost_from_parent()
-
-        # update halo cells
-        self.update_halo()
-
-    def grad_p(self) -> None:
-        """Calculate pressure gradient using finite difference method.
-
-        This method computes the pressure gradient for all cubes using first-order
-        finite differences. The gradient is calculated in x, y, and z directions
-        using the pressure values at neighboring cells.
-
-        After calculation, ghost cells are synchronized from children and
-        halo cells are updated.
-        """
-        for depth, cubes_by_depth in self.cubes.items():
-            for cube in cubes_by_depth.values():
-                # if cube.cube_type != CubeType.LEAF:
-                #     continue
-                spacing = self.spacing(depth, GridCalculationMode.CELL)
-                p = cube.field_tensors["p"]
-                p_i = p.interior
-                p_i_xp = p.raw[
-                    p.bnd : -p.bnd, p.bnd : -p.bnd, p.bnd + 1 : -p.bnd + 1
-                ]
-                p_i_yp = p.raw[
-                    p.bnd : -p.bnd, p.bnd + 1 : -p.bnd + 1, p.bnd : -p.bnd
-                ]
-                p_i_zp = p.raw[
-                    p.bnd + 1 : -p.bnd + 1, p.bnd : -p.bnd, p.bnd : -p.bnd
-                ]
-                dpdx = (p_i_xp - p_i) / spacing[0]
-                dpdy = (p_i_yp - p_i) / spacing[1]
-                dpdz = (p_i_zp - p_i) / spacing[2]
-                cube.field_tensors["grad_p"].interior = torch.cat(
-                    [dpdx, dpdy, dpdz], dim=-1
-                )
-        # propagate to ghost cubes
-        self.sync_ghost_from_children()
-        # self.sync_ghost_from_parent()
-
-        # update halo cells
-        self.update_halo()
+                yield depth, cube
 
     def _calc_amr_box(
         self,
@@ -157,7 +72,8 @@ class Grid:
         Returns
         -------
         Int32[torch.Tensor, "n_nodes 6"]
-            AMR box coordinates in format [x_start, x_end, y_start, y_end, z_start, z_end]
+            AMR box coordinates in format
+            [x_start, x_end, y_start, y_end, z_start, z_end]
         """
         match mode:
             case GridCalculationMode.CELL:
@@ -279,9 +195,11 @@ class Grid:
         """
         Synchronize ghost cubes from their parent cubes.
 
-        This method extracts data from parent cubes and distributes it to ghost cubes
-        that are refined versions of their parent cubes. The data is interpolated
-        using simple replication (each parent cell becomes 2x2x2 child cells).
+        This method extracts data from parent cubes
+        and distributes it to ghost cubes
+        that are refined versions of their parent cubes.
+        The data is interpolated  using simple replication
+        (each parent cell becomes 2x2x2 child cells).
         """
         half_size = self.cube_setting.width // 2
 
@@ -299,8 +217,10 @@ class Grid:
                 # https://zingale.github.io/comp_astro_tutorial/advection_euler/advection/advection-partIII.html
                 # 2. Piecewise Parabolic Method
 
-                # Calculate the region in parent cube that corresponds to this ghost cube
-                # offsets are 0 or 1, indicating which half of the parent cube this ghost occupies
+                # Calculate the region in parent cube
+                # that corresponds to this ghost cube
+                # offsets are 0 or 1,
+                # indicating which half of the parent cube this ghost occupies
                 xs = offsets[0] * half_size
                 xe = xs + half_size
                 ys = offsets[1] * half_size
@@ -317,7 +237,7 @@ class Grid:
                     region_width, _, _, *extra_shape = parent_region.shape
 
                     # Interpolate by repeating each cell 2x2x2 times
-                    # This creates a refined version where each parent cell becomes 8 child cells
+                    # This creates a refined version
                     refined_tensor = (
                         parent_region.repeat_interleave(2, dim=0)
                         .repeat_interleave(2, dim=1)
@@ -336,9 +256,11 @@ class Grid:
     def sync_ghost_from_children(self) -> None:
         """Synchronize ghost cubes from their child cubes.
 
-        This method aggregates data from child cubes and distributes it to ghost cubes
-        that are coarsened versions of their child cubes. The data is coarsened using
-        average pooling (2x2x2 cells are averaged into 1 cell).
+        This method aggregates data from child cubes
+        and distributes it to ghost cubes
+        that are coarsened versions of their child cubes.
+        The data is coarsened using average pooling
+        (2x2x2 cells are averaged into 1 cell).
         """
         for depth, cubes_by_depth in reversed(self.cubes.items()):
             for code, cube in cubes_by_depth.items():
@@ -539,7 +461,8 @@ class Grid:
     ) -> None:
         """Save the hierarchical grid structure as a VTK HDF file.
 
-        This method saves only the grid structure (without field data) to a VTK HDF file.
+        This method saves only the grid structure (without field data)
+        to a VTK HDF file.
         The data is organized by levels, with each level containing spacing and
         AMR box coordinates.
 

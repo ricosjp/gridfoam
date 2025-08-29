@@ -299,7 +299,10 @@ class TestFieldTensor:
     def test_setter_preserves_other_regions(
         self, vector_field_tensor: FieldTensor
     ):
-        """Test that setters only modify the intended region and preserve others"""
+        """
+        Test that setters only modify the intended region
+        and preserve others.
+        """
         # Store original values
         original_interior = vector_field_tensor.interior.clone()
         original_xm = vector_field_tensor.xm.clone()

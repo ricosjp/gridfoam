@@ -350,6 +350,7 @@ class TestGetParentCode:
         with pytest.raises(ValueError):
             get_parent_code(code, octree_depth)
 
+
 class TestGetParentAndOffsets:
     """Test get_parent_and_offsets function"""
 
