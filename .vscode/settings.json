@@ -1,8 +1,14 @@
 {
-    "notebook.diff.ignoreMetadata": true,
-    "notebook.diff.ignoreOutputs": true,
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "esbonio.sphinx.buildDir" : "${workspaceFolder}/docs/build",
-    "esbonio.sphinx.confDir"  : "${workspaceFolder}/docs/source",
-  }
+  "notebook.diff.ignoreMetadata": true,
+  "notebook.diff.ignoreOutputs": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "esbonio.sphinx.buildDir" : "${workspaceFolder}/docs/build",
+  "esbonio.sphinx.confDir"  : "${workspaceFolder}/docs/source",
+  /* -----------------------------------
+  // Project
+  ----------------------------------- */
+  "rust-analyzer.linkedProjects": [
+    "${workspaceFolder}/src/cubion/Cargo.toml"
+  ],
+}

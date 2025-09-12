@@ -1,0 +1,20 @@
+grid:
+  domain:
+    min: [-4.0, -2.0, -2.0] # field name mismatch
+    max: [4.0, 2.0, 2.0] # field name mismatch
+  blocksize: [8.5, -4.5, 4.5] # field type mismatch
+
+octree:
+  refinement:
+    strategy: "default"
+    depth_limit: 6
+    alpha: 0.3
+
+io:
+  output_dir: "tests/outputs/grid"
+  only_leaves: true
+
+mesh:
+  file: "tests/data/stl/bunny.stl"
+
+device: "cpu"

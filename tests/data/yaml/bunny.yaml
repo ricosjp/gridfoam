@@ -1,0 +1,20 @@
+grid:
+  domain:
+    lower: [-4.0, -2.0, -2.0]
+    upper: [4.0, 2.0, 2.0]
+  blocksize: [8, 4, 4]
+  
+octree:
+  refinement:
+    strategy: "default"
+    depth_limit: 3
+    alpha: 0.3
+  
+io:
+  output_dir: "tests/outputs/grid"
+  only_leaves: true
+
+mesh:
+  file: "tests/data/stl/bunny.stl"
+
+device: "cpu"

@@ -9,15 +9,14 @@ reset:
 install:
 	uv sync --refresh --reinstall --extra ${CUDA_TAG}
 
-.PHONY: mypy
-mypy:
-	poetry run mypy src
+.PHONY: dev-install
+dev_install:
+	uv sync --refresh --reinstall --extra ${CUDA_TAG} --group dev
 
 .PHONY: lint
 lint:
 	uv run ruff check --output-format=full
 	uv run ruff format --diff
-	# uv run mypy src
 
 .PHONY: cpu-test
 cpu-test:

@@ -1,20 +1,22 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "gridfoam"
 version = "0.1.0"
-description = "Add your description here"
+description = "Differentiable Fluid Solver of Hierarchical Grid"
 readme = "README.md"
 authors = [{ name = "Daichi Ishida", email = "ishida@ricos.co.jp" }]
 requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Rust",
+]
 dependencies = [
   "pyvista>=0.44.2",
   "pydantic>=2.11.7",
   "h5py>=3.14.0",
-  "trimesh>=4.7.1",
-  "rtree>=1.4.0",
 ]
 
 [project.optional-dependencies]
@@ -24,15 +26,34 @@ cu124 = ["torch>=2.5.1", "torchvision>=0.20.1"]
 
 [dependency-groups]
 dev = [
+  {include-group = "test"},
+  {include-group = "visualize"},
+  {include-group = "lint"},
+  {include-group = "docs"},
+  {include-group = "note"},
+]
+ci = [
+  {include-group = "test"},
+  {include-group = "visualize"},
+  {include-group = "lint"},
+  {include-group = "docs"},
+]
+test = [
   "pytest",
   "pytest-cov",
   "pytest-benchmark",
   "pytest-memray",
   "pyinstrument",
+]
+visualize = [
   "polars",
   "plotly",
 ]
-lint = ["ruff", "jaxtyping", "beartype"]
+lint = [
+  "ruff",
+  "jaxtyping",
+  "beartype",
+]
 docs = [
   "sphinx",
   "furo",
@@ -48,11 +69,10 @@ note = [
   "trame",
   "trame-vtk",
   "trame-vuetify",
-  "imageio>=2.37.0",
 ]
 
 [tool.uv]
-default-groups = ["dev", "lint", "docs", "note"]
+default-groups = ["ci"]
 conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
@@ -105,3 +125,8 @@ exclude_also = [
   # Don't complain about abstract methods, they aren't run:
   "@(abc\\.)?abstractmethod",
 ]
+
+[tool.maturin]
+manifest-path = "src/cubion/Cargo.toml"
+module-name = "gridfoam.cubion"
+python-source = "src"
