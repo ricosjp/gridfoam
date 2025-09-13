@@ -1,76 +1,60 @@
-use crate::core::{index::*, mesh::*, morton::*};
-use crate::io::config::{Config, SplitStrategyType};
-use pyo3::pyclass;
-use std::{
-    collections::{HashMap, HashSet},
-    hash::BuildHasherDefault,
+use crate::core::index::generate_grid_indices;
+use crate::core::mesh::{BBoxOps, TriangleMesh};
+use crate::core::morton::{MortonEncodeOps, ToCubeCode};
+use crate::core::neighbor::NeighborIndices;
+use crate::core::types::{
+    BBox, CubeCode, DefaultSplitStrategy, IndexBounds, LocalIndex, NodeType, OctreeCode,
+    OctreeLevel, OctreeNode, RawIndexConversionMode, WyHasher,
 };
+use crate::io::config::{Config, SplitStrategyType};
+use std::collections::{HashMap, HashSet};
 
-use wyhash2::WyHash;
-type WyHasher = BuildHasherDefault<WyHash>;
-
-#[derive(Debug, Clone, thiserror::Error, PartialEq)]
-pub enum OctreeError {
-    #[error("Invalid depth: {depth} is over the maximum depth {MAX_OCTREE_DEPTH}")]
-    InvalidDepth { depth: usize },
-
-    #[error("Raveled index {raveled_index} is out of bounds: {bounds:?}")]
-    RaveledIndexOutOfBounds {
-        raveled_index: u64,
-        bounds: IndexBounds,
-    },
+/// Complete octree grid structure
+///
+/// Contains all levels of the octree in a compact, efficient representation
+/// suitable for querying and traversal.
+pub struct Grid {
+    /// Spatial domain of the octree
+    pub domain: BBox,
+    /// Block size at the root level
+    pub blocksize: IndexBounds,
+    /// Maximum depth reached during construction
+    pub max_depth: usize,
+    /// All octree levels in compact representation
+    pub octree_levels: Vec<OctreeLevel>,
+    /// Triangle mesh used for intersection calculations
+    pub mesh: TriangleMesh,
 }
 
-/// Types of nodes in the octree structure
-///
-/// Different node types serve different purposes in the octree hierarchy,
-/// enabling efficient neighbor calculations and boundary handling.
-#[pyclass]
-#[derive(Debug, Clone)]
-pub enum NodeType {
-    /// Leaf node containing actual mesh intersection data
+impl Grid {
+    /// Create a new grid structure
     ///
-    /// These nodes represent the finest level of the octree and contain
-    /// the actual face IDs that intersect with the node's bounding box.
-    Leaf,
-
-    /// Ghost node created from child refinement
+    /// # Arguments
     ///
-    /// These nodes are created when a neighbor is refined to a finer level.
-    /// They provide boundary information for the refined neighbor.
-    GhostFromChild,
-
-    /// Ghost node created from parent coarsening
+    /// * `domain` - Spatial domain of the octree
+    /// * `blocksize` - Block size at the root level
+    /// * `max_depth` - Maximum depth reached
+    /// * `octree_levels` - All levels in octree representation
+    /// * `mesh` - Mesh
     ///
-    /// These nodes are created when a neighbor remains at a coarser level.
-    /// They provide boundary information for the coarser neighbor.
-    GhostFromParent,
-}
-
-/// A single node in the octree structure
-///
-/// Represents a node in the octree hierarchy with its spatial identifier,
-/// associated mesh faces, and node type classification.
-pub struct OctreeNode {
-    /// Unique identifier for this node in the octree hierarchy
-    pub cubecode: CubeCode,
-    /// Face IDs that intersect with this node's bounding box
-    pub face_ids: Vec<usize>,
-    /// Type of this node (leaf, ghost, etc.)
-    pub node_type: NodeType,
-}
-
-/// A single level of the octree structure
-///
-/// Contains all nodes at a specific depth level and provides methods
-/// for level-wise operations like splitting and ghost node generation.
-pub struct OctreeLevel {
-    /// Map of cube codes to nodes at this level
-    pub nodes: HashMap<CubeCode, OctreeNode, WyHasher>,
-    /// Grid bounds for this level
-    pub bounds: IndexBounds,
-    /// Depth level (0 = root)
-    pub depth: usize,
+    /// # Returns
+    ///
+    /// A new grid structure
+    fn new(
+        domain: BBox,
+        blocksize: IndexBounds,
+        max_depth: usize,
+        octree_levels: Vec<OctreeLevel>,
+        mesh: TriangleMesh,
+    ) -> Self {
+        Self {
+            domain,
+            blocksize,
+            max_depth,
+            octree_levels,
+            mesh,
+        }
+    }
 }
 
 impl OctreeLevel {
@@ -124,7 +108,7 @@ impl OctreeLevel {
                         .neighbor_indices(&self.bounds, RawIndexConversionMode::Border, true)
                         .into_iter()
                         .flatten()
-                        .map(|index| index.to_cubecode(self.depth)),
+                        .map(|gindex| gindex.to_cubecode(self.depth)),
                 );
             });
         split_cubecode_set
@@ -277,44 +261,6 @@ impl OctreeLevel {
     }
 }
 
-// TODO: add more split strategies: curvature, etc.
-/// Default split strategy for octree construction
-///
-/// This strategy splits nodes that are under the depth limit and have
-/// intersecting mesh faces.
-pub struct DefaultSplitStrategy {
-    /// Maximum depth allowed for splitting
-    depth_limit: usize,
-    /// Refinement parameter for split criteria
-    alpha: f64,
-}
-
-/// Trait for determining which nodes should be split
-///
-/// Different split strategies can be implemented to control
-/// how the octree is refined based on various criteria.
-pub trait SplitStrategy {
-    /// Determine if a node should be split
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to evaluate
-    /// * `context` - Context information for the decision
-    ///
-    /// # Returns
-    ///
-    /// `true` if the node should be split, `false` otherwise
-    fn should_split(&self, depth: usize, node: &OctreeNode) -> bool;
-}
-
-impl SplitStrategy for DefaultSplitStrategy {
-    fn should_split(&self, depth: usize, node: &OctreeNode) -> bool {
-        let is_under_depth_limit = depth < self.depth_limit;
-        let has_face_ids = !node.face_ids.is_empty();
-        is_under_depth_limit && has_face_ids
-    }
-}
-
 /// Builder for constructing octrees with configurable split strategies
 ///
 /// This builder provides a flexible way to construct octrees using
@@ -421,51 +367,29 @@ impl OctreeBuilder {
     }
 }
 
-/// Complete octree grid structure
+/// Trait for determining which nodes should be split
 ///
-/// Contains all levels of the octree in a compact, efficient representation
-/// suitable for querying and traversal.
-pub struct Grid {
-    /// Spatial domain of the octree
-    pub domain: BBox,
-    /// Block size at the root level
-    pub blocksize: IndexBounds,
-    /// Maximum depth reached during construction
-    pub max_depth: usize,
-    /// All octree levels in compact representation
-    pub octree_levels: Vec<OctreeLevel>,
-    /// Triangle mesh used for intersection calculations
-    pub mesh: TriangleMesh,
-}
-
-impl Grid {
-    /// Create a new grid structure
+/// Different split strategies can be implemented to control
+/// how the octree is refined based on various criteria.
+trait SplitStrategy {
+    /// Determine if a node should be split
     ///
     /// # Arguments
     ///
-    /// * `domain` - Spatial domain of the octree
-    /// * `blocksize` - Block size at the root level
-    /// * `max_depth` - Maximum depth reached
-    /// * `octree_levels` - All levels in octree representation
-    /// * `mesh` - Mesh
+    /// * `node` - The node to evaluate
+    /// * `context` - Context information for the decision
     ///
     /// # Returns
     ///
-    /// A new grid structure
-    fn new(
-        domain: BBox,
-        blocksize: IndexBounds,
-        max_depth: usize,
-        octree_levels: Vec<OctreeLevel>,
-        mesh: TriangleMesh,
-    ) -> Self {
-        Self {
-            domain,
-            blocksize,
-            max_depth,
-            octree_levels,
-            mesh,
-        }
+    /// `true` if the node should be split, `false` otherwise
+    fn should_split(&self, depth: usize, node: &OctreeNode) -> bool;
+}
+
+impl SplitStrategy for DefaultSplitStrategy {
+    fn should_split(&self, depth: usize, node: &OctreeNode) -> bool {
+        let is_under_depth_limit = depth < self.depth_limit;
+        let has_face_ids = !node.face_ids.is_empty();
+        is_under_depth_limit && has_face_ids
     }
 }
 
@@ -477,7 +401,7 @@ mod tests {
 
     #[fixture]
     fn simple_mesh() -> TriangleMesh {
-        TriangleMesh::from_stl("../../tests/data/stl/bunny.stl")
+        TriangleMesh::from_stl_file("../../tests/data/stl/bunny.stl")
     }
 
     #[fixture]
@@ -493,7 +417,7 @@ mod tests {
         let grid = builder.build_with_mesh(simple_mesh);
         assert_eq!(grid.domain.lower(), [-4.0, -2.0, -2.0]);
         assert_eq!(grid.domain.upper(), [4.0, 2.0, 2.0]);
-        assert_eq!(grid.blocksize, Vector3::<u64>::new(8, 4, 4));
-        assert_eq!(grid.max_depth, 7);
+        assert_eq!(grid.blocksize, IndexBounds::new(8, 4, 4));
+        assert_eq!(grid.max_depth, 4);
     }
 }

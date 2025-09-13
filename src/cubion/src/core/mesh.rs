@@ -1,15 +1,8 @@
 extern crate nalgebra as na;
+use crate::core::types::{BBox, CubeCode, IndexBounds, Point};
 use na::{Matrix2x3, MatrixXx3, Vector3};
-
-use rstar::{Envelope, RTree, RTreeObject, AABB};
+use rstar::{Envelope, RTree, RTreeObject};
 use std::fs::File;
-
-use crate::core::morton::CubeCode;
-
-/// Point type representing 3D coordinates
-type Point = [f64; 3];
-/// Bounding box type
-pub type BBox = AABB<Point>;
 
 /// Extension trait for AABB (Axis-Aligned Bounding Box) operations
 ///
@@ -60,8 +53,7 @@ pub trait BBoxOps {
     /// # Returns
     ///
     /// An AABB created from the CubeCode
-    fn calculate_bbox_from(&self, cubecode: &CubeCode, bounds: &Vector3<u64>, depth: usize)
-        -> BBox;
+    fn calculate_bbox_from(&self, cubecode: &CubeCode, bounds: &IndexBounds, depth: usize) -> BBox;
 }
 
 impl BBoxOps for BBox {
@@ -92,7 +84,7 @@ impl BBoxOps for BBox {
 
             let min = [xs[i], ys[j], zs[k]];
             let max = [xs[i + 1], ys[j + 1], zs[k + 1]];
-            result.push(AABB::from_corners(min, max));
+            result.push(BBox::from_corners(min, max));
         }
 
         result
@@ -116,7 +108,7 @@ impl BBoxOps for BBox {
             .cast::<f64>()
             .component_mul(&dx)
             + domain_lower;
-        AABB::from_corners(bbox_lower.into(), bbox_upper.into())
+        BBox::from_corners(bbox_lower.into(), bbox_upper.into())
     }
 }
 
@@ -124,8 +116,7 @@ impl BBoxOps for BBox {
 ///
 /// Represents a triangular face with an ID and three vertex coordinates.
 /// Used for spatial indexing and intersection calculations.
-#[derive(Clone, Debug, Copy, PartialEq)]
-pub struct Triangle {
+struct Triangle {
     /// Unique identifier for this triangle
     id: usize,
     /// Three vertices defining the triangle
@@ -142,16 +133,18 @@ impl Triangle {
     /// # Returns
     ///
     /// An AABB that completely contains the triangle
-    fn aabb(&self) -> BBox {
-        let mut min = [f64::MAX; 3];
-        let mut max = [f64::MIN; 3];
-        for v in &self.vertices {
-            for i in 0..3 {
-                min[i] = min[i].min(v[i]);
-                max[i] = max[i].max(v[i]);
-            }
+    fn bbox(&self) -> BBox {
+        let v0 = &self.vertices[0];
+        let v1 = &self.vertices[1];
+        let v2 = &self.vertices[2];
+
+        let mut min = [0.0; 3];
+        let mut max = [0.0; 3];
+        for i in 0..3 {
+            min[i] = v0[i].min(v1[i].min(v2[i]));
+            max[i] = v0[i].max(v1[i].max(v2[i]));
         }
-        AABB::from_corners(min, max)
+        BBox::from_corners(min, max)
     }
 }
 
@@ -164,7 +157,7 @@ impl RTreeObject for Triangle {
     ///
     /// The AABB of this triangle for use in R-tree spatial indexing
     fn envelope(&self) -> Self::Envelope {
-        self.aabb()
+        self.bbox()
     }
 }
 
@@ -227,15 +220,14 @@ impl TriangleMesh {
     /// # Panics
     ///
     /// Panics if the file cannot be opened or read, or if the STL format is invalid
-    pub fn from_stl(filename: &str) -> TriangleMesh {
-        let mut file = match File::open(filename) {
-            Ok(f) => f,
-            Err(e) => panic!("Failed to open file: {}", e),
-        };
-        let stl = match stl_io::read_stl(&mut file) {
-            Ok(s) => s,
-            Err(e) => panic!("Failed to read STL: {}", e),
-        };
+    pub fn from_stl_file(filename: &str) -> TriangleMesh {
+        // Error handling using map_err for file open and STL read
+        let mut file = File::open(filename)
+            .map_err(|e| panic!("Failed to open file {}: {}", filename, e))
+            .unwrap();
+        let stl = stl_io::read_stl(&mut file)
+            .map_err(|e| panic!("Failed to read STL file {}: {}", filename, e))
+            .unwrap();
 
         let n_points = stl.vertices.len();
         let n_faces = stl.faces.len();
@@ -268,59 +260,66 @@ mod tests {
     use super::*;
     use rstest::{fixture, rstest};
 
-    /// Create a simple AABB for testing
+    /// Create a simple BBox for testing
     #[fixture]
-    fn simple_aabb() -> BBox {
-        AABB::from_corners([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
+    fn simple_bbox() -> BBox {
+        BBox::from_corners([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
     }
 
-    /// Test AABB bounds extraction
+    /// Test BBox diagonal calculation
+    #[rstest]
+    #[case(Vector3::new(1.0, 1.0, 1.0))]
+    fn test_bbox_diag(simple_bbox: BBox, #[case] expected: Vector3<f64>) {
+        assert_eq!(simple_bbox.diag(), expected);
+    }
+
+    /// Test BBox bounds extraction
     #[rstest]
     #[case(Matrix2x3::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0))]
-    fn test_aabb_bounds(simple_aabb: AABB<Point>, #[case] expected: Matrix2x3<f64>) {
-        assert_eq!(simple_aabb.bounds(), expected);
+    fn test_bbox_bounds(simple_bbox: BBox, #[case] expected: Matrix2x3<f64>) {
+        assert_eq!(simple_bbox.bounds(), expected);
     }
 
-    /// Test AABB splitting into 8 octants
+    /// Test BBox splitting into 8 octants
     #[rstest]
-    #[case(vec![AABB::from_corners([0.0, 0.0, 0.0], [0.5, 0.5, 0.5]),
-        AABB::from_corners([0.5, 0.0, 0.0], [1.0, 0.5, 0.5]),
-        AABB::from_corners([0.0, 0.5, 0.0], [0.5, 1.0, 0.5]),
-        AABB::from_corners([0.5, 0.5, 0.0], [1.0, 1.0, 0.5]),
-        AABB::from_corners([0.0, 0.0, 0.5], [0.5, 0.5, 1.0]),
-        AABB::from_corners([0.5, 0.0, 0.5], [1.0, 0.5, 1.0]),
-        AABB::from_corners([0.0, 0.5, 0.5], [0.5, 1.0, 1.0]),
-        AABB::from_corners([0.5, 0.5, 0.5], [1.0, 1.0, 1.0]),
+    #[case(vec![BBox::from_corners([0.0, 0.0, 0.0], [0.5, 0.5, 0.5]),
+        BBox::from_corners([0.5, 0.0, 0.0], [1.0, 0.5, 0.5]),
+        BBox::from_corners([0.0, 0.5, 0.0], [0.5, 1.0, 0.5]),
+        BBox::from_corners([0.5, 0.5, 0.0], [1.0, 1.0, 0.5]),
+        BBox::from_corners([0.0, 0.0, 0.5], [0.5, 0.5, 1.0]),
+        BBox::from_corners([0.5, 0.0, 0.5], [1.0, 0.5, 1.0]),
+        BBox::from_corners([0.0, 0.5, 0.5], [0.5, 1.0, 1.0]),
+        BBox::from_corners([0.5, 0.5, 0.5], [1.0, 1.0, 1.0]),
     ])]
-    fn test_aabb_split(simple_aabb: BBox, #[case] expected_sub_aabbs: Vec<BBox>) {
-        for (i, sub_aabb) in simple_aabb.split().iter().enumerate() {
-            assert_eq!(sub_aabb, &expected_sub_aabbs[i]);
+    fn test_bbox_split(simple_bbox: BBox, #[case] expected_sub_aabbs: Vec<BBox>) {
+        for (i, sub_bbox) in simple_bbox.split().iter().enumerate() {
+            assert_eq!(sub_bbox, &expected_sub_aabbs[i]);
         }
     }
 
     /// Test AABB dx calculation
     #[rstest]
     #[case(Vector3::new(2, 3, 4), Vector3::new(1.0/2.0, 1.0/3.0, 1.0/4.0))]
-    fn test_aabb_dx(
-        simple_aabb: BBox,
+    fn test_bbox_dx(
+        simple_bbox: BBox,
         #[case] bounds: Vector3<u64>,
         #[case] expected: Vector3<f64>,
     ) {
-        assert_eq!(simple_aabb.dx(&bounds), expected);
+        assert_eq!(simple_bbox.dx(&bounds), expected);
     }
 
     /// Test AABB calculation from CubeCode
     #[rstest]
-    #[case(CubeCode(0x0), Vector3::new(2, 3, 4), 0, AABB::from_corners([0.0, 0.0, 0.0], [1.0/2.0, 1.0/3.0, 1.0/4.0]))]
-    fn test_aabb_calculate_bbox_from(
-        simple_aabb: BBox,
+    #[case(CubeCode(0x0), Vector3::new(2, 3, 4), 0, BBox::from_corners([0.0, 0.0, 0.0], [1.0/2.0, 1.0/3.0, 1.0/4.0]))]
+    fn test_bbox_calculate_bbox_from(
+        simple_bbox: BBox,
         #[case] cubecode: CubeCode,
         #[case] bounds: Vector3<u64>,
         #[case] depth: usize,
         #[case] expected: BBox,
     ) {
         assert_eq!(
-            simple_aabb.calculate_bbox_from(&cubecode, &bounds, depth),
+            simple_bbox.calculate_bbox_from(&cubecode, &bounds, depth),
             expected
         );
     }
@@ -341,7 +340,7 @@ mod tests {
 
         let tree = RTree::bulk_load(mesh);
 
-        let query_box = AABB::from_corners([-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
+        let query_box = BBox::from_corners([-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
 
         let hits = tree
             .locate_in_envelope_intersecting(&query_box)
@@ -354,7 +353,7 @@ mod tests {
     #[rstest]
     #[case("../../tests/data/stl/bunny.stl")]
     fn test_from_stl(#[case] filename: &str) {
-        let mesh = TriangleMesh::from_stl(filename);
+        let mesh = TriangleMesh::from_stl_file(filename);
         assert_eq!(mesh.points.nrows(), 14290);
         assert_eq!(mesh.faces.nrows(), 28576);
     }

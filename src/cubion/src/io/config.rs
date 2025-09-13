@@ -1,8 +1,5 @@
-use crate::core::{
-    index::IndexBounds,
-    mesh::BBox,
-    morton::{MAX_BLOCK_AXIS, MAX_OCTREE_DEPTH},
-};
+use crate::core::constants::{MAX_BLOCK_AXIS, MAX_OCTREE_DEPTH};
+use crate::core::types::{BBox, IndexBounds};
 use garde::{Unvalidated, Validate};
 use serde::Deserialize;
 use std::{fs::File, io::BufReader, path::Path};

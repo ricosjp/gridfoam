@@ -6,8 +6,8 @@ use std::path::Path;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 extern crate nalgebra as na;
-use na::{MatrixViewXx3, MatrixXx3};
-use numpy::{PyReadonlyArray2, PyUntypedArrayMethods};
+use na::MatrixXx3;
+use numpy::PyReadonlyArray2;
 
 impl<'source> FromPyObject<'source> for TriangleMesh {
     /// Extract TriangleMesh from Python object

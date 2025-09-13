@@ -1,5 +1,6 @@
 use crate::core::mesh::BBoxOps;
-use crate::core::octree::{Grid, NodeType, OctreeLevel};
+use crate::core::octree::Grid;
+use crate::core::types::{NodeType, OctreeLevel};
 extern crate hdf5_metno as hdf5;
 use hdf5::types::FixedAscii;
 
@@ -7,7 +8,7 @@ use hdf5::types::FixedAscii;
 ///
 /// This trait provides methods to generate node data from octree levels
 /// for efficient spatial partitioning and visualization.
-pub trait NodeData {
+trait NodeData {
     /// Generate amrboxes from an octree level
     ///
     /// # Arguments
@@ -185,7 +186,7 @@ mod tests {
 
     #[fixture]
     fn simple_mesh() -> TriangleMesh {
-        TriangleMesh::from_stl("../../tests/data/stl/bunny.stl")
+        TriangleMesh::from_stl_file("../../tests/data/stl/bunny.stl")
     }
 
     #[fixture]

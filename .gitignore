@@ -181,3 +181,6 @@ sg_execution_times.rst
 docker-compose.yml
 reference
 qexe
+
+# Rust
+Cargo.lock

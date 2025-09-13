@@ -1,104 +1,39 @@
-extern crate nalgebra as na;
-use na::{matrix, SMatrix, Vector3};
+use crate::core::errors::IndexError;
+use crate::core::types::{
+    CubeCodeType, GlobalIndex, GlobalIndexType, IndexBounds, LocalIndex, LocalIndexType,
+    OctreeCodeType, RawIndex, RawIndexConversionMode, RawIndexType,
+};
 
-/// Raw index type using signed integers for boundary calculations
-///
-/// This type allows negative values for neighbor calculations and boundary handling.
-/// It's used internally for operations that may go outside the valid grid bounds.
-pub type RawIndex = Vector3<i64>;
-
-/// Local index type using unsigned integers for grid operations
-///
-/// This type represents indices relative to a specific cube's origin.
-/// It's used for operations within a single cube's local coordinate system.
-pub type LocalIndex = Vector3<u32>;
-
-/// Global index type using unsigned integers for global operations
-///
-/// This type represents indices relative to the entire grid's origin.
-/// It's used for operations that require a full grid-wide reference.
-pub type GlobalIndex = Vector3<u64>;
-
-/// Bounds of the index space
-///
-/// This type represents the bounds of the index space.
-/// It's used for operations that require a full grid-wide reference.
-pub type IndexBounds = Vector3<u64>;
-
-#[derive(Debug, Clone, thiserror::Error, PartialEq)]
-pub enum IndexError {
-    #[error("Invalid index: {raw_index:?} is out of bounds")]
-    InvalidIndex { raw_index: RawIndex },
-
-    #[error("Index overflow: {raw_index:?} exceeds maximum value for target type")]
-    IndexOverflow { raw_index: RawIndex },
-
-    #[error("Index underflow: {raw_index:?} is below minimum value for target type")]
-    IndexUnderflow { raw_index: RawIndex },
-
-    #[error("Raveled index {raveled_index} is out of bounds: {bounds:?}")]
-    RaveledIndexOutOfBounds {
-        raveled_index: u64,
-        bounds: IndexBounds,
-    },
-}
-
-/// Enum for handling boundary conditions when converting from RawIndex to unsigned GlobalIndex or LocalIndex.
-///
-/// This enum defines different strategies for dealing with indices that fall outside the grid bounds
-/// during conversion from a signed RawIndex to an unsigned index type (GlobalIndex or LocalIndex).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum RawIndexConversionMode {
-    /// Raise an error when index is out of bounds
-    ///
-    /// This mode will panic if an index falls outside the valid grid bounds.
-    /// Use this when you want to catch boundary violations immediately.
-    Raise,
-    /// Wrap the index to the other side of the grid
-    ///
-    /// This mode treats the grid as periodic, wrapping indices that exceed
-    /// bounds to the opposite side of the grid.
-    Wrap,
-    /// Clip the index to the grid bounds
-    ///
-    /// This mode clamps indices to the valid range [0, bounds-1].
-    /// Useful for sampling operations where you want to stay within bounds.
-    Clip,
-    /// Return None when index is out of bounds
-    ///
-    /// This mode returns None when an index is out of bounds, allowing
-    /// the caller to handle the boundary condition explicitly.
-    Border,
-}
-
-pub trait RawIndexConversion {
-    fn convert<T>(self, mode: RawIndexConversionMode, bounds: &IndexBounds) -> Option<T>
+pub trait RawIndexExt {
+    fn convert_to<T>(self, mode: RawIndexConversionMode, bounds: &IndexBounds) -> Option<T>
     where
         T: CastRawIndex;
 }
 
-impl RawIndexConversion for RawIndex {
-    fn convert<T>(self, mode: RawIndexConversionMode, bounds: &IndexBounds) -> Option<T>
+impl RawIndexExt for RawIndex {
+    fn convert_to<T>(self, mode: RawIndexConversionMode, bounds: &IndexBounds) -> Option<T>
     where
         T: CastRawIndex,
     {
         match mode {
-            RawIndexConversionMode::Raise => {
-                let valid = self.is_in_bounds(bounds);
-                match valid {
-                    true => Some(T::try_from_raw_index(&self).unwrap()),
-                    false => panic!("Error: {}", IndexError::InvalidIndex { raw_index: self }),
-                }
-            }
             RawIndexConversionMode::Wrap => {
-                let bounds = bounds.cast::<i64>();
+                let bounds = bounds.cast::<RawIndexType>();
                 let wrapped = self.zip_map(&bounds, |i, b| (i % b + b) % b);
                 Some(T::try_from_raw_index(&wrapped).unwrap())
             }
-            RawIndexConversionMode::Clip => {
-                let bounds = bounds.cast::<i64>();
+            RawIndexConversionMode::Clamp => {
+                let bounds = bounds.cast::<RawIndexType>();
                 let clipped = self.zip_map(&bounds, |i, b| i.clamp(0, b - 1));
                 Some(T::try_from_raw_index(&clipped).unwrap())
+            }
+            RawIndexConversionMode::Mirror => {
+                let bounds = bounds.cast::<RawIndexType>();
+                let mirrored = self.zip_map(&bounds, |i, b| {
+                    let p = 2 * b;
+                    let r = ((i % p) + p) % p;
+                    b - 1 - (r - b + 1).abs()
+                });
+                Some(T::try_from_raw_index(&mirrored).unwrap())
             }
             RawIndexConversionMode::Border => {
                 let valid = self.is_in_bounds(bounds);
@@ -122,16 +57,16 @@ impl CastRawIndex for GlobalIndex {
             });
         }
 
-        // Use try_cast to convert to u64
+        // Use try_cast to convert to GlobalIndexType
         raw_index
-            .try_cast::<u64>()
+            .try_cast::<GlobalIndexType>()
             .ok_or(IndexError::IndexOverflow {
                 raw_index: *raw_index,
             })
     }
 
     fn to_raw_index(&self) -> RawIndex {
-        self.cast::<i64>()
+        self.cast::<RawIndexType>()
     }
 }
 
@@ -144,9 +79,9 @@ impl CastRawIndex for LocalIndex {
             });
         }
 
-        // Use try_cast to convert to u32
+        // Use try_cast to convert to LocalIndexType
         raw_index
-            .try_cast::<u32>()
+            .try_cast::<LocalIndexType>()
             .ok_or(IndexError::IndexOverflow {
                 raw_index: *raw_index,
             })
@@ -164,11 +99,11 @@ pub trait IsInBounds {
 impl IsInBounds for RawIndex {
     fn is_in_bounds(&self, bounds: &IndexBounds) -> bool {
         self.x >= 0
-            && self.x < bounds.x as i64
+            && self.x < bounds.x as RawIndexType
             && self.y >= 0
-            && self.y < bounds.y as i64
+            && self.y < bounds.y as RawIndexType
             && self.z >= 0
-            && self.z < bounds.z as i64
+            && self.z < bounds.z as RawIndexType
     }
 }
 
@@ -180,7 +115,9 @@ impl IsInBounds for GlobalIndex {
 
 impl IsInBounds for LocalIndex {
     fn is_in_bounds(&self, bounds: &IndexBounds) -> bool {
-        self.x < bounds.x as u32 && self.y < bounds.y as u32 && self.z < bounds.z as u32
+        self.x < bounds.x as LocalIndexType
+            && self.y < bounds.y as LocalIndexType
+            && self.z < bounds.z as LocalIndexType
     }
 }
 
@@ -189,6 +126,7 @@ impl IsInBounds for LocalIndex {
 /// This trait provides methods to convert 3D grid coordinates to 1D array indices,
 /// which is useful for storing grid data in flat arrays.
 pub trait RavelMultiIndex {
+    type Output;
     /// Convert multi-dimensional coordinates to a flat index
     ///
     /// Uses row-major ordering: index = x + y * x_stride + z * xy_stride
@@ -209,18 +147,24 @@ pub trait RavelMultiIndex {
     /// let flat = index.ravel_multi_index(&bounds);
     /// // flat = 1 + 2*3 + 0*3*4 = 7
     /// ```
-    fn ravel_multi_index(&self, bounds: &IndexBounds) -> u64;
-}
-
-impl RavelMultiIndex for LocalIndex {
-    fn ravel_multi_index(&self, bounds: &IndexBounds) -> u64 {
-        self.x as u64 + self.y as u64 * bounds.x + self.z as u64 * bounds.x * bounds.y
-    }
+    fn ravel_multi_index(&self, bounds: &IndexBounds) -> Self::Output;
 }
 
 impl RavelMultiIndex for GlobalIndex {
-    fn ravel_multi_index(&self, bounds: &IndexBounds) -> u64 {
-        self.x + self.y * bounds.x + self.z * bounds.x * bounds.y
+    type Output = CubeCodeType;
+    fn ravel_multi_index(&self, bounds: &IndexBounds) -> Self::Output {
+        let index = self.cast::<CubeCodeType>();
+        let bounds = bounds.cast::<CubeCodeType>();
+        index.x + index.y * bounds.x + index.z * bounds.x * bounds.y
+    }
+}
+
+impl RavelMultiIndex for LocalIndex {
+    type Output = OctreeCodeType;
+    fn ravel_multi_index(&self, bounds: &IndexBounds) -> Self::Output {
+        let index = self.cast::<OctreeCodeType>();
+        let bounds = bounds.cast::<OctreeCodeType>();
+        index.x + index.y * bounds.x + index.z * bounds.x * bounds.y
     }
 }
 
@@ -258,10 +202,11 @@ pub trait UnravelIndex {
     fn unravel_index(self, bounds: &IndexBounds) -> Self::Output;
 }
 
-impl UnravelIndex for u64 {
+impl UnravelIndex for OctreeCodeType {
     type Output = Result<LocalIndex, IndexError>;
     fn unravel_index(self, bounds: &IndexBounds) -> Self::Output {
-        let total_size = bounds.size();
+        let bounds_u128 = bounds.cast::<OctreeCodeType>();
+        let total_size = bounds_u128.x * bounds_u128.y * bounds_u128.z;
         if self >= total_size {
             return Err(IndexError::RaveledIndexOutOfBounds {
                 raveled_index: self,
@@ -269,128 +214,14 @@ impl UnravelIndex for u64 {
             });
         }
 
-        let x = self % bounds.x;
-        let y = (self / bounds.x) % bounds.y;
-        let z = self / (bounds.x * bounds.y);
-        Ok(LocalIndex::new(x as u32, y as u32, z as u32))
-    }
-}
-
-/// Precomputed direction vectors for all 27 neighbors in 3D space
-///
-/// This matrix contains all possible neighbor offsets in a 3x3x3 neighborhood.
-/// Each column represents a direction vector (x, y, z) that can be added
-/// to a grid position to get a neighbor position.
-///
-/// The directions are ordered in a specific pattern for efficient access
-/// and consistent neighbor enumeration.
-pub const DIRECTIONS: SMatrix<i64, 3, 27> = matrix![
-    -1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1,-1, 0, 1;
-    -1,-1,-1, 0, 0, 0, 1, 1, 1,-1,-1,-1, 0, 0, 0, 1, 1, 1,-1,-1,-1, 0, 0, 0, 1, 1, 1;
-    -1,-1,-1,-1,-1,-1,-1,-1,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1;
-];
-
-/// Named directions for common neighbor access
-///
-/// These enum values correspond to specific columns in the DIRECTIONS matrix,
-/// providing named access to commonly used neighbor directions.
-pub enum Direction {
-    /// Negative Z direction (index 4 in DIRECTIONS matrix)
-    ZMinus = 4,
-    /// Negative Y direction (index 10 in DIRECTIONS matrix)
-    YMinus = 10,
-    /// Negative X direction (index 12 in DIRECTIONS matrix)
-    XMinus = 12,
-    /// Center position (index 13 in DIRECTIONS matrix)
-    Center = 13,
-    /// Positive X direction (index 14 in DIRECTIONS matrix)
-    XPlus = 14,
-    /// Positive Y direction (index 16 in DIRECTIONS matrix)
-    YPlus = 16,
-    /// Positive Z direction (index 22 in DIRECTIONS matrix)
-    ZPlus = 22,
-}
-
-impl Direction {
-    /// Get the offset vector for this direction
-    ///
-    /// Returns the 3D offset vector corresponding to this direction.
-    /// The offset can be added to a grid position to get the neighbor position.
-    ///
-    /// # Returns
-    ///
-    /// A RawIndex containing the offset vector
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let dir = Direction::XPlus;
-    /// let offset = dir.offset();
-    /// assert_eq!(offset, RawIndex::new(1, 0, 0));
-    /// ```
-    pub fn offset(self) -> RawIndex {
-        DIRECTIONS.column(self as usize).into()
-    }
-}
-
-/// Trait for finding neighbor indices in a 3D grid
-///
-/// This trait provides functionality to get all neighbors of a given grid position,
-/// with configurable boundary handling and optional inclusion of the center position.
-pub trait NeighborIndices {
-    type Output;
-    /// Get all neighbor indices for a given position
-    ///
-    /// Returns a vector of optional indices, where each element corresponds
-    /// to a neighbor position. None values indicate out-of-bounds neighbors
-    /// (depending on the boundary mode).
-    ///
-    /// # Arguments
-    ///
-    /// * `bounds` - The grid bounds defining valid ranges
-    /// * `mode` - The boundary handling mode for out-of-bounds neighbors
-    /// * `include_self` - Whether to include the center position (index 13)
-    ///
-    /// # Returns
-    ///
-    /// A vector of 27 optional indices, one for each possible neighbor
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let index = Index::new(1, 1, 1);
-    /// let bounds = Bounds::new(5, 5, 5);
-    /// let neighbors = index.neighbor_indices(&bounds, IndexMode::Border, false);
-    /// // Returns 27 optional indices, with None for out-of-bounds positions
-    /// ```
-    fn neighbor_indices(
-        &self,
-        bounds: &IndexBounds,
-        mode: RawIndexConversionMode,
-        include_self: bool,
-    ) -> Vec<Option<Self::Output>>;
-}
-
-impl<T: CastRawIndex> NeighborIndices for T {
-    type Output = T;
-    fn neighbor_indices(
-        &self,
-        bounds: &IndexBounds,
-        mode: RawIndexConversionMode,
-        include_self: bool,
-    ) -> Vec<Option<Self::Output>> {
-        DIRECTIONS
-            .column_iter()
-            .enumerate()
-            .map(|(i, dir)| {
-                if !include_self && i == (Direction::Center as usize) {
-                    None
-                } else {
-                    let coords: RawIndex = self.to_raw_index() + dir;
-                    coords.convert::<T>(mode, bounds)
-                }
-            })
-            .collect()
+        let x = self % bounds_u128.x;
+        let y = (self / bounds_u128.x) % bounds_u128.y;
+        let z = self / (bounds_u128.x * bounds_u128.y);
+        Ok(LocalIndex::new(
+            u32::try_from(x).unwrap(),
+            u32::try_from(y).unwrap(),
+            u32::try_from(z).unwrap(),
+        ))
     }
 }
 
@@ -421,21 +252,15 @@ pub fn generate_grid_indices(bounds: &IndexBounds) -> Vec<LocalIndex> {
     for z in 0..nz {
         for y in 0..ny {
             for x in 0..nx {
-                result.push(LocalIndex::new(x as u32, y as u32, z as u32));
+                result.push(LocalIndex::new(
+                    x as LocalIndexType,
+                    y as LocalIndexType,
+                    z as LocalIndexType,
+                ));
             }
         }
     }
     result
-}
-
-trait Size {
-    fn size(&self) -> u64;
-}
-
-impl Size for IndexBounds {
-    fn size(&self) -> u64 {
-        self.x * self.y * self.z
-    }
 }
 
 #[cfg(test)]
@@ -444,26 +269,25 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[should_panic]
-    #[case::panic(
-        RawIndex::new(3, 1, 4),
-        RawIndexConversionMode::Raise,
-        IndexBounds::new(6, 7, 4),
-        Some(LocalIndex::new(3, 1, 4))
-    )]
-    #[case::no_panic(
+    #[case::wrap(
         RawIndex::new(3, 1, 4),
         RawIndexConversionMode::Wrap,
         IndexBounds::new(6, 7, 4),
         Some(LocalIndex::new(3, 1, 0))
     )]
-    #[case::no_panic(
+    #[case::clamp(
         RawIndex::new(3, 1, 4),
-        RawIndexConversionMode::Clip,
+        RawIndexConversionMode::Clamp,
         IndexBounds::new(6, 7, 4),
         Some(LocalIndex::new(3, 1, 3))
     )]
-    #[case::no_panic(
+    #[case::mirror(
+        RawIndex::new(3, 1, 4),
+        RawIndexConversionMode::Mirror,
+        IndexBounds::new(6, 7, 4),
+        Some(LocalIndex::new(3, 1, 2))
+    )]
+    #[case::border(
         RawIndex::new(3, 1, 4),
         RawIndexConversionMode::Border,
         IndexBounds::new(6, 7, 4),
@@ -475,30 +299,29 @@ mod tests {
         #[case] bounds: IndexBounds,
         #[case] expected: Option<LocalIndex>,
     ) {
-        assert_eq!(input.convert::<LocalIndex>(mode, &bounds), expected);
+        assert_eq!(input.convert_to::<LocalIndex>(mode, &bounds), expected);
     }
 
     #[rstest]
-    #[should_panic]
-    #[case::panic(
-        RawIndex::new(3, 1, 4),
-        RawIndexConversionMode::Raise,
-        IndexBounds::new(6, 7, 4),
-        Some(GlobalIndex::new(3, 1, 4))
-    )]
-    #[case::no_panic(
+    #[case::wrap(
         RawIndex::new(3, 1, 4),
         RawIndexConversionMode::Wrap,
         IndexBounds::new(6, 7, 4),
         Some(GlobalIndex::new(3, 1, 0))
     )]
-    #[case::no_panic(
+    #[case::clamp(
         RawIndex::new(3, 1, 4),
-        RawIndexConversionMode::Clip,
+        RawIndexConversionMode::Clamp,
         IndexBounds::new(6, 7, 4),
         Some(GlobalIndex::new(3, 1, 3))
     )]
-    #[case::no_panic(
+    #[case::mirror(
+        RawIndex::new(3, 1, 4),
+        RawIndexConversionMode::Mirror,
+        IndexBounds::new(6, 7, 4),
+        Some(GlobalIndex::new(3, 1, 2))
+    )]
+    #[case::border(
         RawIndex::new(3, 1, 4),
         RawIndexConversionMode::Border,
         IndexBounds::new(6, 7, 4),
@@ -510,7 +333,7 @@ mod tests {
         #[case] bounds: IndexBounds,
         #[case] expected: Option<GlobalIndex>,
     ) {
-        assert_eq!(input.convert::<GlobalIndex>(mode, &bounds), expected);
+        assert_eq!(input.convert_to::<GlobalIndex>(mode, &bounds), expected);
     }
 
     #[rstest]
@@ -519,7 +342,7 @@ mod tests {
     fn test_ravel_multi_index_local(
         #[case] input: LocalIndex,
         #[case] bounds: IndexBounds,
-        #[case] expected: u64,
+        #[case] expected: OctreeCodeType,
     ) {
         assert_eq!(input.ravel_multi_index(&bounds), expected);
     }
@@ -530,117 +353,22 @@ mod tests {
     fn test_ravel_multi_index_global(
         #[case] input: GlobalIndex,
         #[case] bounds: IndexBounds,
-        #[case] expected: u64,
+        #[case] expected: OctreeCodeType,
     ) {
         assert_eq!(input.ravel_multi_index(&bounds), expected);
     }
 
     #[rstest]
-    #[case::no_panic(12, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(0, 0, 1)))]
-    #[case::no_panic(27, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(0, 1, 2)))]
-    #[case::no_panic(43, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(1, 2, 3)))]
-    #[case::no_panic(75, IndexBounds::new(3, 4, 5), Err(IndexError::RaveledIndexOutOfBounds { raveled_index: 75, bounds: IndexBounds::new(3, 4, 5) }))]
+    #[case(12, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(0, 0, 1)))]
+    #[case(27, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(0, 1, 2)))]
+    #[case(43, IndexBounds::new(3, 4, 5), Ok(LocalIndex::new(1, 2, 3)))]
+    #[case::out_of_bounds(75, IndexBounds::new(3, 4, 5), Err(IndexError::RaveledIndexOutOfBounds { raveled_index: 75, bounds: IndexBounds::new(3, 4, 5) }))]
     fn test_unravel_index(
-        #[case] input: u64,
+        #[case] input: OctreeCodeType,
         #[case] bounds: IndexBounds,
         #[case] expected: Result<LocalIndex, IndexError>,
     ) {
         assert_eq!(input.unravel_index(&bounds), expected);
-    }
-
-    #[rstest]
-    #[should_panic]
-    #[case::panic(GlobalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Raise, true, vec![
-        Some(GlobalIndex::new(1, 1, 1)), Some(GlobalIndex::new(2, 1, 1)),Some(GlobalIndex::new(3, 1, 1)),
-        Some(GlobalIndex::new(1, 2, 1)), Some(GlobalIndex::new(2, 2, 1)),Some(GlobalIndex::new(3, 2, 1)),
-        Some(GlobalIndex::new(1, 3, 1)), Some(GlobalIndex::new(2, 3, 1)),Some(GlobalIndex::new(3, 3, 1)),
-        Some(GlobalIndex::new(1, 1, 2)), Some(GlobalIndex::new(2, 1, 2)),Some(GlobalIndex::new(3, 1, 2)),
-        Some(GlobalIndex::new(1, 2, 2)), Some(GlobalIndex::new(2, 2, 2)),Some(GlobalIndex::new(3, 2, 2)),
-        Some(GlobalIndex::new(1, 3, 2)), Some(GlobalIndex::new(2, 3, 2)),Some(GlobalIndex::new(3, 3, 2)),
-        Some(GlobalIndex::new(1, 1, 3)), Some(GlobalIndex::new(2, 1, 3)),Some(GlobalIndex::new(3, 1, 3)),
-        Some(GlobalIndex::new(1, 2, 3)), Some(GlobalIndex::new(2, 2, 3)),Some(GlobalIndex::new(3, 2, 3)),
-        Some(GlobalIndex::new(1, 3, 3)), Some(GlobalIndex::new(2, 3, 3)),Some(GlobalIndex::new(3, 3, 3)),
-    ])]
-    #[case::no_panic(GlobalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Wrap, true, vec![
-        Some(GlobalIndex::new(1, 1, 1)), Some(GlobalIndex::new(2, 1, 1)),Some(GlobalIndex::new(0, 1, 1)),
-        Some(GlobalIndex::new(1, 2, 1)), Some(GlobalIndex::new(2, 2, 1)),Some(GlobalIndex::new(0, 2, 1)),
-        Some(GlobalIndex::new(1, 3, 1)), Some(GlobalIndex::new(2, 3, 1)),Some(GlobalIndex::new(0, 3, 1)),
-        Some(GlobalIndex::new(1, 1, 2)), Some(GlobalIndex::new(2, 1, 2)),Some(GlobalIndex::new(0, 1, 2)),
-        Some(GlobalIndex::new(1, 2, 2)), Some(GlobalIndex::new(2, 2, 2)),Some(GlobalIndex::new(0, 2, 2)),
-        Some(GlobalIndex::new(1, 3, 2)), Some(GlobalIndex::new(2, 3, 2)),Some(GlobalIndex::new(0, 3, 2)),
-        Some(GlobalIndex::new(1, 1, 3)), Some(GlobalIndex::new(2, 1, 3)),Some(GlobalIndex::new(0, 1, 3)),
-        Some(GlobalIndex::new(1, 2, 3)), Some(GlobalIndex::new(2, 2, 3)),Some(GlobalIndex::new(0, 2, 3)),
-        Some(GlobalIndex::new(1, 3, 3)), Some(GlobalIndex::new(2, 3, 3)),Some(GlobalIndex::new(0, 3, 3)),
-        ])]
-    #[case::no_panic(GlobalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Clip, true, vec![
-        Some(GlobalIndex::new(1, 1, 1)), Some(GlobalIndex::new(2, 1, 1)),Some(GlobalIndex::new(2, 1, 1)),
-        Some(GlobalIndex::new(1, 2, 1)), Some(GlobalIndex::new(2, 2, 1)),Some(GlobalIndex::new(2, 2, 1)),
-        Some(GlobalIndex::new(1, 3, 1)), Some(GlobalIndex::new(2, 3, 1)),Some(GlobalIndex::new(2, 3, 1)),
-        Some(GlobalIndex::new(1, 1, 2)), Some(GlobalIndex::new(2, 1, 2)),Some(GlobalIndex::new(2, 1, 2)),
-        Some(GlobalIndex::new(1, 2, 2)), Some(GlobalIndex::new(2, 2, 2)),Some(GlobalIndex::new(2, 2, 2)),
-        Some(GlobalIndex::new(1, 3, 2)), Some(GlobalIndex::new(2, 3, 2)),Some(GlobalIndex::new(2, 3, 2)),
-        Some(GlobalIndex::new(1, 1, 3)), Some(GlobalIndex::new(2, 1, 3)),Some(GlobalIndex::new(2, 1, 3)),
-        Some(GlobalIndex::new(1, 2, 3)), Some(GlobalIndex::new(2, 2, 3)),Some(GlobalIndex::new(2, 2, 3)),
-        Some(GlobalIndex::new(1, 3, 3)), Some(GlobalIndex::new(2, 3, 3)),Some(GlobalIndex::new(2, 3, 3)),
-    ])]
-    #[case::no_panic(GlobalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Border, true, vec![
-        Some(GlobalIndex::new(1, 1, 1)), Some(GlobalIndex::new(2, 1, 1)),None,
-        Some(GlobalIndex::new(1, 2, 1)), Some(GlobalIndex::new(2, 2, 1)),None,
-        Some(GlobalIndex::new(1, 3, 1)), Some(GlobalIndex::new(2, 3, 1)),None,
-        Some(GlobalIndex::new(1, 1, 2)), Some(GlobalIndex::new(2, 1, 2)),None,
-        Some(GlobalIndex::new(1, 2, 2)), Some(GlobalIndex::new(2, 2, 2)),None,
-        Some(GlobalIndex::new(1, 3, 2)), Some(GlobalIndex::new(2, 3, 2)),None,
-        Some(GlobalIndex::new(1, 1, 3)), Some(GlobalIndex::new(2, 1, 3)),None,
-        Some(GlobalIndex::new(1, 2, 3)), Some(GlobalIndex::new(2, 2, 3)),None,
-        Some(GlobalIndex::new(1, 3, 3)), Some(GlobalIndex::new(2, 3, 3)),None,
-    ])]
-    #[case::no_panic(GlobalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Border, false, vec![
-        Some(GlobalIndex::new(1, 1, 1)), Some(GlobalIndex::new(2, 1, 1)),None,
-        Some(GlobalIndex::new(1, 2, 1)), Some(GlobalIndex::new(2, 2, 1)),None,
-        Some(GlobalIndex::new(1, 3, 1)), Some(GlobalIndex::new(2, 3, 1)),None,
-        Some(GlobalIndex::new(1, 1, 2)), Some(GlobalIndex::new(2, 1, 2)),None,
-        Some(GlobalIndex::new(1, 2, 2)), None, None,
-        Some(GlobalIndex::new(1, 3, 2)), Some(GlobalIndex::new(2, 3, 2)),None,
-        Some(GlobalIndex::new(1, 1, 3)), Some(GlobalIndex::new(2, 1, 3)),None,
-        Some(GlobalIndex::new(1, 2, 3)), Some(GlobalIndex::new(2, 2, 3)),None,
-        Some(GlobalIndex::new(1, 3, 3)), Some(GlobalIndex::new(2, 3, 3)),None,
-    ])]
-    fn test_neighbor_indices_global(
-        #[case] input: GlobalIndex,
-        #[case] bounds: IndexBounds,
-        #[case] mode: RawIndexConversionMode,
-        #[case] include_self: bool,
-        #[case] expected: Vec<Option<GlobalIndex>>,
-    ) {
-        assert_eq!(
-            input.neighbor_indices(&bounds, mode, include_self),
-            expected
-        );
-    }
-
-    #[rstest]
-    #[case::no_panic(LocalIndex::new(2, 2, 2), IndexBounds::new(3, 4, 5), RawIndexConversionMode::Border, false, vec![
-        Some(LocalIndex::new(1, 1, 1)), Some(LocalIndex::new(2, 1, 1)),None,
-        Some(LocalIndex::new(1, 2, 1)), Some(LocalIndex::new(2, 2, 1)),None,
-        Some(LocalIndex::new(1, 3, 1)), Some(LocalIndex::new(2, 3, 1)),None,
-        Some(LocalIndex::new(1, 1, 2)), Some(LocalIndex::new(2, 1, 2)),None,
-        Some(LocalIndex::new(1, 2, 2)), None, None,
-        Some(LocalIndex::new(1, 3, 2)), Some(LocalIndex::new(2, 3, 2)),None,
-        Some(LocalIndex::new(1, 1, 3)), Some(LocalIndex::new(2, 1, 3)),None,
-        Some(LocalIndex::new(1, 2, 3)), Some(LocalIndex::new(2, 2, 3)),None,
-        Some(LocalIndex::new(1, 3, 3)), Some(LocalIndex::new(2, 3, 3)),None,
-    ])]
-    fn test_neighbor_indices_local(
-        #[case] input: LocalIndex,
-        #[case] bounds: IndexBounds,
-        #[case] mode: RawIndexConversionMode,
-        #[case] include_self: bool,
-        #[case] expected: Vec<Option<LocalIndex>>,
-    ) {
-        assert_eq!(
-            input.neighbor_indices(&bounds, mode, include_self),
-            expected
-        );
     }
 
     #[rstest]
