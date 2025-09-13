@@ -56,29 +56,29 @@ The configuration file path should be specified in the function call.
 class RawIndexConversionMode:
     """Enum for handling boundary conditions when converting indices."""
 
-    Wrap: RawIndexConversionMode
+    WRAP: RawIndexConversionMode
     """Out-of-bounds coordinates are wrapped
     around the grid using modulo arithmetic."""
 
-    Clamp: RawIndexConversionMode
+    CLAMP: RawIndexConversionMode
     """Out-of-bounds coordinates are clamped to the nearest boundary."""
 
-    Mirror: RawIndexConversionMode
+    MIRROR: RawIndexConversionMode
     """Out-of-bounds coordinates are mirrored around the boundary."""
 
-    Border: RawIndexConversionMode
+    BORDER: RawIndexConversionMode
     """Out-of-bounds coordinates return None."""
 
 class NodeType:
     """Types of nodes in the octree structure."""
 
-    Leaf: NodeType
+    LEAF: NodeType
     """Leaf node containing actual mesh intersection data."""
 
-    GhostFromParent: NodeType
+    GHOST_FROM_PARENT: NodeType
     """A ghost node retrieving data from the parent."""
 
-    GhostFromChild: NodeType
+    GHOST_FROM_CHILD: NodeType
     """A ghost node retrieving data from the child."""
 
 class PyBBox:
