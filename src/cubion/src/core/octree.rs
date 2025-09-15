@@ -329,6 +329,14 @@ impl OctreeBuilder {
             octree_levels.push(new_octree_level);
         }
         let max_depth: usize = octree_levels.len();
+
+        // add ghost nodes to the last level
+        let last_level = octree_levels.last_mut().unwrap();
+        let last_cubecode_set = last_level.nodes.keys().cloned().collect();
+        let ghost_nodes: HashMap<CubeCode, OctreeNode, WyHasher> =
+            last_level.collect_ghost_nodes(&last_cubecode_set);
+        last_level.nodes.extend(ghost_nodes);
+
         Grid::new(self.domain, self.blocksize, max_depth, octree_levels, mesh)
     }
 

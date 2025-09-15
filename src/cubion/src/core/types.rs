@@ -78,7 +78,7 @@ pub type IndexBounds = Vector3<GlobalIndexType>;
 ///
 /// This enum defines different strategies for dealing with indices that fall outside the grid bounds
 /// during conversion from a signed RawIndex to an unsigned index type (GlobalIndex or LocalIndex).
-#[pyclass(eq, eq_int, rename_all = "SCREAMING_SNAKE_CASE")]
+#[pyclass(eq, eq_int, frozen, rename_all = "SCREAMING_SNAKE_CASE")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RawIndexConversionMode {
     /// Out-of-bounds coordinates are wrapped around the grid using modulo arithmetic.
@@ -116,8 +116,8 @@ pub type BBox = AABB<Point>;
 ///
 /// Different node types serve different purposes in the octree hierarchy,
 /// enabling efficient neighbor calculations and boundary handling.
-#[pyclass(frozen, rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(Debug, Clone)]
+#[pyclass(eq, eq_int, frozen, rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NodeType {
     /// Leaf node containing actual mesh intersection data
     ///
