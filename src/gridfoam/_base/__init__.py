@@ -1,1 +1,1 @@
-from gridfoam._base.grid import Grid
+from gridfoam._base._tensor_grid import TensorGrid

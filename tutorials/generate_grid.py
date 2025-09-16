@@ -34,10 +34,10 @@ def generate_grid_DrivAer(
     mesh = TriangleMesh.from_polydata(pv_mesh)
     forest = Forest(grid_setting)
     grid = forest.build_grid_from_mesh(mesh)
-    file_name = pathlib.Path(f"DrivAer_depth{depth_limit}.vtkhdf"
-    )
-    grid.save_structure(file_name, only_leaves=False)
-    grid.save_grid(file_name, only_leaves=False)
+    file_name = pathlib.Path(f"DrivAer_depth{depth_limit}.vtkhdf")
+    # grid.save_structure(file_name, only_leaves=False)
+    grid.save_grid(file_name, only_leaves=True)
+
 
 if __name__ == "__main__":
     generate_grid_DrivAer(grid_setting_DrivAer(), 2)

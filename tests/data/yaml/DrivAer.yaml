@@ -7,14 +7,20 @@ grid:
 octree:
   refinement:
     strategy: "default"
-    depth_limit: 6
+    depth_limit: 4
     alpha: 0.3
   
 io:
   output_dir: "tests/outputs/grid"
+  mode: "cell"
   only_leaves: true
+  overwrite_file: true
 
 mesh:
   file: "tests/data/stl/DrivAer.stl"
+
+cube:
+  width: 8
+  bnd_width: 2
 
 device: "cpu"

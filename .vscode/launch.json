@@ -1,0 +1,42 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug PyO3",
+            "type": "lldb",
+            "request": "attach",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "pid": "${command:pickProcess}",
+            "sourceLanguages": [
+                "rust"
+            ]
+        },
+        {
+            "name": "Launch Python with PyO3",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "args": ["${file}"],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": ["rust"]
+        },
+        {
+            "name": "Debug PyO3 with Args",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "args": ["path/to/your/script.py", "arg1", "arg2"],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": ["rust"]
+        },
+        {
+            "name": "Debug PyO3 Tests",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "args": ["-m", "pytest", "tests/your_test.py::test_function", "-v"],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": ["rust"]
+        }
+    ]
+}
