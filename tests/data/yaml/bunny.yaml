@@ -12,9 +12,15 @@ octree:
   
 io:
   output_dir: "tests/outputs/grid"
+  mode: "cell"
   only_leaves: true
+  overwrite_file: true
 
 mesh:
   file: "tests/data/stl/bunny.stl"
+
+cube:
+  width: 8
+  bnd_width: 2
 
 device: "cpu"

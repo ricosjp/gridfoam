@@ -30,12 +30,12 @@ class MeshConfig(BaseModel, frozen=True):
 
 
 class CubeConfig(BaseModel, frozen=True):
-    width: int
+    width: int = Field(default=8, ge=8)
     """
     width : int
         Width of the cube.
     """
-    bnd_width: int
+    bnd_width: int = Field(default=2, ge=2)
     """
     bnd_width : int
         Boundary width of the cube
@@ -48,14 +48,14 @@ class IoConfig(BaseModel, frozen=True):
     output_dir : pathlib.Path
         Output directory for the grid.
     """
-    mode: GridMode
+    mode: GridMode = Field(default=GridMode.CELL)
     """
     mode : GridMode
         Mode for saving the grid.
         - CELL: Save all grid data including cell data.
         - CUBE: Save only cube data, useful for checking the cube structure.
     """
-    only_leaves: bool
+    only_leaves: bool = Field(default=True)
     """
     only_leaves : bool
         Whether to save only leaf nodes.
@@ -66,7 +66,7 @@ class IoConfig(BaseModel, frozen=True):
         as including all nodes (including ghost nodes) can cause
         overlapping and make the visualization harder to interpret.
     """
-    overwrite_file: bool
+    overwrite_file: bool = Field(default=True)
     """
     overwrite_file : bool
         Whether to overwrite the file if it already exists.

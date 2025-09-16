@@ -1,35 +1,17 @@
 import pathlib
+import tempfile
 from collections.abc import Callable
 
 import pytest
-import pyvista as pv
+import yaml
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from gridfoam._geometry import TriangleMesh
-from gridfoam._octree import Forest
-from gridfoam.settings import GridSetting
+from gridfoam import TensorGrid, save_grid
 
 
 def benchmark_with_group(func: Callable) -> Callable:
     return pytest.mark.benchmark(group=func.__name__)(func)
 
-
-@pytest.fixture
-def grid_setting_bunny() -> GridSetting:
-    """Return a Settings object."""
-    return GridSetting(
-        blockXMin=-4.0,
-        blockXMax=4.0,
-        blockYMin=-2.0,
-        blockYMax=2.0,
-        blockZMin=-2.0,
-        blockZMax=2.0,
-        nBlockX=8,
-        nBlockY=4,
-        nBlockZ=4,
-        alpha=0.3,
-        depth_limit=7,
-    )
 
 
 @pytest.mark.with_benchmark
@@ -37,43 +19,32 @@ def grid_setting_bunny() -> GridSetting:
 @benchmark_with_group
 def test_gridgen_bunny(
     benchmark: BenchmarkFixture,
-    grid_setting_bunny: GridSetting,
     depth_limit: int,
 ):
     """Test the grid generation process."""
-    benchmark_grid_setting_bunny = grid_setting_bunny.model_copy(
-        update={"depth_limit": depth_limit}
-    )
+    # Load bunny config
+    config_path = pathlib.Path("tests/data/yaml/bunny.yaml")
+    with open(config_path) as f:
+        config_dict = yaml.safe_load(f)
+
+    # Modify depth_limit
+    config_dict["octree"]["refinement"]["depth_limit"] = depth_limit
+
+    # Create temporary config file with modified depth_limit
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
+        yaml.dump(config_dict, f)
+        temp_config_path = pathlib.Path(f.name)
 
     def gridgen_process() -> None:
-        pv_mesh = pv.read("tests/data/stl/bunny.stl")
-        mesh = TriangleMesh.from_polydata(pv_mesh)
-        forest = Forest(benchmark_grid_setting_bunny)
-        grid = forest.build_grid_from_mesh(mesh)
-        file_name = pathlib.Path(
-            f"tests/outputs/grid/bunny_depth{depth_limit}.vtkhdf"
-        )
-        grid.save_structure(file_name)
+        grid = TensorGrid.build(temp_config_path)
+        save_grid(grid)
 
-    benchmark(gridgen_process)
-
-
-@pytest.fixture
-def grid_setting_DrivAer() -> GridSetting:
-    """Return a Settings object."""
-    return GridSetting(
-        blockXMin=-5.0,
-        blockXMax=11.0,
-        blockYMin=-4.0,
-        blockYMax=4.0,
-        blockZMin=0.0,
-        blockZMax=4.0,
-        nBlockX=8,
-        nBlockY=4,
-        nBlockZ=2,
-        alpha=0.3,
-        level_limit=3,
-    )
+    try:
+        benchmark(gridgen_process)
+    finally:
+        temp_config_path.unlink()
 
 
 @pytest.mark.with_benchmark
@@ -81,22 +52,29 @@ def grid_setting_DrivAer() -> GridSetting:
 @benchmark_with_group
 def test_gridgen_DrivAer(
     benchmark: BenchmarkFixture,
-    grid_setting_DrivAer: GridSetting,
     depth_limit: int,
 ):
     """Test the grid generation process."""
-    benchmark_grid_setting_DrivAer = grid_setting_DrivAer.model_copy(
-        update={"depth_limit": depth_limit}
-    )
+    # Load DrivAer config
+    config_path = pathlib.Path("tests/data/yaml/DrivAer.yaml")
+    with open(config_path) as f:
+        config_dict = yaml.safe_load(f)
+
+    # Modify depth_limit
+    config_dict["octree"]["refinement"]["depth_limit"] = depth_limit
+
+    # Create temporary config file with modified depth_limit
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
+        yaml.dump(config_dict, f)
+        temp_config_path = pathlib.Path(f.name)
 
     def gridgen_process() -> None:
-        pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
-        mesh = TriangleMesh.from_polydata(pv_mesh)
-        forest = Forest(benchmark_grid_setting_DrivAer)
-        grid = forest.build_grid_from_mesh(mesh)
-        file_name = pathlib.Path(
-            f"tests/outputs/grid/DrivAer_depth{depth_limit}.vtkhdf"
-        )
-        grid.save_structure(file_name)
+        grid = TensorGrid.build(temp_config_path)
+        save_grid(grid)
 
-    benchmark(gridgen_process)
+    try:
+        benchmark(gridgen_process)
+    finally:
+        temp_config_path.unlink()

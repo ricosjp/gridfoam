@@ -1,72 +1,64 @@
 import pathlib
+import tempfile
 
 import pytest
-import pyvista as pv
+import yaml
 
-from gridfoam._geometry import TriangleMesh
-from gridfoam._octree import Forest
-from gridfoam.settings import GridSetting
-
-
-@pytest.fixture
-def grid_setting_bunny() -> GridSetting:
-    """Return a Settings object."""
-    return GridSetting(
-        blockXMin=-4.0,
-        blockXMax=4.0,
-        blockYMin=-2.0,
-        blockYMax=2.0,
-        blockZMin=-2.0,
-        blockZMax=2.0,
-        nBlockX=8,
-        nBlockY=4,
-        nBlockZ=4,
-        alpha=0.3,
-        depth_limit=7,
-    )
+from gridfoam import TensorGrid, save_grid
 
 
 @pytest.mark.with_profile
-def test_gridgen_bunny_profile(
-    grid_setting_bunny: GridSetting,
-    tmp_path: pathlib.Path,
-):
+def test_gridgen_bunny_profile():
     """Test the grid generation process."""
-    pv_mesh = pv.read("tests/data/stl/bunny.stl")
-    mesh = TriangleMesh.from_polydata(pv_mesh)
-    forest = Forest(grid_setting_bunny)
-    grid = forest.build_grid_from_mesh(mesh)
-    file_name = tmp_path / "bunny.vtkhdf"
-    grid.save_structure(file_name)
+    # Load bunny config
+    config_path = pathlib.Path("tests/data/yaml/bunny.yaml")
+    with open(config_path) as f:
+        config_dict = yaml.safe_load(f)
 
+    # Modify depth_limit
+    config_dict["octree"]["refinement"]["depth_limit"] = 8
 
-@pytest.fixture
-def grid_setting_DrivAer() -> GridSetting:
-    """Return a Settings object."""
-    return GridSetting(
-        blockXMin=-5.0,
-        blockXMax=11.0,
-        blockYMin=-4.0,
-        blockYMax=4.0,
-        blockZMin=0.0,
-        blockZMax=4.0,
-        nBlockX=8,
-        nBlockY=4,
-        nBlockZ=2,
-        alpha=0.3,
-        depth_limit=7,
-    )
+    # Create temporary config file with modified depth_limit
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
+        yaml.dump(config_dict, f)
+        temp_config_path = pathlib.Path(f.name)
+
+    def gridgen_process() -> None:
+        grid = TensorGrid.build(temp_config_path)
+        save_grid(grid)
+
+    try:
+        gridgen_process()
+    finally:
+        temp_config_path.unlink()
+
 
 
 @pytest.mark.with_profile
-def test_gridgen_DrivAer_profile(
-    grid_setting_DrivAer: GridSetting,
-    tmp_path: pathlib.Path,
-):
+def test_gridgen_DrivAer_profile():
     """Test the grid generation process."""
-    pv_mesh = pv.read("tests/data/stl/DrivAer.stl")
-    mesh = TriangleMesh.from_polydata(pv_mesh)
-    forest = Forest(grid_setting_DrivAer)
-    grid = forest.build_grid_from_mesh(mesh)
-    file_name = tmp_path / "DrivAer.vtkhdf"
-    grid.save_structure(file_name)
+    # Load DrivAer config
+    config_path = pathlib.Path("tests/data/yaml/DrivAer.yaml")
+    with open(config_path) as f:
+        config_dict = yaml.safe_load(f)
+
+    # Modify depth_limit
+    config_dict["octree"]["refinement"]["depth_limit"] = 8
+
+    # Create temporary config file with modified depth_limit
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
+        yaml.dump(config_dict, f)
+        temp_config_path = pathlib.Path(f.name)
+
+    def gridgen_process() -> None:
+        grid = TensorGrid.build(temp_config_path)
+        save_grid(grid)
+
+    try:
+        gridgen_process()
+    finally:
+        temp_config_path.unlink()

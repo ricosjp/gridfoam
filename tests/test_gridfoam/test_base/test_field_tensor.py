@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gridfoam._base.field_tensor import FieldTensor
+from gridfoam._base._field_tensor import FieldTensor
 
 
 class TestFieldTensor:
