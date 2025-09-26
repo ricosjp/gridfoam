@@ -3,6 +3,8 @@
 import numpy as np
 import pyvista as pv
 
+from gridfoam._base._field import Field
+
 DIRECTIONS: np.ndarray[tuple[int, int], np.dtype[np.int64]]
 """
 Precomputed direction vectors for all 27 neighbors in 3D space.
@@ -187,6 +189,12 @@ class PyOctreeNode:
     node_type: NodeType
     """Type of this node (leaf, ghost, etc.)."""
 
+    cur: Field
+    """Current field."""
+
+    old: Field
+    """Old field."""
+
 class PyOctreeLevel:
     """A single level of the octree structure."""
 
@@ -198,6 +206,12 @@ class PyOctreeLevel:
 
     depth: int
     """Depth level (0 = root)."""
+
+    n_cells: int
+    """Number of cells at this level."""
+
+    n_cells_per_node: int
+    """Number of cells per node at this level."""
 
 class PyGrid:
     """A complete octree grid structure."""
