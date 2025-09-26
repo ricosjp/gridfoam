@@ -21,3 +21,12 @@ class Direction(Enum):
     XP = 14
     YP = 16
     ZP = 22
+
+FACE_NEIGHBOR_INDEX = [
+    Direction.ZM.value,
+    Direction.ZP.value,
+    Direction.YM.value,
+    Direction.YP.value,
+    Direction.XM.value,
+    Direction.XP.value,
+]
