@@ -30,15 +30,15 @@ class MeshConfig(BaseModel, frozen=True):
 
 
 class CubeConfig(BaseModel, frozen=True):
-    width: int = Field(default=8, ge=8)
+    interior_width: int = Field(default=8, ge=8)
     """
-    width : int
-        Width of the cube.
+    interior_width : int
+        Interior width of the cube.
     """
-    bnd_width: int = Field(default=2, ge=2)
+    halo_width: int = Field(default=2, ge=2)
     """
-    bnd_width : int
-        Boundary width of the cube
+    halo_width : int
+        Halo width of the cube
     """
 
 
@@ -73,8 +73,73 @@ class IoConfig(BaseModel, frozen=True):
         Useful to avoid file corruption.
     """
 
+class DdtConfig(BaseModel, frozen=True):
+    offset_coefficient: float = Field(default=0.9, ge=0.0, le=1.0)
+    """
+    offset_coefficient : float, default=0.9
+        Offset coefficient for the ddt.
+        Set 0 for Euler implicit scheme.
+        Set 1 for Crank-Nicolson scheme.
+        Set 0.9 for default.
+    """
+
+
+class DivConfig(BaseModel, frozen=True):
+    scheme: str
+    """
+    scheme : str
+        Scheme for the div.
+    """
+
+class ControlConfig(BaseModel, frozen=True):
+    deltaT: float
+    """
+    deltaT : float
+        Time step for the simulation.
+    """
+    endTime: float
+    """
+    endTime : float
+        Maximum time for the simulation.
+    """
+    writeInterval: int
+    """
+    writeInterval : int
+        Write interval for the simulation.
+    """
+
+class fvSchemesConfig(BaseModel, frozen=True):
+    ddt: DdtConfig
+    """
+    ddt : str
+        Scheme for the fv.
+    """
+    div: DivConfig
+    """
+    div : DivConfig
+        Scheme for the div.
+    """
+
+
+class SimulatorConfig(BaseModel, frozen=True):
+    control: ControlConfig
+    """
+    control : ControlConfig
+        Control configuration.
+    """
+    fvSchemes: fvSchemesConfig
+    """
+    fvSchemes : fvSchemesConfig
+        Fv schemes configuration.
+    """
 
 class Config(BaseModel, frozen=True):
+    simulator: SimulatorConfig
+    """
+    simulator : SimulatorConfig
+        Simulator configuration.
+    """
+
     io: IoConfig
     """
     io : IoConfig
