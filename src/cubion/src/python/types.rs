@@ -126,7 +126,7 @@ impl IntoPy for OctreeNode {
 ///
 /// Contains all nodes at a specific depth level as a Python dictionary
 /// for efficient data transfer between Rust and Python.
-#[pyclass(get_all)]
+#[pyclass(get_all, dict)]
 pub struct PyOctreeLevel {
     /// Map of cube codes to nodes at this level
     nodes: Py<PyDict>,
