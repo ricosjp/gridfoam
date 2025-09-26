@@ -9,7 +9,33 @@ from gridfoam.cubion import NodeType, PyOctreeNode
 from gridfoam.utils.enums import GridMode
 
 
-def save_grid(tensor_grid: TensorGrid) -> None:
+def amrbox(cube: PyOctreeNode, depth: int, cell_width: int) -> np.ndarray:
+    """
+    Calculate the AMR box for a given octree node and depth.
+
+    Parameters
+    ----------
+    cube : PyOctreeNode
+        The octree node to calculate the AMR box for.
+    depth : int
+        The depth of the octree node.
+    cell_width : int
+        The width of the cell.
+
+    Returns
+    -------
+    np.ndarray
+        AMR box coordinates in format
+        [x_start, x_end, y_start, y_end, z_start, z_end].
+    """
+    base = cube.cubecode.to_global_index(depth)
+    start = base * cell_width
+    end = start + cell_width - 1
+    stacked = np.stack([start, end], axis=1)
+    return stacked.reshape(-1, 6)
+
+
+def save_grid(tensor_grid: TensorGrid, name: str) -> None:
     """
     Save the grid as a VTK HDF file.
 
@@ -18,7 +44,7 @@ def save_grid(tensor_grid: TensorGrid) -> None:
     tensor_grid : TensorGrid
         TensorGrid object to be saved.
     """
-    output_file = tensor_grid.config.io.output_dir / "grid.vtkhdf"
+    output_file = tensor_grid.config.io.output_dir / name
     mode = tensor_grid.config.io.mode
     only_leaves = tensor_grid.config.io.only_leaves
     overwrite_file = tensor_grid.config.io.overwrite_file
@@ -28,35 +54,8 @@ def save_grid(tensor_grid: TensorGrid) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     domain_width = tensor_grid.domain_width.cpu().numpy()
-    cell_width = tensor_grid.config.cube.width if mode == GridMode.CELL else 1
-
-    def amrbox(octree_node: PyOctreeNode, depth: int) -> np.ndarray:
-        """
-        Calculate the AMR box for a given octree node and depth.
-
-        Parameters
-        ----------
-        octree_node : PyOctreeNode
-            The octree node to calculate the AMR box for.
-        depth : int
-            The depth of the octree node.
-
-        Returns
-        -------
-        np.ndarray
-            AMR box coordinates in format
-            [x_start, x_end, y_start, y_end, z_start, z_end].
-        """
-        base = octree_node.cubecode.to_global_index(depth)
-        match mode:
-            case GridMode.CELL:
-                start = base * tensor_grid.config.cube.width
-                end = start + tensor_grid.config.cube.width - 1
-            case GridMode.CUBE:
-                start = base
-                end = base
-        stacked = np.stack([start, end], axis=1)
-        return stacked.reshape(-1, 6)
+    cell_width = tensor_grid.config.cube.interior_width if mode == GridMode.CELL else 1
+    data_width = cell_width**3
 
     with h5.File(output_file, "w") as f:
         # write grid description
@@ -88,25 +87,22 @@ def save_grid(tensor_grid: TensorGrid) -> None:
             cube_types = []
             depths = []
             field_data_by_name = defaultdict(list)
-            for node in octree_level.nodes.values():
-                if only_leaves and node.node_type != NodeType.LEAF:
+            for cube in octree_level.nodes.values():
+                if only_leaves and cube.node_type != NodeType.LEAF:
                     continue
-                amrboxes.append(amrbox(node, depth))
-                cube_types.append(int(node.node_type))
+                amrboxes.append(amrbox(cube, depth, cell_width))
+                cube_types.append(int(cube.node_type))
                 depths.append(depth)
                 if mode == GridMode.CUBE:
                     continue
-                for name, field_tensor in node.field_tensors.items():
-                    _, _, _, *extra_shape = field_tensor.interior.shape
-                    data = field_tensor.interior.reshape(-1, *extra_shape)
-                    field_data_by_name[name].append(data)
+                for name, field_tensor in cube.old.cells.items():
+                    data = field_tensor.interior
+                    extra_shape = data.shape[:-3]
+                    reshaped = data.reshape(*extra_shape, -1).permute(-1, *range(len(extra_shape)))
+                    field_data_by_name[name].append(reshaped)
             amrboxes = np.concatenate(amrboxes, axis=0)
-            cube_types = np.array(cube_types)
-            depths = np.array(depths)
-            if mode == GridMode.CELL:
-                repeat = tensor_grid.config.cube.width**3
-                cube_types = cube_types.repeat(repeat)
-                depths = depths.repeat(repeat)
+            cube_types = np.array(cube_types).repeat(data_width)
+            depths = np.array(depths).repeat(data_width)
             level_group.create_dataset("AMRBox", data=amrboxes)
             level_group.create_group("PointData")
             level_group.create_group("FieldData")
