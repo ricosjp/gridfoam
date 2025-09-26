@@ -26,6 +26,30 @@ TensorSpec = tuple[tuple[int, ...], torch.dtype]
 
 @dataclass
 class TensorGrid:
+    """
+    A tensor grid for finite volume computations with adaptive mesh refinement.
+
+    This class manages a hierarchical grid structure with octree-based
+    adaptive mesh refinement (AMR). It provides methods for managing
+    cell-centered and face-centered tensor fields across multiple
+    refinement levels.
+
+    Parameters
+    ----------
+    data : PyGrid
+        The underlying octree grid data structure.
+    config : Config
+        Configuration object containing simulation parameters.
+    cell_field_dict : dict[str, TensorSpec]
+        Dictionary mapping cell field names to their specifications.
+    face_field_dict : dict[str, TensorSpec]
+        Dictionary mapping face field names to their specifications.
+    mesh : pv.PolyData
+        The input mesh geometry.
+    device : torch.device
+        Device where tensors will be allocated.
+    """
+
     data: PyGrid
     config: Config
     cell_field_dict: dict[str, TensorSpec]
@@ -35,6 +59,28 @@ class TensorGrid:
 
     @classmethod
     def build(cls, config_path: pathlib.Path) -> TensorGrid:
+        """
+        Build a TensorGrid from a configuration file.
+
+        This method loads the configuration, reads the mesh file,
+        triangulates it if necessary, and generates the octree grid
+        structure from the mesh geometry.
+
+        Parameters
+        ----------
+        config_path : pathlib.Path
+            Path to the YAML configuration file.
+
+        Returns
+        -------
+        TensorGrid
+            A new TensorGrid instance with initialized data structures.
+
+        Raises
+        ------
+        ValueError
+            If the mesh is not a PolyData object.
+        """
         # load the config
         with open(config_path) as f:
             raw_yaml = yaml.safe_load(f)
@@ -64,6 +110,14 @@ class TensorGrid:
 
     @property
     def domain_width(self) -> Float32[torch.Tensor, " 3"]:
+        """
+        Get the domain width as a tensor.
+
+        Returns
+        -------
+        Float32[torch.Tensor, " 3"]
+            A 3D tensor containing the domain width in each direction.
+        """
         return torch.tensor(
             self.data.domain.upper - self.data.domain.lower,
             device=self.device,
@@ -111,7 +165,18 @@ class TensorGrid:
                         )
 
     def sync_ghost_from_parent_at_depth(self, depth: int) -> None:
-        """Synchronize ghost cubes from their parent cubes at a given depth."""
+        """
+        Synchronize ghost cubes from their parent cubes at a given depth.
+
+        This method extracts data from parent cubes and distributes it to
+        ghost cubes that are refined versions of their parent cubes.
+        The data is interpolated using trilinear interpolation.
+
+        Parameters
+        ----------
+        depth : int
+            The depth level to synchronize.
+        """
         octree_level = self.data.octree_levels[depth]
         for cube in octree_level.nodes.values():
             if cube.node_type != NodeType.GHOST_FROM_PARENT:
@@ -170,13 +235,18 @@ class TensorGrid:
             self.sync_ghost_from_parent_at_depth(depth)
 
     def sync_ghost_from_children_at_depth(self, depth: int) -> None:
-        """Synchronize ghost cubes from their child cubes at a given depth.
+        """
+        Synchronize ghost cubes from their child cubes at a given depth.
 
-        This method aggregates data from child cubes
-        and distributes it to ghost cubes
-        that are coarsened versions of their child cubes.
+        This method aggregates data from child cubes and distributes it to
+        ghost cubes that are coarsened versions of their child cubes.
         The data is coarsened using average pooling
         (2x2x2 cells are averaged into 1 cell).
+
+        Parameters
+        ----------
+        depth : int
+            The depth level to synchronize.
         """
         octree_level = self.data.octree_levels[depth]
         for cube in octree_level.nodes.values():
@@ -218,7 +288,9 @@ class TensorGrid:
                     xs, xe = ix * block_size, (ix + 1) * block_size
                     ys, ye = iy * block_size, (iy + 1) * block_size
                     zs, ze = iz * block_size, (iz + 1) * block_size
-                    cube.old.cells[name].interior[zs:ze, ys:ye, xs:xe] = tensor
+                    cube.old.cells[name].interior[..., zs:ze, ys:ye, xs:xe] = (
+                        tensor
+                    )
 
     def sync_ghost_from_children(self) -> None:
         """Synchronize ghost cubes from their child cubes for all depths.
@@ -268,7 +340,13 @@ class TensorGrid:
         self.face_field_dict[name] = (shape, dtype)
 
     def allocate_field_tensors(self) -> None:
-        """Allocate field tensors registered in field_dict for all nodes in the grid."""
+        """
+        Allocate field tensors registered in field_dict for all nodes in the grid.
+
+        This method creates Field instances for each cube in the octree
+        and allocates the cell and face tensors according to the
+        specifications in cell_field_dict and face_field_dict.
+        """
         w_interior = self.config.cube.interior_width
         w_halo = self.config.cube.halo_width
         for octree_level in self.data.octree_levels:

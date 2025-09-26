@@ -73,6 +73,7 @@ class IoConfig(BaseModel, frozen=True):
         Useful to avoid file corruption.
     """
 
+
 class DdtConfig(BaseModel, frozen=True):
     offset_coefficient: float = Field(default=0.9, ge=0.0, le=1.0)
     """
@@ -91,6 +92,7 @@ class DivConfig(BaseModel, frozen=True):
         Scheme for the div.
     """
 
+
 class ControlConfig(BaseModel, frozen=True):
     deltaT: float
     """
@@ -107,6 +109,7 @@ class ControlConfig(BaseModel, frozen=True):
     writeInterval : int
         Write interval for the simulation.
     """
+
 
 class fvSchemesConfig(BaseModel, frozen=True):
     ddt: DdtConfig
@@ -132,6 +135,7 @@ class SimulatorConfig(BaseModel, frozen=True):
     fvSchemes : fvSchemesConfig
         Fv schemes configuration.
     """
+
 
 class Config(BaseModel, frozen=True):
     simulator: SimulatorConfig

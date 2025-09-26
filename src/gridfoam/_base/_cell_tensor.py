@@ -10,6 +10,25 @@ from gridfoam._base._face_tensor import FaceTensor
 
 @dataclass
 class CellTensor:
+    """
+    A tensor representing cell-centered data with halo regions.
+
+    This class provides a structured way to handle 3D cell-centered data
+    with interior and halo regions. The halo regions are used for
+    boundary conditions and communication between adjacent cells.
+
+    Parameters
+    ----------
+    w_interior : int
+        Width of the interior region (excluding halo).
+    w_halo : int
+        Width of the halo region on each side.
+    ndim : int
+        Number of dimensions for the field data (0-2).
+    raw : torch.Tensor
+        Raw tensor data with shape (..., w_interior + 2*w_halo, ...).
+    """
+
     w_interior: int
     w_halo: int
     ndim: int
@@ -24,6 +43,32 @@ class CellTensor:
         dtype: torch.dtype,
         device: torch.device,
     ) -> CellTensor:
+        """
+        Initialize a CellTensor with the specified parameters.
+
+        Parameters
+        ----------
+        w_interior : int
+            Width of the interior region.
+        w_halo : int
+            Width of the halo region on each side.
+        shape : tuple[int, ...]
+            Shape of the field data (0-2 dimensions).
+        dtype : torch.dtype
+            Data type of the tensor.
+        device : torch.device
+            Device where the tensor will be allocated.
+
+        Returns
+        -------
+        CellTensor
+            Initialized CellTensor instance.
+
+        Raises
+        ------
+        ValueError
+            If the shape has invalid dimensions (not 0-2).
+        """
         data_width = w_interior + 2 * w_halo
         ndim = len(shape)
         if ndim == 0 or ndim > 2:
@@ -32,14 +77,30 @@ class CellTensor:
         raw = torch.zeros(shape, device=device, dtype=dtype)
         return cls(w_interior, w_halo, ndim, raw)
 
-
     @property
     def interior_shape(self) -> tuple[int, ...]:
+        """
+        Get the shape of the interior region.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Shape of the interior region including field dimensions
+            and interior spatial dimensions.
+        """
         elem_shape = self.raw.shape[:-3]
         return (*elem_shape, self.w_interior, self.w_interior, self.w_interior)
 
     @property
     def interior(self) -> torch.Tensor:
+        """
+        Get the interior region of the tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            View of the interior region (excluding halo).
+        """
         return self.raw[
             ...,
             self.w_halo : -self.w_halo,
@@ -49,6 +110,15 @@ class CellTensor:
 
     @interior.setter
     def interior(self, value: torch.Tensor) -> None:
+        """
+        Set the interior region of the tensor.
+
+        Parameters
+        ----------
+        value : torch.Tensor
+            Values to set in the interior region.
+            Must have the same shape as the interior region.
+        """
         self.raw[
             ...,
             self.w_halo : -self.w_halo,
@@ -215,6 +285,17 @@ class CellTensor:
         return self.raw[tuple(slices)]
 
     def face_average(self) -> FaceTensor:
+        """
+        Compute face-averaged values from cell-centered data.
+
+        This method computes the average of adjacent cell values
+        to obtain face-centered values for all six faces.
+
+        Returns
+        -------
+        FaceTensor
+            Face tensor containing averaged values for all faces.
+        """
         xp = self.raw[
             ...,
             self.w_halo : -self.w_halo,
@@ -258,6 +339,24 @@ class CellTensor:
 
 
 def grad(field: CellTensor, dx: Float[torch.Tensor, " 3"]) -> FaceTensor:
+    """
+    Compute the gradient of a cell-centered field.
+
+    This function computes the finite difference gradient
+    of a cell-centered field using central differences.
+
+    Parameters
+    ----------
+    field : CellTensor
+        Cell-centered field to compute gradient for.
+    dx : Float[torch.Tensor, " 3"]
+        Grid spacing in each direction [dx, dy, dz].
+
+    Returns
+    -------
+    FaceTensor
+        Face tensor containing the gradient components.
+    """
     xp = field.raw[
         ...,
         field.w_halo : -field.w_halo,

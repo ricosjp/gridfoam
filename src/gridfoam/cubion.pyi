@@ -31,6 +31,7 @@ Example:
 def generate_grid_from_polydata(
     polydata: pv.PolyData, config_path: str
 ) -> PyGrid: ...
+
 """
 Generate an octree grid from PyVista PolyData.
 

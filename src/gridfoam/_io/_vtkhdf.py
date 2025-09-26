@@ -54,7 +54,9 @@ def save_grid(tensor_grid: TensorGrid, name: str) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     domain_width = tensor_grid.domain_width.cpu().numpy()
-    cell_width = tensor_grid.config.cube.interior_width if mode == GridMode.CELL else 1
+    cell_width = (
+        tensor_grid.config.cube.interior_width if mode == GridMode.CELL else 1
+    )
     data_width = cell_width**3
 
     with h5.File(output_file, "w") as f:
@@ -98,7 +100,9 @@ def save_grid(tensor_grid: TensorGrid, name: str) -> None:
                 for name, field_tensor in cube.old.cells.items():
                     data = field_tensor.interior
                     extra_shape = data.shape[:-3]
-                    reshaped = data.reshape(*extra_shape, -1).permute(-1, *range(len(extra_shape)))
+                    reshaped = data.reshape(*extra_shape, -1).permute(
+                        -1, *range(len(extra_shape))
+                    )
                     field_data_by_name[name].append(reshaped)
             amrboxes = np.concatenate(amrboxes, axis=0)
             cube_types = np.array(cube_types).repeat(data_width)
@@ -115,4 +119,3 @@ def save_grid(tensor_grid: TensorGrid, name: str) -> None:
             for name, data_list in field_data_by_name.items():
                 concatenated_data = torch.cat(data_list, dim=0).cpu().numpy()
                 celldata_group.create_dataset(name, data=concatenated_data)
-

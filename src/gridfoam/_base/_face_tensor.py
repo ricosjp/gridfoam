@@ -8,6 +8,25 @@ from jaxtyping import Float
 
 @dataclass
 class FaceTensor:
+    """
+    A tensor representing face-centered data for finite volume methods.
+
+    This class provides a structured way to handle face-centered data
+    for finite volume computations. It stores flux data on the six faces
+    of a 3D cell in three separate tensors (x, y, z faces).
+
+    Parameters
+    ----------
+    w_interior : int
+        Width of the interior region.
+    x : Float[torch.Tensor, "... w_interior w_interior (w_interior+1)"]
+        Face data for x-faces (normal to x-axis).
+    y : Float[torch.Tensor, "... w_interior (w_interior+1) w_interior"]
+        Face data for y-faces (normal to y-axis).
+    z : Float[torch.Tensor, "... (w_interior+1) w_interior w_interior"]
+        Face data for z-faces (normal to z-axis).
+    """
+
     w_interior: int
     x: Float[torch.Tensor, "... w_interior w_interior (w_interior+1)"]
     y: Float[torch.Tensor, "... w_interior (w_interior+1) w_interior"]
@@ -21,6 +40,25 @@ class FaceTensor:
         dtype: torch.dtype,
         device: torch.device,
     ) -> FaceTensor:
+        """
+        Initialize a FaceTensor with the specified parameters.
+
+        Parameters
+        ----------
+        w_interior : int
+            Width of the interior region.
+        shape : tuple[int, ...]
+            Shape of the field data (0-2 dimensions).
+        dtype : torch.dtype
+            Data type of the tensors.
+        device : torch.device
+            Device where the tensors will be allocated.
+
+        Returns
+        -------
+        FaceTensor
+            Initialized FaceTensor instance with zero-filled tensors.
+        """
         shape_x = (*shape, w_interior, w_interior, w_interior + 1)
         shape_y = (*shape, w_interior, w_interior + 1, w_interior)
         shape_z = (*shape, w_interior + 1, w_interior, w_interior)
@@ -30,6 +68,19 @@ class FaceTensor:
         return cls(w_interior, x, y, z)
 
     def __mul__(self, other: FaceTensor) -> FaceTensor:
+        """
+        Multiply two FaceTensor instances element-wise.
+
+        Parameters
+        ----------
+        other : FaceTensor
+            Another FaceTensor to multiply with.
+
+        Returns
+        -------
+        FaceTensor
+            New FaceTensor with element-wise multiplication results.
+        """
         return FaceTensor(
             self.w_interior,
             self.x * other.x,
@@ -76,6 +127,15 @@ class FaceTensor:
     ) -> Float[torch.Tensor, "... 3 w_interior w_interior w_interior"]:
         """
         Get cell-centered tensor by averaging the face tensor.
+
+        This property computes cell-centered values by averaging
+        the adjacent face values for each direction.
+
+        Returns
+        -------
+        Float[torch.Tensor, "... 3 w_interior w_interior w_interior"]
+            Cell-centered tensor with shape (..., 3, w_interior, w_interior, w_interior).
+            The second-to-last dimension contains [x, y, z] components.
         """
         x = 0.5 * (self.x[..., 1:] + self.x[..., :-1])
         y = 0.5 * (self.y[..., 1:, :] + self.y[..., :-1, :])
@@ -85,6 +145,19 @@ class FaceTensor:
     def integrate_cell(
         self,
     ) -> Float[torch.Tensor, "... w_interior w_interior w_interior"]:
+        """
+        Integrate face fluxes to compute cell-centered divergence.
+
+        This method computes the divergence of the face-centered flux
+        by taking the difference between forward and backward faces
+        for each direction and summing them up.
+
+        Returns
+        -------
+        Float[torch.Tensor, "... w_interior w_interior w_interior"]
+            Cell-centered divergence tensor with shape
+            (..., w_interior, w_interior, w_interior).
+        """
         xp = self.x[..., 1:]
         xm = self.x[..., :-1]
         yp = self.y[..., 1:, :]

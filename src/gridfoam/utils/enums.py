@@ -14,6 +14,7 @@ class Direction(Enum):
     """
     Direction of the grid.
     """
+
     ZM = 4
     YM = 10
     XM = 12
@@ -21,6 +22,7 @@ class Direction(Enum):
     XP = 14
     YP = 16
     ZP = 22
+
 
 FACE_NEIGHBOR_INDEX = [
     Direction.ZM.value,

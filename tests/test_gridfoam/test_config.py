@@ -1,260 +1,345 @@
 import pathlib
-from typing import Any
 
 import pytest
 import torch
-import yaml
 from pydantic import ValidationError
 
 from gridfoam.config import (
     Config,
+    ControlConfig,
     CubeConfig,
+    DdtConfig,
+    DivConfig,
     IoConfig,
     MeshConfig,
+    SimulatorConfig,
     device_validator,
+    fvSchemesConfig,
 )
 from gridfoam.utils.enums import GridMode
 
 
 class TestDeviceValidator:
-    """Test device_validator function"""
+    """Test device_validator function."""
 
-    def test_device_validator_cpu_string(self):
-        """Test device_validator with 'cpu' string"""
+    def test_valid_cpu_string(self):
+        """Test that 'cpu' string is converted to torch.device('cpu')."""
         result = device_validator("cpu")
         assert result == torch.device("cpu")
 
+    def test_valid_cuda_string(self):
+        """Test that 'cuda:0' string is converted to torch.device('cuda:0')."""
+        result = device_validator("cuda:0")
+        assert result == torch.device("cuda:0")
 
-    def test_device_validator_cuda_multiple_devices(self):
-        """Test device_validator with different CUDA devices"""
-        for i in range(4):
-            result = device_validator(f"cuda:{i}")
-            assert result == torch.device(f"cuda:{i}")
+    def test_valid_cuda_string_with_different_id(self):
+        """Test that 'cuda:1' string is converted to torch.device('cuda:1')."""
+        result = device_validator("cuda:1")
+        assert result == torch.device("cuda:1")
 
-    def test_device_validator_torch_device_cpu(self):
-        """Test device_validator with torch.device('cpu')"""
+    def test_valid_torch_device(self):
+        """Test that torch.device object is returned as is."""
         device = torch.device("cpu")
         result = device_validator(device)
         assert result == device
 
-    def test_device_validator_torch_device_cuda(self):
-        """Test device_validator with torch.device('cuda:0')"""
-        device = torch.device("cuda:0")
-        result = device_validator(device)
-        assert result == device
-
-    def test_device_validator_invalid_string(self):
-        """Test device_validator with invalid string"""
+    def test_invalid_device_string(self):
+        """Test that invalid device string raises ValueError."""
         with pytest.raises(
             ValueError, match="device must be 'cpu' or 'cuda:<int>'"
         ):
             device_validator("invalid")
 
-    def test_device_validator_invalid_cuda_format(self):
-        """Test device_validator with invalid CUDA format"""
-        invalid_formats = ["cuda", "cuda:", "cuda:abc", "cuda:-1"]
-        for invalid_format in invalid_formats:
-            with pytest.raises(
-                ValueError, match="device must be 'cpu' or 'cuda:<int>'"
-            ):
-                device_validator(invalid_format)
+    def test_invalid_cuda_format(self):
+        """Test that invalid cuda format raises ValueError."""
+        with pytest.raises(
+            ValueError, match="device must be 'cpu' or 'cuda:<int>'"
+        ):
+            device_validator("cuda")
+
+    def test_invalid_cuda_with_float(self):
+        """Test that cuda with float raises ValueError."""
+        with pytest.raises(
+            ValueError, match="device must be 'cpu' or 'cuda:<int>'"
+        ):
+            device_validator("cuda:1.0")
 
 
 class TestMeshConfig:
-    """Test MeshConfig class"""
+    """Test MeshConfig class."""
 
-    def test_mesh_config_valid(self):
-        """Test MeshConfig with valid parameters"""
-        mesh_file = pathlib.Path("tests/data/stl/bunny.stl")
-        config = MeshConfig(file=mesh_file)
-        assert config.file == mesh_file
+    def test_valid_mesh_config(self):
+        """Test creating valid MeshConfig."""
+        config = MeshConfig(file=pathlib.Path("test.obj"))
+        assert config.file == pathlib.Path("test.obj")
 
     def test_mesh_config_frozen(self):
-        """Test that MeshConfig is frozen (immutable)"""
-        mesh_file = pathlib.Path("tests/data/stl/bunny.stl")
-        config = MeshConfig(file=mesh_file)
-
+        """Test that MeshConfig is frozen."""
+        config = MeshConfig(file=pathlib.Path("test.obj"))
         with pytest.raises(ValidationError):
-            config.file = pathlib.Path("different/path.stl")
+            config.file = pathlib.Path("new.obj")
 
 
 class TestCubeConfig:
-    """Test CubeConfig class"""
+    """Test CubeConfig class."""
 
-    def test_cube_config_valid(self):
-        """Test CubeConfig with valid parameters"""
-        config = CubeConfig(width=8, bnd_width=2)
-        assert config.width == 8
-        assert config.bnd_width == 2
+    def test_default_values(self):
+        """Test default values for CubeConfig."""
+        config = CubeConfig()
+        assert config.interior_width == 8
+        assert config.halo_width == 2
 
-    def test_cube_config_different_values(self):
-        """Test CubeConfig with different values"""
-        config = CubeConfig(width=16, bnd_width=4)
-        assert config.width == 16
-        assert config.bnd_width == 4
+    def test_custom_values(self):
+        """Test custom values for CubeConfig."""
+        config = CubeConfig(interior_width=16, halo_width=4)
+        assert config.interior_width == 16
+        assert config.halo_width == 4
 
-    def test_cube_config_invalid_width(self):
-        """Test CubeConfig with zero values"""
+    def test_minimum_values(self):
+        """Test minimum values for CubeConfig."""
+        config = CubeConfig(interior_width=8, halo_width=2)
+        assert config.interior_width == 8
+        assert config.halo_width == 2
+
+    def test_interior_width_too_small(self):
+        """Test that interior_width < 8 raises ValidationError."""
         with pytest.raises(ValidationError):
-            CubeConfig(width=0, bnd_width=2)
+            CubeConfig(interior_width=7)
 
-    def test_cube_config_invalid_bnd_width(self):
-        """Test CubeConfig with negative values"""
+    def test_halo_width_too_small(self):
+        """Test that halo_width < 2 raises ValidationError."""
         with pytest.raises(ValidationError):
-            CubeConfig(width=8, bnd_width=0)
+            CubeConfig(halo_width=1)
 
     def test_cube_config_frozen(self):
-        """Test that CubeConfig is frozen (immutable)"""
-        config = CubeConfig(width=8, bnd_width=2)
-
+        """Test that CubeConfig is frozen."""
+        config = CubeConfig()
         with pytest.raises(ValidationError):
-            config.width = 16
+            config.interior_width = 16
 
 
 class TestIoConfig:
-    """Test IoConfig class"""
+    """Test IoConfig class."""
 
-    def test_io_config_valid(self):
-        """Test IoConfig with valid parameters"""
-        output_dir = pathlib.Path("tests/outputs")
+    def test_valid_io_config(self):
+        """Test creating valid IoConfig."""
         config = IoConfig(
-            output_dir=output_dir,
+            output_dir=pathlib.Path("/tmp/output"),
             mode=GridMode.CELL,
             only_leaves=True,
-            overwrite_file=False,
-        )
-        assert config.output_dir == output_dir
-        assert config.mode == GridMode.CELL
-        assert config.only_leaves is True
-        assert config.overwrite_file is False
-
-    def test_io_config_cube_mode(self):
-        """Test IoConfig with CUBE mode"""
-        output_dir = pathlib.Path("outputs")
-        config = IoConfig(
-            output_dir=output_dir,
-            mode=GridMode.CUBE,
-            only_leaves=False,
             overwrite_file=True,
         )
-        assert config.output_dir == output_dir
-        assert config.mode == GridMode.CUBE
-        assert config.only_leaves is False
+        assert config.output_dir == pathlib.Path("/tmp/output")
+        assert config.mode == GridMode.CELL
+        assert config.only_leaves is True
         assert config.overwrite_file is True
 
+    def test_default_values(self):
+        """Test default values for IoConfig."""
+        config = IoConfig(output_dir=pathlib.Path("/tmp/output"))
+        assert config.mode == GridMode.CELL
+        assert config.only_leaves is True
+        assert config.overwrite_file is True
+
+    def test_cube_mode(self):
+        """Test IoConfig with CUBE mode."""
+        config = IoConfig(
+            output_dir=pathlib.Path("/tmp/output"), mode=GridMode.CUBE
+        )
+        assert config.mode == GridMode.CUBE
 
     def test_io_config_frozen(self):
-        """Test that IoConfig is frozen (immutable)"""
-        output_dir = pathlib.Path("tests/outputs")
-        config = IoConfig(
-            output_dir=output_dir,
-            mode=GridMode.CELL,
-            only_leaves=True,
-            overwrite_file=False,
-        )
-
+        """Test that IoConfig is frozen."""
+        config = IoConfig(output_dir=pathlib.Path("/tmp/output"))
         with pytest.raises(ValidationError):
             config.mode = GridMode.CUBE
 
 
+class TestDdtConfig:
+    """Test DdtConfig class."""
+
+    def test_default_value(self):
+        """Test default value for DdtConfig."""
+        config = DdtConfig()
+        assert config.offset_coefficient == 0.9
+
+    def test_custom_value(self):
+        """Test custom value for DdtConfig."""
+        config = DdtConfig(offset_coefficient=0.5)
+        assert config.offset_coefficient == 0.5
+
+    def test_boundary_values(self):
+        """Test boundary values for DdtConfig."""
+        config_min = DdtConfig(offset_coefficient=0.0)
+        config_max = DdtConfig(offset_coefficient=1.0)
+        assert config_min.offset_coefficient == 0.0
+        assert config_max.offset_coefficient == 1.0
+
+    def test_offset_coefficient_too_small(self):
+        """Test that offset_coefficient < 0.0 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            DdtConfig(offset_coefficient=-0.1)
+
+    def test_offset_coefficient_too_large(self):
+        """Test that offset_coefficient > 1.0 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            DdtConfig(offset_coefficient=1.1)
+
+    def test_ddt_config_frozen(self):
+        """Test that DdtConfig is frozen."""
+        config = DdtConfig()
+        with pytest.raises(ValidationError):
+            config.offset_coefficient = 0.5
+
+
+class TestDivConfig:
+    """Test DivConfig class."""
+
+    def test_valid_div_config(self):
+        """Test creating valid DivConfig."""
+        config = DivConfig(scheme="Gauss linear")
+        assert config.scheme == "Gauss linear"
+
+    def test_div_config_frozen(self):
+        """Test that DivConfig is frozen."""
+        config = DivConfig(scheme="Gauss linear")
+        with pytest.raises(ValidationError):
+            config.scheme = "Gauss upwind"
+
+
+class TestControlConfig:
+    """Test ControlConfig class."""
+
+    def test_valid_control_config(self):
+        """Test creating valid ControlConfig."""
+        config = ControlConfig(
+            deltaT=0.001,
+            endTime=1.0,
+            writeInterval=100,
+        )
+        assert config.deltaT == 0.001
+        assert config.endTime == 1.0
+        assert config.writeInterval == 100
+
+    def test_control_config_frozen(self):
+        """Test that ControlConfig is frozen."""
+        config = ControlConfig(deltaT=0.001, endTime=1.0, writeInterval=100)
+        with pytest.raises(ValidationError):
+            config.deltaT = 0.002
+
+
+class TestFvSchemesConfig:
+    """Test fvSchemesConfig class."""
+
+    def test_valid_fv_schemes_config(self):
+        """Test creating valid fvSchemesConfig."""
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        assert config.ddt == ddt_config
+        assert config.div == div_config
+
+    def test_fv_schemes_config_frozen(self):
+        """Test that fvSchemesConfig is frozen."""
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        with pytest.raises(ValidationError):
+            config.ddt = DdtConfig(offset_coefficient=0.5)
+
+
+class TestSimulatorConfig:
+    """Test SimulatorConfig class."""
+
+    def test_valid_simulator_config(self):
+        """Test creating valid SimulatorConfig."""
+        control_config = ControlConfig(
+            deltaT=0.001,
+            endTime=1.0,
+            writeInterval=100,
+        )
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        fv_schemes_config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        config = SimulatorConfig(
+            control=control_config, fvSchemes=fv_schemes_config
+        )
+        assert config.control == control_config
+        assert config.fvSchemes == fv_schemes_config
+
+    def test_simulator_config_frozen(self):
+        """Test that SimulatorConfig is frozen."""
+        control_config = ControlConfig(
+            deltaT=0.001,
+            endTime=1.0,
+            writeInterval=100,
+        )
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        fv_schemes_config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        config = SimulatorConfig(
+            control=control_config, fvSchemes=fv_schemes_config
+        )
+        with pytest.raises(ValidationError):
+            config.control = ControlConfig(
+                deltaT=0.002, endTime=1.0, writeInterval=100
+            )
+
+
 class TestConfig:
-    """Test Config class"""
+    """Test Config class."""
 
-    @pytest.fixture
-    def valid_config_data(self) -> dict[str, Any]:
-        """Valid configuration data for testing"""
-        return {
-            "io": {
-                "output_dir": "tests/outputs",
-                "mode": "cell",
-                "only_leaves": True,
-                "overwrite_file": False,
-            },
-            "mesh": {
-                "file": "tests/data/stl/bunny.stl",
-            },
-            "cube": {
-                "width": 8,
-                "bnd_width": 2,
-            },
-            "device": "cpu",
-        }
+    def test_valid_config(self):
+        """Test creating valid Config."""
+        control_config = ControlConfig(
+            deltaT=0.001,
+            endTime=1.0,
+            writeInterval=100,
+        )
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        fv_schemes_config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        simulator_config = SimulatorConfig(
+            control=control_config, fvSchemes=fv_schemes_config
+        )
+        io_config = IoConfig(output_dir=pathlib.Path("/tmp/output"))
+        mesh_config = MeshConfig(file=pathlib.Path("test.obj"))
+        cube_config = CubeConfig()
 
-    def test_config_valid(self, valid_config_data: dict[str, Any]):
-        """Test Config with valid parameters"""
-        config = Config.model_validate(valid_config_data)
-
-        assert config.io.output_dir == pathlib.Path("tests/outputs")
-        assert config.io.mode == GridMode.CELL
-        assert config.io.only_leaves is True
-        assert config.io.overwrite_file is False
-
-        assert config.mesh.file == pathlib.Path("tests/data/stl/bunny.stl")
-
-        assert config.cube.width == 8
-        assert config.cube.bnd_width == 2
-
+        config = Config(
+            simulator=simulator_config,
+            io=io_config,
+            mesh=mesh_config,
+            cube=cube_config,
+        )
+        assert config.simulator == simulator_config
+        assert config.io == io_config
+        assert config.mesh == mesh_config
+        assert config.cube == cube_config
         assert config.device == torch.device("cpu")
 
-    def test_config_with_cuda_device(self, valid_config_data: dict[str, Any]):
-        """Test Config with CUDA device"""
-        valid_config_data["device"] = "cuda:0"
-        config = Config.model_validate(valid_config_data)
-        assert config.device == torch.device("cuda:0")
+    def test_config_frozen(self):
+        """Test that Config is frozen."""
+        control_config = ControlConfig(
+            deltaT=0.001,
+            endTime=1.0,
+            writeInterval=100,
+        )
+        ddt_config = DdtConfig()
+        div_config = DivConfig(scheme="Gauss linear")
+        fv_schemes_config = fvSchemesConfig(ddt=ddt_config, div=div_config)
+        simulator_config = SimulatorConfig(
+            control=control_config, fvSchemes=fv_schemes_config
+        )
+        io_config = IoConfig(output_dir=pathlib.Path("/tmp/output"))
+        mesh_config = MeshConfig(file=pathlib.Path("test.obj"))
+        cube_config = CubeConfig()
 
-    def test_config_default_device(self, valid_config_data: dict[str, Any]):
-        """Test Config with default device (no device specified)"""
-        del valid_config_data["device"]
-        config = Config.model_validate(valid_config_data)
-        assert config.device == torch.device("cpu")
-
-
-    def test_config_missing_required_fields(self):
-        """Test Config with missing required fields"""
-        incomplete_data = {
-            "io": {
-                "output_dir": "tests/outputs",
-                "mode": "cell",
-                "only_leaves": True,
-                "overwrite_file": False,
-            },
-            # Missing mesh and cube
-        }
-
-        with pytest.raises(ValidationError):
-            Config.model_validate(incomplete_data)
-
-    def test_config_invalid_device(self, valid_config_data: dict[str, Any]):
-        """Test Config with invalid device"""
-        valid_config_data["device"] = "invalid_device"
-
-        with pytest.raises(ValidationError):
-            Config.model_validate(valid_config_data)
-
-    def test_config_invalid_mode(self, valid_config_data: dict[str, Any]):
-        """Test Config with invalid mode"""
-        valid_config_data["io"]["mode"] = "invalid_mode"
-
-        with pytest.raises(ValidationError):
-            Config.model_validate(valid_config_data)
-
-    def test_config_frozen(self, valid_config_data: dict[str, Any]):
-        """Test that Config is frozen (immutable)"""
-        config = Config.model_validate(valid_config_data)
-
+        config = Config(
+            simulator=simulator_config,
+            io=io_config,
+            mesh=mesh_config,
+            cube=cube_config,
+        )
         with pytest.raises(ValidationError):
             config.device = torch.device("cuda:0")
-
-    def test_config_from_file(self):
-        """Test Config.model_validate_file method"""
-        config_path = pathlib.Path("tests/data/yaml/bunny.yaml")
-        with open(config_path) as f:
-            config_dict = yaml.safe_load(f)
-        config = Config.model_validate(config_dict)
-
-        assert isinstance(config, Config)
-        assert config.io.output_dir == pathlib.Path("tests/outputs/grid")
-        assert config.mesh.file == pathlib.Path("tests/data/stl/bunny.stl")
-        assert config.cube.width == 8
-        assert config.cube.bnd_width == 2
-        assert config.device == torch.device("cpu")

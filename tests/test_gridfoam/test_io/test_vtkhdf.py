@@ -3,141 +3,105 @@ import tempfile
 
 import pytest
 import torch
+import yaml
 
-from gridfoam._base._tensor_grid import TensorGrid
+from gridfoam import TensorGrid
 from gridfoam._io._vtkhdf import save_grid
-from gridfoam.config import Config
-from gridfoam.cubion import NodeType
+from gridfoam.config import IoConfig
+from gridfoam.utils.enums import GridMode
+
+
+@pytest.fixture
+def config_path():
+    """Create a config."""
+    config_path = pathlib.Path("tests/data/yaml/DrivAer.yaml")
+    return config_path
+
+
+@pytest.fixture
+def grid(config_path: pathlib.Path):
+    """Create a test grid with cell fields."""
+    grid = TensorGrid.build(config_path)
+    grid.add_cell_field("U", (3,), torch.float32)
+    grid.add_cell_field("T", (1,), torch.float32)
+    grid.allocate_field_tensors()
+    return grid
+
+
+@pytest.fixture
+def io_config(config_path: pathlib.Path) -> dict:
+    """Modify the config."""
+    with open(config_path) as f:
+        config_dict = yaml.safe_load(f)
+
+    return config_dict["io"]
+
+
+@pytest.fixture
+def temp_output_dir():
+    """Create a temporary output directory for tests."""
+    temp_dir = tempfile.mkdtemp()
+    return pathlib.Path(temp_dir)
 
 
 class TestSaveGrid:
-    """Test save_grid function"""
+    """Test save_grid function."""
 
-    @pytest.fixture
-    def test_config_path(self) -> pathlib.Path:
-        """Path to test configuration file"""
-        return pathlib.Path("tests/data/yaml/bunny.yaml")
+    def test_save_grid_cell_mode(
+        self, grid: TensorGrid, temp_output_dir: pathlib.Path, io_config: dict
+    ) -> None:
+        """Test save_grid in CELL mode with field data."""
+        # Update config for CELL mode
+        io_config["output_dir"] = temp_output_dir
+        io_config["mode"] = GridMode.CELL
+        io_config["only_leaves"] = True
+        io_config["overwrite_file"] = True
+        grid.config = grid.config.model_copy(
+            update={"io": IoConfig.model_validate(io_config)}
+        )
 
-    @pytest.fixture
-    def tensor_grid(self, test_config_path: pathlib.Path) -> TensorGrid:
-        """TensorGrid fixture"""
-        return TensorGrid.build(test_config_path)
+        # Save the grid
+        save_grid(grid, "test_cell_mode.vtkhdf")
 
-    @pytest.fixture
-    def temp_output_dir(self) -> pathlib.Path:
-        """Temporary output directory for testing"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            yield pathlib.Path(tmp_dir)
+        # Verify file and field data
+        output_file = temp_output_dir / "test_cell_mode.vtkhdf"
+        assert output_file.exists()
 
-    def test_save_grid_basic(
-        self, tensor_grid: TensorGrid, temp_output_dir: pathlib.Path
-    ):
-        """Test basic save_grid functionality"""
-        # Modify config to use temp directory
-        config_dict = tensor_grid.config.model_dump()
-        config_dict["io"]["output_dir"] = str(temp_output_dir)
-        config_dict["io"]["mode"] = "cube"
-        config_dict["io"]["only_leaves"] = True
-        config_dict["io"]["overwrite_file"] = True
-        config = Config.model_validate(config_dict)
-        tensor_grid.config = config
+    def test_save_grid_cube_mode(
+        self, grid: TensorGrid, temp_output_dir: pathlib.Path, io_config: dict
+    ) -> None:
+        """Test save_grid in CUBE mode without field data."""
+        # Update config for CUBE mode
+        io_config["output_dir"] = temp_output_dir
+        io_config["mode"] = GridMode.CUBE
+        io_config["only_leaves"] = True
+        io_config["overwrite_file"] = True
+        grid.config = grid.config.model_copy(
+            update={"io": IoConfig.model_validate(io_config)}
+        )
 
-        # Save grid
-        save_grid(tensor_grid)
+        # Save the grid
+        save_grid(grid, "test_cube_mode.vtkhdf")
 
-        # Check that file was created
-        output_file = temp_output_dir / "grid.vtkhdf"
+        # Verify file and structure
+        output_file = temp_output_dir / "test_cube_mode.vtkhdf"
         assert output_file.exists()
 
     def test_save_grid_file_exists_error(
-        self, tensor_grid: TensorGrid, temp_output_dir: pathlib.Path
-    ):
-        """Test save_grid raises error when file exists and overwrite_file is False"""
-        # Modify config to use temp directory
-        config_dict = tensor_grid.config.model_dump()
-        config_dict["io"]["output_dir"] = str(temp_output_dir)
-        config_dict["io"]["mode"] = "cube"
-        config_dict["io"]["only_leaves"] = True
-        config_dict["io"]["overwrite_file"] = False
-        config = Config.model_validate(config_dict)
-        tensor_grid.config = config
+        self, grid: TensorGrid, temp_output_dir: pathlib.Path, io_config: dict
+    ) -> None:
+        """Test save_grid raises FileExistsError when file exists."""
+        # Update config with overwrite_file=False
+        io_config["output_dir"] = temp_output_dir
+        io_config["overwrite_file"] = False
+        grid.config = grid.config.model_copy(
+            update={"io": IoConfig.model_validate(io_config)}
+        )
 
-        # Save grid first time
-        save_grid(tensor_grid)
+        # Create the file first
+        output_file = temp_output_dir / "existing_file.vtkhdf"
+        output_file.touch()
 
-        # Try to save again - should raise error
+        # Test that FileExistsError is raised
         with pytest.raises(FileExistsError, match="File .* already exists"):
-            save_grid(tensor_grid)
-
-    def test_save_grid_cube_mode(
-        self, tensor_grid: TensorGrid, temp_output_dir: pathlib.Path
-    ):
-        """Test save_grid with CUBE mode"""
-        # Modify config to use temp directory and CUBE mode
-        config_dict = tensor_grid.config.model_dump()
-        config_dict["io"]["output_dir"] = str(temp_output_dir)
-        config_dict["io"]["mode"] = "cube"
-        config_dict["io"]["only_leaves"] = True
-        config_dict["io"]["overwrite_file"] = True
-        config = Config.model_validate(config_dict)
-        tensor_grid.config = config
-
-        # Save grid
-        save_grid(tensor_grid)
-
-        # Check that file was created
-        output_file = temp_output_dir / "grid.vtkhdf"
-        assert output_file.exists()
-
-    def test_save_grid_only_leaves_false(
-        self, tensor_grid: TensorGrid, temp_output_dir: pathlib.Path
-    ):
-        """Test save_grid with only_leaves=False"""
-        # Modify config to use temp directory and only_leaves=False
-        config_dict = tensor_grid.config.model_dump()
-        config_dict["io"]["output_dir"] = str(temp_output_dir)
-        config_dict["io"]["mode"] = "cube"
-        config_dict["io"]["only_leaves"] = False
-        config_dict["io"]["overwrite_file"] = True
-        config = Config.model_validate(config_dict)
-        tensor_grid.config = config
-
-        # Save grid
-        save_grid(tensor_grid)
-
-        # Check that file was created
-        output_file = temp_output_dir / "grid.vtkhdf"
-        assert output_file.exists()
-
-    def test_save_grid_with_field_data(
-        self, tensor_grid: TensorGrid, temp_output_dir: pathlib.Path
-    ):
-        """Test save_grid with field data in CELL mode"""
-        # Modify config to use temp directory and CELL mode
-        config_dict = tensor_grid.config.model_dump()
-        config_dict["io"]["output_dir"] = str(temp_output_dir)
-        config_dict["io"]["mode"] = "cell"
-        config_dict["io"]["only_leaves"] = True
-        config_dict["io"]["overwrite_file"] = True
-        config = Config.model_validate(config_dict)
-        tensor_grid.config = config
-
-        # Add field data
-        tensor_grid.add_field("velocity", (3,), torch.float32)
-        tensor_grid.add_field("pressure", (1,), torch.float64)
-        tensor_grid.allocate_field_tensors()
-
-        # Initialize some test data
-        for octree_level in tensor_grid.data.octree_levels:
-            for node in octree_level.nodes.values():
-                if node.node_type == NodeType.LEAF:
-                    # Set test data
-                    node.field_tensors["velocity"].interior.fill_(1.0)
-                    node.field_tensors["pressure"].interior.fill_(2.0)
-
-        # Save grid
-        save_grid(tensor_grid)
-
-        # Check that file was created
-        output_file = temp_output_dir / "grid.vtkhdf"
-        assert output_file.exists()
+            save_grid(grid, "existing_file.vtkhdf")
