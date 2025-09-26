@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import yaml
 from jaxtyping import Float32
 
-from gridfoam._base._field_tensor import FieldTensor
+from gridfoam._base._field import Field
 from gridfoam.config import Config
 from gridfoam.cubion import (
     NodeType,
@@ -19,7 +19,7 @@ from gridfoam.cubion import (
     RawIndexConversionMode,
     generate_grid_from_polydata,
 )
-from gridfoam.utils.enums import Direction
+from gridfoam.utils.enums import FACE_NEIGHBOR_INDEX
 
 TensorSpec = tuple[tuple[int, ...], torch.dtype]
 
@@ -28,7 +28,8 @@ TensorSpec = tuple[tuple[int, ...], torch.dtype]
 class TensorGrid:
     data: PyGrid
     config: Config
-    field_dict: dict[str, TensorSpec]
+    cell_field_dict: dict[str, TensorSpec]
+    face_field_dict: dict[str, TensorSpec]
     mesh: pv.PolyData
     device: torch.device
 
@@ -50,12 +51,13 @@ class TensorGrid:
         # generate the grid
         data = generate_grid_from_polydata(mesh, str(config_path))
 
-        # by default, add the following fields:
-        field_dict = {}
+        cell_field_dict = {}
+        face_field_dict = {}
         return cls(
             data=data,
             config=config,
-            field_dict=field_dict,
+            cell_field_dict=cell_field_dict,
+            face_field_dict=face_field_dict,
             mesh=mesh,
             device=device,
         )
@@ -90,67 +92,73 @@ class TensorGrid:
                     False,
                 )
 
-                # x-direction
-                ## -x
-                nbr_xm_code = nbr_codes[Direction.XM.value]
-                if nbr_xm_code is not None:
-                    nbr_xm_cube = self.data.octree_levels[depth].nodes[
-                        nbr_xm_code.value()
+                for i, f in enumerate(FACE_NEIGHBOR_INDEX):
+                    axis = i // 2
+                    forward = bool(i % 2)
+                    nbr_code = nbr_codes[f]
+                    if nbr_code is None:
+                        continue
+                    nbr_cube = self.data.octree_levels[depth].nodes[
+                        nbr_code.value()
                     ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_xm_tensor = nbr_xm_cube.field_tensors[name]
-                        field_tensor.xm = nbr_xm_tensor.inxp
-                ## +x
-                nbr_xp_code = nbr_codes[Direction.XP.value]
-                if nbr_xp_code is not None:
-                    nbr_xp_cube = self.data.octree_levels[depth].nodes[
-                        nbr_xp_code.value()
-                    ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_xp_tensor = nbr_xp_cube.field_tensors[name]
-                        field_tensor.xp = nbr_xp_tensor.inxm
-                # y-direction
-                ## -y
-                nbr_ym_code = nbr_codes[Direction.YM.value]
-                if nbr_ym_code is not None:
-                    nbr_ym_cube = self.data.octree_levels[depth].nodes[
-                        nbr_ym_code.value()
-                    ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_ym_tensor = nbr_ym_cube.field_tensors[name]
-                        field_tensor.ym = nbr_ym_tensor.inyp
-                ## +y
-                nbr_yp_code = nbr_codes[Direction.YP.value]
-                if nbr_yp_code is not None:
-                    nbr_yp_cube = self.data.octree_levels[depth].nodes[
-                        nbr_yp_code.value()
-                    ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_yp_tensor = nbr_yp_cube.field_tensors[name]
-                        field_tensor.yp = nbr_yp_tensor.inym
-                # z-direction
-                ## -z
-                nbr_zm_code = nbr_codes[Direction.ZM.value]
-                if nbr_zm_code is not None:
-                    nbr_zm_cube = self.data.octree_levels[depth].nodes[
-                        nbr_zm_code.value()
-                    ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_zm_tensor = nbr_zm_cube.field_tensors[name]
-                        field_tensor.zm = nbr_zm_tensor.inzp
-                ## +z
-                nbr_zp_code = nbr_codes[Direction.ZP.value]
-                if nbr_zp_code is not None:
-                    nbr_zp_cube = self.data.octree_levels[depth].nodes[
-                        nbr_zp_code.value()
-                    ]
-                    for name, field_tensor in cube.field_tensors.items():
-                        nbr_zp_tensor = nbr_zp_cube.field_tensors[name]
-                        field_tensor.zp = nbr_zp_tensor.inzm
+                    for name, cell_tensor in cube.old.cells.items():
+                        nbr_tensor = nbr_cube.old.cells[name]
+                        nbr_interior_halo = nbr_tensor.get_interior_halo_along(
+                            axis, not forward
+                        )
+                        cell_tensor.set_halo_along(
+                            axis, forward, nbr_interior_halo
+                        )
+
+    def sync_ghost_from_parent_at_depth(self, depth: int) -> None:
+        """Synchronize ghost cubes from their parent cubes at a given depth."""
+        octree_level = self.data.octree_levels[depth]
+        for cube in octree_level.nodes.values():
+            if cube.node_type != NodeType.GHOST_FROM_PARENT:
+                continue
+            code: PyCubeCode = cube.cubecode
+
+            # Get parent cube code and offsets within parent
+            parent_code, offsets = code.parent_and_offset_py(depth)
+            parent_cube = self.data.octree_levels[depth - 1].nodes[
+                parent_code.value()
+            ]
+
+            # TODO:
+            # 1. Piecewise linear reconstruction
+            # https://zingale.github.io/comp_astro_tutorial/advection_euler/advection/advection-partIII.html
+            # 2. Piecewise Parabolic Method
+
+            offsets = torch.tensor(
+                offsets, device=self.device, dtype=torch.int32
+            )
+
+            # Extract data from parent cube and distribute to ghost cube
+            for name, parent_tensor in parent_cube.old.cells.items():
+                ndim = parent_tensor.ndim
+                parent_region = parent_tensor.get_half_interior(offsets)
+
+                # (X2, X1, half_width, half_width, half_width)
+                if ndim == 1:
+                    parent_region = parent_region.unsqueeze(0)
+
+                # interpolation
+                refined_tensor: torch.Tensor = F.interpolate(
+                    parent_region,
+                    scale_factor=2,
+                    mode="trilinear",
+                )
+
+                # (X, half_width, half_width, half_width)
+                if ndim == 1:
+                    refined_tensor = refined_tensor.squeeze(0)
+
+                # Assign the refined data to the ghost cube
+                cube.old.cells[name].interior = refined_tensor
 
     def sync_ghost_from_parent(self) -> None:
         """
-        Synchronize ghost cubes from their parent cubes.
+        Synchronize ghost cubes from their parent cubes for all depths.
 
         This method extracts data from parent cubes
         and distributes it to ghost cubes
@@ -158,64 +166,11 @@ class TensorGrid:
         The data is interpolated  using simple replication
         (each parent cell becomes 2x2x2 child cells).
         """
-        half_size = self.config.cube.width // 2
+        for depth in range(self.data.max_depth):
+            self.sync_ghost_from_parent_at_depth(depth)
 
-        for octree_level in self.data.octree_levels:
-            depth = octree_level.depth
-            for cube in octree_level.nodes.values():
-                code: PyCubeCode = cube.cubecode
-                if cube.node_type != NodeType.GHOST_FROM_PARENT:
-                    continue
-
-                # Get parent cube code and offsets within parent
-                parent_code, offsets = code.parent_and_offset_py(depth)
-                parent_cube = self.data.octree_levels[depth - 1].nodes[
-                    parent_code.value()
-                ]
-
-                # TODO:
-                # 1. Piecewise linear reconstruction
-                # https://zingale.github.io/comp_astro_tutorial/advection_euler/advection/advection-partIII.html
-                # 2. Piecewise Parabolic Method
-
-                # Calculate the region in parent cube
-                # that corresponds to this ghost cube
-                # offsets are 0 or 1,
-                # indicating which half of the parent cube this ghost occupies
-                xs = offsets[0] * half_size
-                xe = xs + half_size
-                ys = offsets[1] * half_size
-                ye = ys + half_size
-                zs = offsets[2] * half_size
-                ze = zs + half_size
-
-                # Extract data from parent cube and distribute to ghost cube
-                for name, parent_tensor in parent_cube.field_tensors.items():
-                    # Extract the corresponding region from parent cube
-                    parent_region = parent_tensor.interior[zs:ze, ys:ye, xs:xe]
-
-                    # Get shape information
-                    region_width, _, _, *extra_shape = parent_region.shape
-
-                    # Interpolate by repeating each cell 2x2x2 times
-                    # This creates a refined version
-                    refined_tensor = (
-                        parent_region.repeat_interleave(2, dim=0)
-                        .repeat_interleave(2, dim=1)
-                        .repeat_interleave(2, dim=2)
-                        .reshape(
-                            region_width * 2,
-                            region_width * 2,
-                            region_width * 2,
-                            *extra_shape,
-                        )
-                    )
-
-                    # Assign the refined data to the ghost cube
-                    cube.field_tensors[name].interior = refined_tensor
-
-    def sync_ghost_from_children(self) -> None:
-        """Synchronize ghost cubes from their child cubes.
+    def sync_ghost_from_children_at_depth(self, depth: int) -> None:
+        """Synchronize ghost cubes from their child cubes at a given depth.
 
         This method aggregates data from child cubes
         and distributes it to ghost cubes
@@ -223,91 +178,112 @@ class TensorGrid:
         The data is coarsened using average pooling
         (2x2x2 cells are averaged into 1 cell).
         """
-        for octree_level in reversed(self.data.octree_levels):
-            depth = octree_level.depth
-            for cube in octree_level.nodes.values():
-                code: PyCubeCode = cube.cubecode
-                if cube.node_type != NodeType.GHOST_FROM_CHILD:
-                    continue
-                coarsened_tensors_list = defaultdict(list)
-                child_codes = code.children(depth)
-                # HACK:
-                for child_code in child_codes:
-                    child_cube = self.data.octree_levels[depth + 1].nodes[
-                        child_code.value()
-                    ]
-                    for name, field_tensor in child_cube.field_tensors.items():
-                        interior = field_tensor.interior
-                        width, _, _, *extra_shape = interior.shape
+        octree_level = self.data.octree_levels[depth]
+        for cube in octree_level.nodes.values():
+            if cube.node_type != NodeType.GHOST_FROM_CHILD:
+                continue
+            code: PyCubeCode = cube.cubecode
+            coarsened_tensors_list = defaultdict(list)
+            child_codes = code.children(depth)
+            # HACK:
+            for child_code in child_codes:
+                child_cube = self.data.octree_levels[depth + 1].nodes[
+                    child_code.value()
+                ]
+                for name, field_tensor in child_cube.old.cells.items():
+                    ndim = field_tensor.ndim
+                    interior = field_tensor.interior
 
-                        # to (X, width, width, width)
-                        interior_reshaped = interior.reshape(
-                            width, width, width, -1
-                        )
-                        interior_reshaped = interior_reshaped.permute(
-                            3, 0, 1, 2
-                        )
-                        interior_reshaped = interior_reshaped.unsqueeze(0)
+                    # (1, X, width, width, width)
+                    if ndim == 1:
+                        interior = interior.unsqueeze(0)
 
-                        # interpolation
-                        coarsened_tensor = F.avg_pool3d(
-                            interior_reshaped, kernel_size=2, stride=2
-                        )
-                        # to (width/2, width/2, width/2, X)
-                        coarsened_tensor = (
-                            coarsened_tensor.squeeze(0)
-                            .permute(1, 2, 3, 0)
-                            .reshape(
-                                width // 2, width // 2, width // 2, *extra_shape
-                            )
-                        )
-                        coarsened_tensors_list[name].append(coarsened_tensor)
+                    # interpolation
+                    coarsened_tensor = F.avg_pool3d(
+                        interior, kernel_size=2, stride=2
+                    )
 
-                block_size = self.config.cube.width // 2
-                for name, coarsened_tensors in coarsened_tensors_list.items():
-                    for i, tensor in enumerate(coarsened_tensors):
-                        iz = i // (2 * 2)
-                        iy = (i % (2 * 2)) // 2
-                        ix = i % 2
-                        xs, xe = ix * block_size, (ix + 1) * block_size
-                        ys, ye = iy * block_size, (iy + 1) * block_size
-                        zs, ze = iz * block_size, (iz + 1) * block_size
-                        cube.field_tensors[name].interior[
-                            zs:ze, ys:ye, xs:xe
-                        ] = tensor
+                    if ndim == 1:
+                        coarsened_tensor = coarsened_tensor.squeeze(0)
 
-    def add_field(
+                    # (X, width/2, width/2, width/2)
+                    coarsened_tensors_list[name].append(coarsened_tensor)
+
+            block_size = self.config.cube.interior_width // 2
+            for name, coarsened_tensors in coarsened_tensors_list.items():
+                for i, tensor in enumerate(coarsened_tensors):
+                    iz = i // (2 * 2)
+                    iy = (i % (2 * 2)) // 2
+                    ix = i % 2
+                    xs, xe = ix * block_size, (ix + 1) * block_size
+                    ys, ye = iy * block_size, (iy + 1) * block_size
+                    zs, ze = iz * block_size, (iz + 1) * block_size
+                    cube.old.cells[name].interior[zs:ze, ys:ye, xs:xe] = tensor
+
+    def sync_ghost_from_children(self) -> None:
+        """Synchronize ghost cubes from their child cubes for all depths.
+
+        This method aggregates data from child cubes
+        and distributes it to ghost cubes
+        that are coarsened versions of their child cubes.
+        The data is coarsened using average pooling
+        (2x2x2 cells are averaged into 1 cell).
+        """
+        for depth in reversed(range(self.data.max_depth)):
+            self.sync_ghost_from_children_at_depth(depth)
+
+    def add_cell_field(
         self, name: str, shape: tuple[int, ...], dtype: torch.dtype
     ) -> None:
-        """Add a field to the grid.
+        """Add a cell field to the grid.
 
         Parameters
         ----------
         name : str
-            Name of the field.
+            Name of the cell field.
         shape : tuple[int, ...]
-            Shape of the field.
+            Shape of the cell field.
         dtype : torch.dtype
-            Data type of the field. example: torch.float32
+            Data type of the cell field. example: torch.float32
         """
         if any(x <= 0 for x in shape):
             raise ValueError("All elements must be > 0")
-        self.field_dict[name] = (shape, dtype)
+        self.cell_field_dict[name] = (shape, dtype)
+
+    def add_face_field(
+        self, name: str, shape: tuple[int, ...], dtype: torch.dtype
+    ) -> None:
+        """
+        Add a face field to the grid.
+
+        Parameters
+        ----------
+        name : str
+            Name of the face field.
+        shape : tuple[int, ...]
+            Shape of the face field.
+        dtype : torch.dtype
+            Data type of the face field. example: torch.float32
+        """
+        self.face_field_dict[name] = (shape, dtype)
 
     def allocate_field_tensors(self) -> None:
         """Allocate field tensors registered in field_dict for all nodes in the grid."""
-        data_width = self.config.cube.width + 2 * self.config.cube.bnd_width
+        w_interior = self.config.cube.interior_width
+        w_halo = self.config.cube.halo_width
         for octree_level in self.data.octree_levels:
-            for node in octree_level.nodes.values():
-                node.field_tensors = {}
-                for name, spec in self.field_dict.items():
+            n_cells_per_node = w_interior**3
+            octree_level.n_cells_per_node = n_cells_per_node
+            octree_level.n_cells = len(octree_level.nodes) * n_cells_per_node
+            for i, cube in enumerate(octree_level.nodes.values()):
+                cube.number = i
+                cube.cur = Field(w_interior, w_halo, self.device)
+                cube.old = Field(w_interior, w_halo, self.device)
+                for name, spec in self.cell_field_dict.items():
                     shape, dtype = spec
-                    shape = (data_width, data_width, data_width, *shape)
-                    raw_data = torch.zeros(
-                        shape, dtype=dtype, device=self.device
-                    )
-                    node.field_tensors[name] = FieldTensor(
-                        width=self.config.cube.width,
-                        bnd=self.config.cube.bnd_width,
-                        raw=raw_data,
-                    )
+                    cube.cur.add_cell_tensor(name, shape, dtype)
+                    cube.old.add_cell_tensor(name, shape, dtype)
+                for name, spec in self.face_field_dict.items():
+                    shape, dtype = spec
+                    cube.cur.add_face_tensor(name, shape, dtype)
+                    cube.old.add_face_tensor(name, shape, dtype)
