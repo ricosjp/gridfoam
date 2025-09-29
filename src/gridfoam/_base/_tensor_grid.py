@@ -124,6 +124,42 @@ class TensorGrid:
             dtype=torch.float32,
         )
 
+    def update_halo_at_depth(self, depth: int) -> None:
+        """Update halo cells for a given depth.
+
+        This method updates the halo (ghost) cells for all leaf cubes at a given depth.
+        It needs a red-black coloring approach
+        to avoid race conditions during parallel updates.
+        """
+        octree_level = self.data.octree_levels[depth]
+        # red-black coloring
+        for cube in octree_level.nodes.values():
+            code: PyCubeCode = cube.cubecode
+            if cube.node_type != NodeType.LEAF:
+                continue
+            nbr_codes = code.neighbor_codes(
+                octree_level.depth,
+                octree_level.bounds,
+                RawIndexConversionMode.BORDER,
+                False,
+            )
+
+            for i, f in enumerate(FACE_NEIGHBOR_INDEX):
+                axis = i // 2
+                forward = bool(i % 2)
+                nbr_code = nbr_codes[f]
+                if nbr_code is None:
+                    continue
+                nbr_cube = self.data.octree_levels[depth].nodes[
+                    nbr_code.value()
+                ]
+                for name, cell_tensor in cube.old.cells.items():
+                    nbr_tensor = nbr_cube.old.cells[name]
+                    nbr_interior_halo = nbr_tensor.get_interior_halo_along(
+                        axis, not forward
+                    )
+                    cell_tensor.set_halo_along(axis, forward, nbr_interior_halo)
+
     def update_halo(self) -> None:
         """Update halo cells for all leaf cubes.
 
@@ -132,37 +168,8 @@ class TensorGrid:
         It needs a red-black coloring approach
         to avoid race conditions during parallel updates.
         """
-        for octree_level in self.data.octree_levels:
-            depth = octree_level.depth
-            # red-black coloring
-            for cube in octree_level.nodes.values():
-                code: PyCubeCode = cube.cubecode
-                if cube.node_type != NodeType.LEAF:
-                    continue
-                nbr_codes = code.neighbor_codes(
-                    octree_level.depth,
-                    octree_level.bounds,
-                    RawIndexConversionMode.BORDER,
-                    False,
-                )
-
-                for i, f in enumerate(FACE_NEIGHBOR_INDEX):
-                    axis = i // 2
-                    forward = bool(i % 2)
-                    nbr_code = nbr_codes[f]
-                    if nbr_code is None:
-                        continue
-                    nbr_cube = self.data.octree_levels[depth].nodes[
-                        nbr_code.value()
-                    ]
-                    for name, cell_tensor in cube.old.cells.items():
-                        nbr_tensor = nbr_cube.old.cells[name]
-                        nbr_interior_halo = nbr_tensor.get_interior_halo_along(
-                            axis, not forward
-                        )
-                        cell_tensor.set_halo_along(
-                            axis, forward, nbr_interior_halo
-                        )
+        for depth in range(self.data.max_depth):
+            self.update_halo_at_depth(depth)
 
     def sync_ghost_from_parent_at_depth(self, depth: int) -> None:
         """
