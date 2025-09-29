@@ -12,14 +12,14 @@ class TestGenerateGridIndices:
         indices = generate_grid_indices(divisions)
 
         # Should have 2*2*2 = 8 indices
-        assert indices.shape == (8, 3)
+        assert indices.shape == (3, 8)
         assert indices.dtype == torch.int32
 
         # Check that all indices are within bounds
         assert torch.all(indices >= 0)
-        assert torch.all(indices[:, 0] < 2)  # z
-        assert torch.all(indices[:, 1] < 2)  # y
-        assert torch.all(indices[:, 2] < 2)  # x
+        assert torch.all(indices[0] < 2)  # x
+        assert torch.all(indices[1] < 2)  # y
+        assert torch.all(indices[2] < 2)  # z
 
     def test_generate_grid_indices_single_division(self) -> None:
         """Test with single division along each axis."""
@@ -27,26 +27,26 @@ class TestGenerateGridIndices:
         indices = generate_grid_indices(divisions)
 
         # Should have 1*1*1 = 1 index
-        assert indices.shape == (1, 3)
-        expected = torch.tensor([[0, 0, 0]], dtype=torch.int32)
+        assert indices.shape == (3, 1)
+        expected = torch.tensor([[0], [0], [0]], dtype=torch.int32)
         torch.testing.assert_close(indices, expected)
 
     def test_generate_grid_indices_different_sizes(self) -> None:
         """Test with different sizes along each axis."""
-        divisions = torch.tensor([3, 2, 4], dtype=torch.int32)
+        divisions = torch.tensor([4, 2, 3], dtype=torch.int32)
         indices = generate_grid_indices(divisions)
 
         # Should have 3*2*4 = 24 indices
-        assert indices.shape == (24, 3)
+        assert indices.shape == (3, 24)
 
         # Check bounds
-        assert torch.all(indices[:, 0] < 4)  # z
-        assert torch.all(indices[:, 1] < 2)  # y
-        assert torch.all(indices[:, 2] < 3)  # x
+        assert torch.all(indices[0] < 4)  # x
+        assert torch.all(indices[1] < 2)  # y
+        assert torch.all(indices[2] < 3)  # z
 
         # Check that all combinations are present
         unique_indices = torch.unique(indices, dim=0)
-        assert unique_indices.shape[0] == 24
+        assert unique_indices.shape[1] == 24
 
     def test_generate_grid_indices_z_order(self) -> None:
         """Test that indices are ordered in Z-order."""
@@ -54,21 +54,15 @@ class TestGenerateGridIndices:
         indices = generate_grid_indices(divisions)
 
         # Expected Z-order for 2x2x2 grid:
-        # (0,0,0), (0,0,1), (0,1,0), (0,1,1), (1,0,0), (1,0,1), (1,1,0), (1,1,1)
+        # (0,0,0), (1,0,0), (0,1,0), (1,1,0), (0,0,1), (1,0,1), (0,1,1), (1,1,1)
         expected = torch.tensor(
             [
-                [0, 0, 0],
-                [0, 0, 1],
-                [0, 1, 0],
-                [0, 1, 1],
-                [1, 0, 0],
-                [1, 0, 1],
-                [1, 1, 0],
-                [1, 1, 1],
+                [0, 1, 0, 1, 0, 1, 0, 1],
+                [0, 0, 1, 1, 0, 0, 1, 1],
+                [0, 0, 0, 0, 1, 1, 1, 1],
             ],
             dtype=torch.int32,
         )
-
         torch.testing.assert_close(indices, expected)
 
     def test_generate_grid_indices_edge_case_zero(self) -> None:
@@ -77,4 +71,4 @@ class TestGenerateGridIndices:
         indices = generate_grid_indices(divisions)
 
         # Should have 2*0*3 = 0 indices
-        assert indices.shape == (0, 3)
+        assert indices.shape == (3, 0)
