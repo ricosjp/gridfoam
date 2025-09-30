@@ -208,8 +208,11 @@ class PyOctreeLevel:
     depth: int
     """Depth level (0 = root)."""
 
-    n_cells: int
-    """Number of cells at this level."""
+    n_leaf_nodes: int
+    """Number of leaf nodes at this level."""
+
+    n_leaf_cells: int
+    """Number of leaf cells at this level."""
 
     n_cells_per_node: int
     """Number of cells per node at this level."""
