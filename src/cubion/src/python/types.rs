@@ -117,7 +117,7 @@ impl IntoPy for OctreeNode {
         PyOctreeNode {
             cubecode: Py::new(py, self.cubecode.into_py(py)).unwrap(),
             face_ids: self.face_ids.to_pyarray(py).unbind(),
-            node_type: Py::new(py, self.node_type.clone()).unwrap(),
+            node_type: Py::new(py, self.node_type).unwrap(),
         }
     }
 }
@@ -134,6 +134,8 @@ pub struct PyOctreeLevel {
     bounds: Py<PyArray1<u64>>,
     /// Depth level (0 = root)
     depth: Py<PyInt>,
+    /// Number of leaf nodes at this level
+    n_leaf_nodes: Py<PyInt>,
 }
 
 #[pymethods]
@@ -186,6 +188,7 @@ impl IntoPy for OctreeLevel {
             nodes: nodes_dict.into(),
             bounds: PyArray1::from_slice(py, self.bounds.as_slice()).unbind(),
             depth: PyInt::new(py, self.depth).into(),
+            n_leaf_nodes: PyInt::new(py, self.n_leaf_nodes).into(),
         }
     }
 }

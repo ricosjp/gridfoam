@@ -74,10 +74,15 @@ impl OctreeLevel {
         bounds: IndexBounds,
         depth: usize,
     ) -> Self {
+        let n_leaf_nodes = nodes
+            .iter()
+            .filter(|(_, node)| node.node_type == NodeType::Leaf)
+            .count();
         Self {
             nodes,
             bounds,
             depth,
+            n_leaf_nodes,
         }
     }
 
@@ -193,7 +198,7 @@ impl OctreeLevel {
     ) -> HashMap<CubeCode, OctreeNode, WyHasher> {
         let child_bounds = self.bounds * 2;
         let mut splitted: HashMap<CubeCode, OctreeNode, WyHasher> = HashMap::default();
-        split_cubecode_set.into_iter().for_each(|cubecode| {
+        split_cubecode_set.iter().for_each(|cubecode| {
             cubecode
                 .children(self.depth)
                 .unwrap()

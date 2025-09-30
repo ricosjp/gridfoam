@@ -162,6 +162,8 @@ pub struct OctreeLevel {
     pub bounds: IndexBounds,
     /// Depth level (0 = root)
     pub depth: usize,
+    /// Number of leaf nodes at this level
+    pub n_leaf_nodes: usize,
 }
 
 // TODO: add more split strategies: curvature, etc.
