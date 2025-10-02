@@ -302,45 +302,30 @@ class CellTensor:
         FaceTensor
             Face tensor containing averaged values for all faces.
         """
-        xp = self.raw[
-            ...,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo + 1,
-        ]
-        xm = self.raw[
-            ...,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo,
-            self.w_halo - 1 : -self.w_halo,
-        ]
-        yp = self.raw[
-            ...,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo + 1,
-            self.w_halo : -self.w_halo,
-        ]
-        ym = self.raw[
-            ...,
-            self.w_halo : -self.w_halo,
-            self.w_halo - 1 : -self.w_halo,
-            self.w_halo : -self.w_halo,
-        ]
-        zp = self.raw[
-            ...,
-            self.w_halo : -self.w_halo + 1,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo,
-        ]
-        zm = self.raw[
-            ...,
-            self.w_halo - 1 : -self.w_halo,
-            self.w_halo : -self.w_halo,
-            self.w_halo : -self.w_halo,
-        ]
-        xf = 0.5 * (xp + xm)
-        yf = 0.5 * (yp + ym)
-        zf = 0.5 * (zp + zm)
+
+        def axis_face_average(axis: int) -> torch.Tensor:
+            """Compute face average for a given axis."""
+            # Base interior slice
+            base_slice = [slice(None)] * self.ndim + [
+                slice(self.w_halo, -self.w_halo)
+            ] * 3
+
+            # Forward and backward slices
+            forward_slice = base_slice.copy()
+            forward_slice[axis] = slice(self.w_halo, -self.w_halo + 1)
+
+            backward_slice = base_slice.copy()
+            backward_slice[axis] = slice(self.w_halo - 1, -self.w_halo)
+
+            return 0.5 * (
+                self.raw[tuple(forward_slice)] + self.raw[tuple(backward_slice)]
+            )
+
+        # Compute face averages for all directions
+        xf = axis_face_average(2)  # x-direction
+        yf = axis_face_average(1)  # y-direction
+        zf = axis_face_average(0)  # z-direction
+
         return FaceTensor(self.w_interior, xf, yf, zf)
 
     def face_tensor_for_advection(
@@ -352,6 +337,7 @@ class CellTensor:
         scheme: ITVDScheme = tvd_scheme(scheme)
 
         def field_slice(axis: int, shift: int) -> slice:
+            """Get field slice along specified axis with shift."""
             start = self.w_halo + shift
             end = -self.w_halo + shift + 1
             if end == 0:
@@ -361,50 +347,47 @@ class CellTensor:
             i_slices = [slice(None)] * self.ndim + i_slices
             return self.raw[tuple(i_slices)]
 
+        def compute_face_values(
+            axis: int, velocity_face: torch.Tensor
+        ) -> torch.Tensor:
+            """Compute face values for a given axis using TVD scheme."""
+            # Get field values at different positions
+            f_m2 = field_slice(axis, -2)  # F_{i-2}
+            f_m1 = field_slice(axis, -1)  # F_{i-1}
+            f_0 = field_slice(axis, 0)  # F_i
+            f_1 = field_slice(axis, 1)  # F_{i+1}
+
+            # Determine upwind and downwind cells
+            upcell = velocity_face.sign() >= 0
+            downcell = velocity_face.sign() < 0
+
+            # Initialize face values
+            face_values = torch.zeros_like(f_0)
+
+            # Upwind scheme with TVD correction
+            face_values[..., upcell] = (
+                f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
+            )[..., upcell]
+
+            # Downwind scheme with TVD correction
+            face_values[..., downcell] = (
+                f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
+            )[..., downcell]
+
+            return face_values
+
+        # Initialize face tensor
         face_tensor = FaceTensor.init(
             self.w_interior,
             self.raw.shape[:-3],
             self.raw.dtype,
             self.raw.device,
         )
-        upcell = U_f.x[0].sign() >= 0
-        downcell = U_f.x[0].sign() < 0
-        f_m2 = field_slice(2, -2)
-        f_m1 = field_slice(2, -1)
-        f_0 = field_slice(2, 0)
-        f_1 = field_slice(2, 1)
-        face_tensor.x[..., upcell] = (
-            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
-        )[..., upcell]
-        face_tensor.x[..., downcell] = (
-            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
-        )[..., downcell]
 
-        upcell = U_f.y[1].sign() >= 0
-        downcell = U_f.y[1].sign() < 0
-        f_m2 = field_slice(1, -2)
-        f_m1 = field_slice(1, -1)
-        f_0 = field_slice(1, 0)
-        f_1 = field_slice(1, 1)
-        face_tensor.y[..., upcell] = (
-            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
-        )[..., upcell]
-        face_tensor.y[..., downcell] = (
-            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
-        )[..., downcell]
-
-        upcell = U_f.z[2].sign() >= 0
-        downcell = U_f.z[2].sign() < 0
-        f_m2 = field_slice(0, -2)
-        f_m1 = field_slice(0, -1)
-        f_0 = field_slice(0, 0)
-        f_1 = field_slice(0, 1)
-        face_tensor.z[..., upcell] = (
-            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
-        )[..., upcell]
-        face_tensor.z[..., downcell] = (
-            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
-        )[..., downcell]
+        # Compute face values for each direction
+        face_tensor.x = compute_face_values(2, U_f.x[0])  # x-direction (axis=2)
+        face_tensor.y = compute_face_values(1, U_f.y[1])  # y-direction (axis=1)
+        face_tensor.z = compute_face_values(0, U_f.z[2])  # z-direction (axis=0)
         return face_tensor
 
 
@@ -427,43 +410,26 @@ def grad(field: CellTensor, dx: Float[torch.Tensor, " 3"]) -> FaceTensor:
     FaceTensor
         Face tensor containing the gradient components.
     """
-    xp = field.raw[
-        ...,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo + 1,
-    ]
-    xm = field.raw[
-        ...,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo,
-        field.w_halo - 1 : -field.w_halo,
-    ]
-    yp = field.raw[
-        ...,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo + 1,
-        field.w_halo : -field.w_halo,
-    ]
-    ym = field.raw[
-        ...,
-        field.w_halo : -field.w_halo,
-        field.w_halo - 1 : -field.w_halo,
-        field.w_halo : -field.w_halo,
-    ]
-    zp = field.raw[
-        ...,
-        field.w_halo : -field.w_halo + 1,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo,
-    ]
-    zm = field.raw[
-        ...,
-        field.w_halo - 1 : -field.w_halo,
-        field.w_halo : -field.w_halo,
-        field.w_halo : -field.w_halo,
-    ]
-    ddx = (xp - xm) / dx[0]
-    ddy = (yp - ym) / dx[1]
-    ddz = (zp - zm) / dx[2]
+
+    def axis_diff(axis: int) -> torch.Tensor:
+        """Compute face difference for a given axis."""
+        # Base interior slice
+        base_slice = [slice(None)] * field.ndim + [
+            slice(field.w_halo, -field.w_halo)
+        ] * 3
+
+        # Forward and backward slices
+        forward_slice = base_slice.copy()
+        forward_slice[axis] = slice(field.w_halo, -field.w_halo + 1)
+
+        backward_slice = base_slice.copy()
+        backward_slice[axis] = slice(field.w_halo - 1, -field.w_halo)
+
+        return (
+            field.raw[tuple(forward_slice)] - field.raw[tuple(backward_slice)]
+        )
+
+    ddx = axis_diff(2) / dx[0]
+    ddy = axis_diff(1) / dx[1]
+    ddz = axis_diff(0) / dx[2]
     return FaceTensor(field.w_interior, ddx, ddy, ddz)
