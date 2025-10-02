@@ -11,9 +11,13 @@ import yaml
 from jaxtyping import Float32
 
 from gridfoam._base._field import Field
+from gridfoam._base._iterator import (
+    iter_ghost_from_children_cubes_of,
+    iter_ghost_from_parent_cubes_of,
+    iter_leaf_cubes_of,
+)
 from gridfoam.config import Config
 from gridfoam.cubion import (
-    NodeType,
     PyCubeCode,
     PyGrid,
     RawIndexConversionMode,
@@ -132,14 +136,14 @@ class TensorGrid:
         to avoid race conditions during parallel updates.
         """
         octree_level = self.data.octree_levels[depth]
+        depth = octree_level.depth
+        bounds = octree_level.bounds
         # red-black coloring
-        for cube in octree_level.nodes.values():
+        for cube in iter_leaf_cubes_of(octree_level):
             code: PyCubeCode = cube.cubecode
-            if cube.node_type != NodeType.LEAF:
-                continue
             nbr_codes = code.neighbor_codes(
-                octree_level.depth,
-                octree_level.bounds,
+                depth,
+                bounds,
                 RawIndexConversionMode.BORDER,
                 False,
             )
@@ -150,9 +154,7 @@ class TensorGrid:
                 nbr_code = nbr_codes[f]
                 if nbr_code is None:
                     continue
-                nbr_cube = self.data.octree_levels[depth].nodes[
-                    nbr_code.value()
-                ]
+                nbr_cube = octree_level.nodes[nbr_code.value()]
                 for name, cell_tensor in cube.old.cells.items():
                     nbr_tensor = nbr_cube.old.cells[name]
                     nbr_interior_halo = nbr_tensor.get_interior_halo_along(
@@ -185,9 +187,7 @@ class TensorGrid:
             The depth level to synchronize.
         """
         octree_level = self.data.octree_levels[depth]
-        for cube in octree_level.nodes.values():
-            if cube.node_type != NodeType.GHOST_FROM_PARENT:
-                continue
+        for cube in iter_ghost_from_parent_cubes_of(octree_level):
             code: PyCubeCode = cube.cubecode
 
             # Get parent cube code and offsets within parent
@@ -256,9 +256,7 @@ class TensorGrid:
             The depth level to synchronize.
         """
         octree_level = self.data.octree_levels[depth]
-        for cube in octree_level.nodes.values():
-            if cube.node_type != NodeType.GHOST_FROM_CHILD:
-                continue
+        for cube in iter_ghost_from_children_cubes_of(octree_level):
             code: PyCubeCode = cube.cubecode
             coarsened_tensors_list = defaultdict(list)
             child_codes = code.children(depth)
@@ -359,9 +357,10 @@ class TensorGrid:
         for octree_level in self.data.octree_levels:
             n_cells_per_node = w_interior**3
             octree_level.n_cells_per_node = n_cells_per_node
-            octree_level.n_cells = len(octree_level.nodes) * n_cells_per_node
-            for i, cube in enumerate(octree_level.nodes.values()):
-                cube.number = i
+            octree_level.n_leaf_cells = (
+                octree_level.n_leaf_nodes * n_cells_per_node
+            )
+            for cube in octree_level.nodes.values():
                 cube.cur = Field(w_interior, w_halo, self.device)
                 cube.old = Field(w_interior, w_halo, self.device)
                 for name, spec in self.cell_field_dict.items():
