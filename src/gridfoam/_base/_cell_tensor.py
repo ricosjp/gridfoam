@@ -306,16 +306,16 @@ class CellTensor:
         def axis_face_average(axis: int) -> torch.Tensor:
             """Compute face average for a given axis."""
             # Base interior slice
-            base_slice = [slice(None)] * self.ndim + [
-                slice(self.w_halo, -self.w_halo)
-            ] * 3
+            base_slice = [slice(self.w_halo, -self.w_halo)] * 3
 
             # Forward and backward slices
             forward_slice = base_slice.copy()
             forward_slice[axis] = slice(self.w_halo, -self.w_halo + 1)
+            forward_slice = [slice(None)] * self.ndim + forward_slice
 
             backward_slice = base_slice.copy()
             backward_slice[axis] = slice(self.w_halo - 1, -self.w_halo)
+            backward_slice = [slice(None)] * self.ndim + backward_slice
 
             return 0.5 * (
                 self.raw[tuple(forward_slice)] + self.raw[tuple(backward_slice)]
@@ -414,16 +414,16 @@ def grad(field: CellTensor, dx: Float[torch.Tensor, " 3"]) -> FaceTensor:
     def axis_diff(axis: int) -> torch.Tensor:
         """Compute face difference for a given axis."""
         # Base interior slice
-        base_slice = [slice(None)] * field.ndim + [
-            slice(field.w_halo, -field.w_halo)
-        ] * 3
+        base_slice = [slice(field.w_halo, -field.w_halo)] * 3
 
         # Forward and backward slices
         forward_slice = base_slice.copy()
         forward_slice[axis] = slice(field.w_halo, -field.w_halo + 1)
+        forward_slice = [slice(None)] * field.ndim + forward_slice
 
         backward_slice = base_slice.copy()
         backward_slice[axis] = slice(field.w_halo - 1, -field.w_halo)
+        backward_slice = [slice(None)] * field.ndim + backward_slice
 
         return (
             field.raw[tuple(forward_slice)] - field.raw[tuple(backward_slice)]

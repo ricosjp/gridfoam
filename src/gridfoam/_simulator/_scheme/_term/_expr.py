@@ -96,9 +96,17 @@ class Expr(FVMTerm):
         torch.Tensor
             Diagonal elements of the expression operator.
         """
-        return self.left.diag(octree_level, dt, dx) + self.right.diag(
-            octree_level, dt, dx
-        )
+        match self.op:
+            case "+":
+                return self.left.diag(octree_level, dt, dx) + self.right.diag(
+                    octree_level, dt, dx
+                )
+            case "-":
+                return self.left.diag(octree_level, dt, dx) - self.right.diag(
+                    octree_level, dt, dx
+                )
+            case _:
+                raise ValueError(f"Unknown operator: {self.op}")
 
     def rhs(
         self,

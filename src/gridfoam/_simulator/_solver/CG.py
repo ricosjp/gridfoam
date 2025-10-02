@@ -1,8 +1,8 @@
 import torch
 from jaxtyping import Float
 
+from gridfoam._interface._fvmterm import FVMTerm
 from gridfoam._interface._solver import Solver
-from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam.cubion import PyOctreeLevel
 
 
@@ -15,7 +15,7 @@ class CG(Solver):
     symmetric positive definite matrices.
     """
 
-    def __init__(self, expr: Expr):
+    def __init__(self, expr: FVMTerm):
         """
         Initialize the CG solver.
 
@@ -25,7 +25,6 @@ class CG(Solver):
             The expression representing the linear system to solve.
         """
         self.expr = expr
-        self.x0 = None
         # default configurations
         self.max_iter = 1000
         self.tol = 1e-6
@@ -72,11 +71,10 @@ class CG(Solver):
         ValueError
             If the diagonal contains zeros or if convergence is not achieved.
         """
-        if self.x0 is None:
-            xi = torch.zeros(octree_level.n_leaf_cells)
-        else:
-            xi = self.x0.clone()
-        ri = xi - self.expr.matvec(octree_level, xi, dt, dx)
+        xi = torch.zeros(octree_level.n_leaf_cells)
+        ri = self.expr.rhs(octree_level, dt, dx) - self.expr.matvec(
+            octree_level, xi, dt, dx
+        )
         diag = self.expr.diag(octree_level, dt, dx)
         if torch.any(diag == 0.0):
             raise ValueError("diag is 0")
