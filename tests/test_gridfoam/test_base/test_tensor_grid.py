@@ -4,12 +4,13 @@ import pytest
 import torch
 
 from gridfoam import TensorGrid
+from gridfoam._base._field import Field
 
 
 @pytest.fixture
 def config_path():
     """Create a config."""
-    config_path = pathlib.Path("tests/data/yaml/DrivAer.yaml")
+    config_path = pathlib.Path("tests/data/yaml/Debug.yaml")
     return config_path
 
 
@@ -99,14 +100,14 @@ class TestTensorGrid:
         # Verify that octree levels have been processed
         for octree_level in grid.data.octree_levels:
             assert hasattr(octree_level, "n_cells_per_node")
-            assert hasattr(octree_level, "n_cells")
+            assert hasattr(octree_level, "n_leaf_cells")
+            assert hasattr(octree_level, "n_leaf_nodes")
             assert octree_level.n_cells_per_node > 0
 
             # Verify that cubes have Field instances
             for cube in octree_level.nodes.values():
-                assert cube.cur is not None
-                assert cube.old is not None
-                assert hasattr(cube, "number")
+                assert isinstance(cube.cur, Field)
+                assert isinstance(cube.old, Field)
 
     def test_update_halo(self, grid: TensorGrid) -> None:
         """Test update_halo method."""
@@ -122,3 +123,12 @@ class TestTensorGrid:
         """Test sync_ghost_from_children method."""
         # Should not raise any exceptions
         grid.sync_ghost_from_children()
+
+    def test_update_halo_at_depth(self, grid: TensorGrid) -> None:
+        """Test update_halo_at_depth method."""
+        # Test with valid depth
+        if grid.data.max_depth > 0:
+            grid.update_halo_at_depth(0)
+
+        with pytest.raises((IndexError, KeyError)):
+            grid.update_halo_at_depth(grid.data.max_depth + 1)

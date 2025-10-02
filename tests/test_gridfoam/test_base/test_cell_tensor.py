@@ -2,6 +2,8 @@ import pytest
 import torch
 
 from gridfoam._base._cell_tensor import CellTensor, grad
+from gridfoam._base._face_tensor import FaceTensor
+from gridfoam.utils.enums import TVDScheme
 
 
 class TestCellTensor:
@@ -254,6 +256,41 @@ class TestCellTensor:
         )
 
         torch.testing.assert_close(face_tensor.x, expected_x)
+
+    def test_face_tensor_for_advection_upwind(self) -> None:
+        """Test face_tensor_for_advection with upwind scheme."""
+        cell_tensor = CellTensor.init(
+            w_interior=4,
+            w_halo=2,
+            shape=(1,),
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+        )
+
+        # Create a simple field
+        cell_tensor.raw[:] = torch.arange(8**3).float().reshape(1, 8, 8, 8)
+
+        # Create velocity face tensor
+        U_f = FaceTensor.init(
+            w_interior=4,
+            shape=(3,),
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+        )
+        # Set positive velocity (upwind)
+        U_f.x[0] = 1.0
+        U_f.y[1] = 1.0
+        U_f.z[2] = 1.0
+
+        # Test with upwind scheme
+        face_tensor = cell_tensor.face_tensor_for_advection(
+            U_f, TVDScheme.UPWIND
+        )
+
+        # Verify shapes
+        assert face_tensor.x.shape == (1, 4, 4, 5)
+        assert face_tensor.y.shape == (1, 4, 5, 4)
+        assert face_tensor.z.shape == (1, 5, 4, 4)
 
 
 class TestGrad:

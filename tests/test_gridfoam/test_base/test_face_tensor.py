@@ -84,7 +84,7 @@ class TestFaceTensor:
         torch.testing.assert_close(result.y, torch.ones(1, 3, 4, 3) * 18.0)
         torch.testing.assert_close(result.z, torch.ones(1, 4, 3, 3) * 28.0)
 
-    def test_get_face_along_x_axis(self) -> None:
+    def test_get_boundary_face_along_x_axis(self) -> None:
         """Test get_face_along for x-axis."""
         face_tensor = FaceTensor.init(
             w_interior=4,
@@ -97,14 +97,16 @@ class TestFaceTensor:
         face_tensor.x[:] = torch.arange(4 * 4 * 5).float().reshape(1, 4, 4, 5)
 
         # Test forward face (axis=2, forward=True)
-        forward_face = face_tensor.get_face_along(axis=2, forward=True)
+        forward_face = face_tensor.get_boundary_face_along(axis=2, forward=True)
         assert forward_face.shape == (1, 4, 4)
 
         # Test backward face (axis=2, forward=False)
-        backward_face = face_tensor.get_face_along(axis=2, forward=False)
+        backward_face = face_tensor.get_boundary_face_along(
+            axis=2, forward=False
+        )
         assert backward_face.shape == (1, 4, 4)
 
-    def test_get_face_along_y_axis(self) -> None:
+    def test_get_boundary_face_along_y_axis(self) -> None:
         """Test get_face_along for y-axis."""
         face_tensor = FaceTensor.init(
             w_interior=3,
@@ -117,14 +119,16 @@ class TestFaceTensor:
         face_tensor.y[:] = torch.arange(3 * 4 * 3).float().reshape(1, 3, 4, 3)
 
         # Test forward face (axis=1, forward=True)
-        forward_face = face_tensor.get_face_along(axis=1, forward=True)
+        forward_face = face_tensor.get_boundary_face_along(axis=1, forward=True)
         assert forward_face.shape == (1, 3, 3)
 
         # Test backward face (axis=1, forward=False)
-        backward_face = face_tensor.get_face_along(axis=1, forward=False)
+        backward_face = face_tensor.get_boundary_face_along(
+            axis=1, forward=False
+        )
         assert backward_face.shape == (1, 3, 3)
 
-    def test_get_face_along_z_axis(self) -> None:
+    def test_get_boundary_face_along_z_axis(self) -> None:
         """Test get_face_along for z-axis."""
         face_tensor = FaceTensor.init(
             w_interior=2,
@@ -137,18 +141,20 @@ class TestFaceTensor:
         face_tensor.z[:] = torch.arange(3 * 2 * 2).float().reshape(1, 3, 2, 2)
 
         # Test forward face (axis=0, forward=True)
-        forward_face = face_tensor.get_face_along(axis=0, forward=True)
+        forward_face = face_tensor.get_boundary_face_along(axis=0, forward=True)
         assert forward_face.shape == (1, 2, 2)
         expected_forward = torch.tensor([[[8, 9], [10, 11]]]).float()
         torch.testing.assert_close(forward_face, expected_forward)
 
         # Test backward face (axis=0, forward=False)
-        backward_face = face_tensor.get_face_along(axis=0, forward=False)
+        backward_face = face_tensor.get_boundary_face_along(
+            axis=0, forward=False
+        )
         assert backward_face.shape == (1, 2, 2)
         expected_backward = torch.tensor([[[0, 1], [2, 3]]]).float()
         torch.testing.assert_close(backward_face, expected_backward)
 
-    def test_get_face_along_invalid_axis(self) -> None:
+    def test_get_boundary_face_along_invalid_axis(self) -> None:
         """Test get_face_along with invalid axis."""
         face_tensor = FaceTensor.init(
             w_interior=4,
@@ -158,7 +164,7 @@ class TestFaceTensor:
         )
 
         with pytest.raises(ValueError, match="Invalid axis"):
-            face_tensor.get_face_along(axis=3, forward=True)
+            face_tensor.get_boundary_face_along(axis=3, forward=True)
 
     def test_interior_property(self) -> None:
         """Test interior property."""

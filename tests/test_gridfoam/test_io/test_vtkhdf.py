@@ -14,7 +14,7 @@ from gridfoam.utils.enums import GridMode
 @pytest.fixture
 def config_path():
     """Create a config."""
-    config_path = pathlib.Path("tests/data/yaml/DrivAer.yaml")
+    config_path = pathlib.Path("tests/data/yaml/Debug.yaml")
     return config_path
 
 
