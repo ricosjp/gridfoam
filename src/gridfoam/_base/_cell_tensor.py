@@ -6,6 +6,9 @@ import torch
 from jaxtyping import Float, Int32
 
 from gridfoam._base._face_tensor import FaceTensor
+from gridfoam._base._tvd_scheme import tvd_scheme
+from gridfoam._interface._tvd_scheme import ITVDScheme
+from gridfoam.utils.enums import TVDScheme
 
 
 @dataclass
@@ -238,6 +241,9 @@ class CellTensor:
         ----------
         axis : int
             Axis to get the interior slice along.
+            - 0: z-axis
+            - 1: y-axis
+            - 2: x-axis
         forward : bool
             Forward or backward slicing.
             - True: Forward slicing (e.g. +x, +y, +z)
@@ -336,6 +342,70 @@ class CellTensor:
         yf = 0.5 * (yp + ym)
         zf = 0.5 * (zp + zm)
         return FaceTensor(self.w_interior, xf, yf, zf)
+
+    def face_tensor_for_advection(
+        self, U_f: FaceTensor, scheme: TVDScheme
+    ) -> FaceTensor:
+        """
+        Compute face values for advection.
+        """
+        scheme: ITVDScheme = tvd_scheme(scheme)
+
+        def field_slice(axis: int, shift: int) -> slice:
+            start = self.w_halo + shift
+            end = -self.w_halo + shift + 1
+            if end == 0:
+                end = None
+            i_slices = [slice(self.w_halo, -self.w_halo)] * 3
+            i_slices[axis] = slice(start, end)
+            i_slices = [slice(None)] * self.ndim + i_slices
+            return self.raw[tuple(i_slices)]
+
+        face_tensor = FaceTensor.init(
+            self.w_interior,
+            self.raw.shape[:-3],
+            self.raw.dtype,
+            self.raw.device,
+        )
+        upcell = U_f.x[0].sign() >= 0
+        downcell = U_f.x[0].sign() < 0
+        f_m2 = field_slice(2, -2)
+        f_m1 = field_slice(2, -1)
+        f_0 = field_slice(2, 0)
+        f_1 = field_slice(2, 1)
+        face_tensor.x[..., upcell] = (
+            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
+        )[..., upcell]
+        face_tensor.x[..., downcell] = (
+            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
+        )[..., downcell]
+
+        upcell = U_f.y[1].sign() >= 0
+        downcell = U_f.y[1].sign() < 0
+        f_m2 = field_slice(1, -2)
+        f_m1 = field_slice(1, -1)
+        f_0 = field_slice(1, 0)
+        f_1 = field_slice(1, 1)
+        face_tensor.y[..., upcell] = (
+            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
+        )[..., upcell]
+        face_tensor.y[..., downcell] = (
+            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
+        )[..., downcell]
+
+        upcell = U_f.z[2].sign() >= 0
+        downcell = U_f.z[2].sign() < 0
+        f_m2 = field_slice(0, -2)
+        f_m1 = field_slice(0, -1)
+        f_0 = field_slice(0, 0)
+        f_1 = field_slice(0, 1)
+        face_tensor.z[..., upcell] = (
+            f_m1 + scheme.correction_term(f_m1 - f_m2, f_0 - f_m1)
+        )[..., upcell]
+        face_tensor.z[..., downcell] = (
+            f_0 - scheme.correction_term(f_0 - f_m1, f_1 - f_0)
+        )[..., downcell]
+        return face_tensor
 
 
 def grad(field: CellTensor, dx: Float[torch.Tensor, " 3"]) -> FaceTensor:
