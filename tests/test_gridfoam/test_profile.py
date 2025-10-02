@@ -16,7 +16,8 @@ def test_gridgen_bunny_profile():
         config_dict = yaml.safe_load(f)
 
     # Modify depth_limit
-    config_dict["octree"]["refinement"]["depth_limit"] = 8
+    config_dict["octree"]["refinement"]["depth_limit"] = 3
+    config_dict["io"]["mode"] = "cube"
 
     # Create temporary config file with modified depth_limit
     with tempfile.NamedTemporaryFile(
@@ -27,7 +28,7 @@ def test_gridgen_bunny_profile():
 
     def gridgen_process() -> None:
         grid = TensorGrid.build(temp_config_path)
-        save_grid(grid)
+        save_grid(grid, "test.vtkhdf")
 
     try:
         gridgen_process()
@@ -45,7 +46,8 @@ def test_gridgen_DrivAer_profile():
         config_dict = yaml.safe_load(f)
 
     # Modify depth_limit
-    config_dict["octree"]["refinement"]["depth_limit"] = 8
+    config_dict["octree"]["refinement"]["depth_limit"] = 3
+    config_dict["io"]["mode"] = "cube"
 
     # Create temporary config file with modified depth_limit
     with tempfile.NamedTemporaryFile(
@@ -56,7 +58,7 @@ def test_gridgen_DrivAer_profile():
 
     def gridgen_process() -> None:
         grid = TensorGrid.build(temp_config_path)
-        save_grid(grid)
+        save_grid(grid, "test.vtkhdf")
 
     try:
         gridgen_process()

@@ -3,7 +3,7 @@ grid:
     lower: [-5.0, -4.0, 0.0]
     upper: [11.0, 4.0, 4.0]
   blocksize: [8, 4, 2]
-  
+
 octree:
   refinement:
     strategy: "default"
@@ -20,7 +20,7 @@ simulator:
       offset_coefficient: 0.9
     div:
       scheme: "default"
-  
+
 io:
   output_dir: "tests/outputs/grid"
   mode: "cell"

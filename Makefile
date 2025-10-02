@@ -45,8 +45,8 @@ profile:
 	mkdir -p ./tests/outputs/profile/memory/
 	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m with_profile
 	uv run pytest -v -m with_profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridgen
-	uv run memray flamegraph ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_bunny_profile.bin
-	uv run memray flamegraph ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_DrivAer_profile.bin
+	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_bunny_profile.bin
+	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_DrivAer_profile.bin
 
 .PHONY: performance_check
 performance_check: benchmark profile

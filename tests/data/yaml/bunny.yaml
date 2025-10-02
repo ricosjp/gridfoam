@@ -9,7 +9,18 @@ octree:
     strategy: "default"
     depth_limit: 3
     alpha: 0.3
-  
+
+simulator:
+  control:
+    deltaT: 0.1
+    endTime: 1.0
+    writeInterval: 1
+  fvSchemes:
+    ddt:
+      offset_coefficient: 0.9
+    div:
+      scheme: "default"
+
 io:
   output_dir: "tests/outputs/grid"
   mode: "cell"
@@ -20,7 +31,7 @@ mesh:
   file: "tests/data/stl/bunny.stl"
 
 cube:
-  width: 8
-  bnd_width: 2
+  interior_width: 8
+  halo_width: 2
 
 device: "cpu"

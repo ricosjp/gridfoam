@@ -29,6 +29,7 @@ def test_gridgen_bunny(
 
     # Modify depth_limit
     config_dict["octree"]["refinement"]["depth_limit"] = depth_limit
+    config_dict["io"]["mode"] = "cube"
 
     # Create temporary config file with modified depth_limit
     with tempfile.NamedTemporaryFile(
@@ -39,7 +40,7 @@ def test_gridgen_bunny(
 
     def gridgen_process() -> None:
         grid = TensorGrid.build(temp_config_path)
-        save_grid(grid)
+        save_grid(grid, "test.vtkhdf")
 
     try:
         benchmark(gridgen_process)
@@ -62,6 +63,7 @@ def test_gridgen_DrivAer(
 
     # Modify depth_limit
     config_dict["octree"]["refinement"]["depth_limit"] = depth_limit
+    config_dict["io"]["mode"] = "cube"
 
     # Create temporary config file with modified depth_limit
     with tempfile.NamedTemporaryFile(
@@ -72,7 +74,7 @@ def test_gridgen_DrivAer(
 
     def gridgen_process() -> None:
         grid = TensorGrid.build(temp_config_path)
-        save_grid(grid)
+        save_grid(grid, "test.vtkhdf")
 
     try:
         benchmark(gridgen_process)
