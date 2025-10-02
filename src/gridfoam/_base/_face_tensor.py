@@ -88,15 +88,15 @@ class FaceTensor:
             self.z * other.z,
         )
 
-    def get_face_along(
+    def get_boundary_face_along(
         self, axis: int, forward: bool
     ) -> Float[torch.Tensor, "... w_interior w_interior"]:
         """
-        Get the face flux along the specified axis.
+        Get the boundary face value along the specified axis.
         Parameters
         ----------
         axis : int
-            Axis to get the face flux along.
+            Axis to get the boundary face value along.
             - 0: z-axis
             - 1: y-axis
             - 2: x-axis
@@ -108,7 +108,7 @@ class FaceTensor:
         Returns
         -------
         torch.Tensor
-            Face flux along the specified axis.
+            Boundary face value along the specified axis.
         """
         face = self.w_interior if forward else 0
         match axis:
