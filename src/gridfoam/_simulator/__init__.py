@@ -1,1 +1,1 @@
-from gridfoam._simulator.transient_solver import TransientSolver
+from ._control import TransientSolver

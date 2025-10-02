@@ -1,8 +1,8 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam._simulator._equation import Expr
-from gridfoam._simulator._solver._interface import Solver
+from gridfoam._interface._solver import Solver
+from gridfoam._simulator._scheme import Expr
 from gridfoam.cubion import PyOctreeLevel
 
 
@@ -24,12 +24,14 @@ class BiCGSTAB(Solver):
         dt: float,
         dx: Float[torch.Tensor, " 3"],
     ) -> torch.Tensor:
-        if self.x0 is None:
-            xi = torch.zeros(octree_level.n_cells)
-        else:
-            xi = self.x0.clone()
-        vi = torch.zeros(octree_level.n_cells)
-        ri = xi - self.expr.matvec(octree_level, xi, dt, dx)
+        xi = torch.zeros(octree_level.n_leaf_cells)
+        vi = torch.zeros(octree_level.n_leaf_cells)
+        ri = self.expr.rhs(octree_level, dt, dx) - self.expr.matvec(
+            octree_level, xi, dt, dx
+        )
+        residual_0 = torch.norm(ri, p=2)
+        if residual_0 < 1e-12:
+            return xi
         r0 = ri.clone()
         rho_old, rho_new = 1.0, 1.0
         alpha, beta, omega = 1.0, 1.0, 1.0
@@ -48,24 +50,27 @@ class BiCGSTAB(Solver):
             s = ri - alpha * vi
             shat = s / diag
             t = self.expr.matvec(octree_level, shat, dt, dx)
-            omega = t.dot(s) / t.dot(t)
-
-            if omega == 0.0:
-                raise ValueError("omega is 0")
+            t_dot_t = t.dot(t)
+            if t_dot_t < 1e-12:
+                omega = 0.0
+            else:
+                omega = t.dot(s) / t_dot_t
             xi += alpha * phat + omega * shat
             ri = s - omega * t
 
             # L_2 norm
-            residual = torch.norm(ri, p=2)
-            if residual < self.tol:
+            residual_1 = torch.norm(ri, p=2)
+            rel_residual = residual_1 / residual_0
+            print(f"rel_residual: {rel_residual}")
+            if rel_residual < self.tol:
                 print(
                     f"BiCGSTAB converged\
-                        -- iterations: {i + 1}, residual: {residual}"
+                        -- iterations: {i + 1}, rel_residual: {rel_residual}"
                 )
                 self.x0 = xi.clone()
                 return xi
             rho_old = rho_new
         raise ValueError(
             f"BiCGSTAB did not converge\
-                -- iterations: {self.max_iter}, residual: {residual}"
+                -- iterations: {self.max_iter}, rel_residual: {rel_residual}"
         )

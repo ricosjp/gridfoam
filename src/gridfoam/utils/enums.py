@@ -32,3 +32,15 @@ FACE_NEIGHBOR_INDEX = [
     Direction.XM.value,
     Direction.XP.value,
 ]
+
+class TVDScheme(Enum):
+    """
+    TVD scheme for interpolation.
+    """
+
+    SUPERBEE = "superbee"
+    MINMOD = "minmod"
+    BOUNDED_LINEAR = "bounded_linear"
+    VAN_LEER = "van_leer"
+    VAN_ALBADA = "van_albada"
+    UPWIND = "upwind"
