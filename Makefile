@@ -18,6 +18,10 @@ lint:
 	uv run ruff check --output-format=full
 	uv run ruff format --diff
 
+.PHONY: cubion-test
+cubion-test:
+	cd src/cubion && cargo nextest run
+
 .PHONY: cpu-test
 cpu-test:
 	uv run pytest tests --cov=src --cov-report term-missing --durations 5

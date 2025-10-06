@@ -14,7 +14,10 @@ default:
   image: ghcr.io/astral-sh/uv:$UV_VERSION-python$PYTHON_VERSION-$BASE_LAYER
   before_script:
     - apt update
-    - apt install -y build-essential
+    - apt install -y build-essential libhdf5-dev curl
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source ~/.cargo/env
+    - cargo install cargo-nextest
     - make install
 
 lint:
@@ -55,6 +58,14 @@ gpu_pytest:
     - make gpu-test
   tags:
     - gpu
+
+rust-test:
+  stage: test
+  script:
+    - make cubion-test
+  tags:
+    - no-gpu
+    - GenuineIntel
 
 # pages:
 #   stage: deploy
