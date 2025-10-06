@@ -17,6 +17,7 @@ dependencies = [
   "pyvista>=0.44.2",
   "pydantic>=2.11.7",
   "h5py>=3.14.0",
+  "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -26,17 +27,17 @@ cu124 = ["torch>=2.5.1", "torchvision>=0.20.1"]
 
 [dependency-groups]
 dev = [
-  {include-group = "test"},
-  {include-group = "visualize"},
-  {include-group = "lint"},
-  {include-group = "docs"},
-  {include-group = "note"},
+  { include-group = "test" },
+  { include-group = "visualize" },
+  { include-group = "lint" },
+  { include-group = "docs" },
+  { include-group = "note" },
 ]
 ci = [
-  {include-group = "test"},
-  {include-group = "visualize"},
-  {include-group = "lint"},
-  {include-group = "docs"},
+  { include-group = "test" },
+  { include-group = "visualize" },
+  { include-group = "lint" },
+  { include-group = "docs" },
 ]
 test = [
   "pytest",
@@ -48,11 +49,13 @@ test = [
 visualize = [
   "polars",
   "plotly",
+  "imageio",
+  "kaleido"
 ]
 lint = [
   "ruff",
   "jaxtyping",
-  "beartype",
+  "beartype"
 ]
 docs = [
   "sphinx",
@@ -102,10 +105,8 @@ name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"
 explicit = true
 
-[tool.pytest]
-testpaths = ["tests"]
-
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 markers = [
   "with_benchmark: Run test with pytest-benchmark",
   "with_profile: Run test with memray / pyinstrument",
