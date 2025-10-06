@@ -1,5 +1,5 @@
 extern crate nalgebra as na;
-use na::{matrix, SMatrix};
+use na::{SMatrix, matrix};
 
 use crate::core::index::{CastRawIndex, RawIndexExt};
 use crate::core::types::{IndexBounds, RawIndex, RawIndexConversionMode};

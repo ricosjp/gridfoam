@@ -203,7 +203,11 @@ mod tests {
 
     #[rstest]
     fn test_save_nodes(grid: Grid) {
-        grid.save_nodes("../../tests/outputs/grid/rust_hdf5.vtkhdf", false)
-            .unwrap();
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_str().unwrap();
+
+        grid.save_nodes(temp_path, false).unwrap();
+
+        assert!(std::path::Path::new(temp_path).exists());
     }
 }
