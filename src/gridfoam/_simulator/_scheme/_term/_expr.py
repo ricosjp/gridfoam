@@ -30,6 +30,38 @@ class Expr(IFVMTerm):
         self.right = right
         self.op = op
 
+    def __add__(self, other: IFVMTerm) -> IFVMTerm:
+        """
+        Add another FVM term to this term.
+
+        Parameters
+        ----------
+        other : IFVMTerm
+            Another FVM term to add.
+
+        Returns
+        -------
+        IFVMTerm
+            An expression representing the sum of the two terms.
+        """
+        return Expr(self, other, "+")
+
+    def __sub__(self, other: IFVMTerm) -> IFVMTerm:
+        """
+        Subtract another FVM term from this term.
+
+        Parameters
+        ----------
+        other : IFVMTerm
+            Another FVM term to subtract.
+
+        Returns
+        -------
+        IFVMTerm
+            An expression representing the difference of the two terms.
+        """
+        return Expr(self, other, "-")
+
     def matvec(
         self,
         octree_level: PyOctreeLevel,
