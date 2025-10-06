@@ -6,7 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam import TensorGrid
-from gridfoam._interface._fvmterm import FVMTerm
+from gridfoam._interface import IFVMTerm
 from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam._simulator._solver.CG import CG
 from gridfoam.cubion import PyOctreeLevel
@@ -29,7 +29,7 @@ def grid(config_path: pathlib.Path):
     return grid
 
 
-class MockFVMTerm(FVMTerm):
+class MockFVMTerm(IFVMTerm):
     """Mock FVM term for testing."""
 
     def __init__(

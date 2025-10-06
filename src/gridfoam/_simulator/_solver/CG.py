@@ -1,12 +1,11 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam._interface._fvmterm import FVMTerm
-from gridfoam._interface._solver import Solver
+from gridfoam._interface import IFVMTerm, ISolver
 from gridfoam.cubion import PyOctreeLevel
 
 
-class CG(Solver):
+class CG(ISolver):
     """
     Conjugate Gradient (CG) solver for linear systems.
 
@@ -15,7 +14,7 @@ class CG(Solver):
     symmetric positive definite matrices.
     """
 
-    def __init__(self, expr: FVMTerm):
+    def __init__(self, expr: IFVMTerm):
         """
         Initialize the CG solver.
 

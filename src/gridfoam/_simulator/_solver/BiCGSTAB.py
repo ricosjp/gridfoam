@@ -1,13 +1,12 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam._interface._fvmterm import FVMTerm
-from gridfoam._interface._solver import Solver
+from gridfoam._interface import IFVMTerm, ISolver
 from gridfoam.cubion import PyOctreeLevel
 
 
-class BiCGSTAB(Solver):
-    def __init__(self, expr: FVMTerm):
+class BiCGSTAB(ISolver):
+    def __init__(self, expr: IFVMTerm):
         self.expr = expr
         # default configurations
         self.max_iter = 1000

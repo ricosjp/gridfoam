@@ -3,13 +3,13 @@ from jaxtyping import Float
 
 from gridfoam._base import iter_leaf_cubes_of
 from gridfoam._base._face_tensor import FaceTensor
-from gridfoam._interface._fvmterm import FVMTerm
+from gridfoam._interface import IFVMTerm
 from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam.cubion import PyOctreeLevel
 from gridfoam.utils.enums import TVDScheme
 
 
-class Div(FVMTerm):
+class Div(IFVMTerm):
     """
     Divergence term for finite volume method.
 
@@ -32,34 +32,34 @@ class Div(FVMTerm):
         self.fieldname = fieldname
         self.U_f_name = "_" + velocity_name + "_f"
 
-    def __add__(self, other: FVMTerm) -> FVMTerm:
+    def __add__(self, other: IFVMTerm) -> IFVMTerm:
         """
         Add another FVM term to this term.
 
         Parameters
         ----------
-        other : FVMTerm
+        other : IFVMTerm
             Another FVM term to add.
 
         Returns
         -------
-        FVMTerm
+        IFVMTerm
             An expression representing the sum of the two terms.
         """
         return Expr(self, other, "+")
 
-    def __sub__(self, other: FVMTerm) -> FVMTerm:
+    def __sub__(self, other: IFVMTerm) -> IFVMTerm:
         """
         Subtract another FVM term from this term.
 
         Parameters
         ----------
-        other : FVMTerm
+        other : IFVMTerm
             Another FVM term to subtract.
 
         Returns
         -------
-        FVMTerm
+        IFVMTerm
             An expression representing the difference of the two terms.
         """
         return Expr(self, other, "-")

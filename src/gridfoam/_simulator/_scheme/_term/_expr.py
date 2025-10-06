@@ -1,11 +1,11 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam._interface._fvmterm import FVMTerm
+from gridfoam._interface import IFVMTerm
 from gridfoam.cubion import PyOctreeLevel
 
 
-class Expr(FVMTerm):
+class Expr(IFVMTerm):
     """
     Expression combining two FVM terms with an operator.
 
@@ -13,15 +13,15 @@ class Expr(FVMTerm):
     combined with an operator (addition or subtraction).
     """
 
-    def __init__(self, left: FVMTerm, right: FVMTerm, op: str):
+    def __init__(self, left: IFVMTerm, right: IFVMTerm, op: str):
         """
         Initialize the expression.
 
         Parameters
         ----------
-        left : FVMTerm
+        left : IFVMTerm
             Left operand of the expression.
-        right : FVMTerm
+        right : IFVMTerm
             Right operand of the expression.
         op : str
             Operator ("+" or "-").

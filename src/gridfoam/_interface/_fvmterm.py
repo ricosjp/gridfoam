@@ -6,7 +6,7 @@ from jaxtyping import Float
 from gridfoam.cubion import PyOctreeLevel
 
 
-class FVMTerm(abc.ABC):
+class IFVMTerm(abc.ABC):
     @abc.abstractmethod
     def matvec(
         self,
