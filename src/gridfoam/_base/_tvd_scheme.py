@@ -2,7 +2,7 @@ from gridfoam._interface._tvd_scheme import ITVDScheme
 from gridfoam.utils.enums import TVDScheme
 
 from ._tvd_schemes import (
-    BoundedLinear,
+    LimitedLinear,
     Minmod,
     Superbee,
     Upwind,
@@ -17,8 +17,8 @@ def tvd_scheme(scheme: TVDScheme) -> ITVDScheme:
             return Superbee()
         case TVDScheme.MINMOD:
             return Minmod()
-        case TVDScheme.BOUNDED_LINEAR:
-            return BoundedLinear()
+        case TVDScheme.LIMITED_LINEAR:
+            return LimitedLinear()
         case TVDScheme.VAN_LEER:
             return VanLeer()
         case TVDScheme.VAN_ALBADA:

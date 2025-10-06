@@ -3,11 +3,11 @@ import torch
 from gridfoam._interface._tvd_scheme import ITVDScheme
 
 
-class BoundedLinear(ITVDScheme):
+class LimitedLinear(ITVDScheme):
     def correction_term(
         self, delta_minus: torch.Tensor, delta_plus: torch.Tensor
     ) -> torch.Tensor:
-        """Correction term (bounded linear)"""
+        """Correction term (limited linear)"""
         f = torch.zeros_like(delta_minus)
         phi = torch.zeros_like(delta_minus)
 

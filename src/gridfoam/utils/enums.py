@@ -40,7 +40,7 @@ class TVDScheme(Enum):
 
     SUPERBEE = "superbee"
     MINMOD = "minmod"
-    BOUNDED_LINEAR = "bounded_linear"
+    LIMITED_LINEAR = "limited_linear"
     VAN_LEER = "van_leer"
     VAN_ALBADA = "van_albada"
     UPWIND = "upwind"

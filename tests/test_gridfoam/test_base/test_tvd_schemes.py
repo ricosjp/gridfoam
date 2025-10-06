@@ -3,7 +3,7 @@ import torch
 
 from gridfoam._base._tvd_scheme import tvd_scheme
 from gridfoam._base._tvd_schemes import (
-    BoundedLinear,
+    LimitedLinear,
     Minmod,
     Superbee,
     Upwind,
@@ -16,9 +16,9 @@ from gridfoam.utils.enums import TVDScheme
 class TestTVDSchemes:
     """Test TVD scheme implementations."""
 
-    def test_bounded_linear_correction_term(self) -> None:
-        """Test BoundedLinear correction term."""
-        scheme = BoundedLinear()
+    def test_limited_linear_correction_term(self) -> None:
+        """Test LimitedLinear correction term."""
+        scheme = LimitedLinear()
 
         # Test with positive gradients
         delta_minus = torch.tensor([1.0, 2.0, 3.0])
@@ -174,7 +174,7 @@ class TestTVDSchemes:
         schemes = [
             TVDScheme.SUPERBEE,
             TVDScheme.MINMOD,
-            TVDScheme.BOUNDED_LINEAR,
+            TVDScheme.LIMITED_LINEAR,
             TVDScheme.VAN_LEER,
             TVDScheme.VAN_ALBADA,
             TVDScheme.UPWIND,
@@ -183,7 +183,7 @@ class TestTVDSchemes:
         expected_classes = [
             Superbee,
             Minmod,
-            BoundedLinear,
+            LimitedLinear,
             VanLeer,
             VanAlbada,
             Upwind,
@@ -202,7 +202,7 @@ class TestTVDSchemes:
     def test_correction_term_edge_cases(self) -> None:
         """Test correction terms with edge cases."""
         schemes = [
-            BoundedLinear(),
+            LimitedLinear(),
             Minmod(),
             Superbee(),
             VanAlbada(),

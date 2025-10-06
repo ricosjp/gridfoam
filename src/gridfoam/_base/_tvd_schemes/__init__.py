@@ -1,4 +1,4 @@
-from ._bounded_linear import BoundedLinear
+from ._limited_linear import LimitedLinear
 from ._minmod import Minmod
 from ._superbee import Superbee
 from ._upwind import Upwind
