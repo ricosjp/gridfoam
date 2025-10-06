@@ -127,7 +127,7 @@ class TransientSolver:
                 )
 
                 x = global_cell_positions[0]
-                y = global_cell_positions[1]
+                # y = global_cell_positions[1]
                 z = global_cell_positions[2]
 
                 # Set U to (1,0,0)

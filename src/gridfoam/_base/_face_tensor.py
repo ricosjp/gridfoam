@@ -134,7 +134,8 @@ class FaceTensor:
         Returns
         -------
         Float[torch.Tensor, "... 3 w_interior w_interior w_interior"]
-            Cell-centered tensor with shape (..., 3, w_interior, w_interior, w_interior).
+            Cell-centered tensor
+            with shape (..., 3, w_interior, w_interior, w_interior).
             The second-to-last dimension contains [x, y, z] components.
         """
         x = 0.5 * (self.x[..., 1:] + self.x[..., :-1])

@@ -36,7 +36,6 @@ def test_gridgen_bunny_profile():
         temp_config_path.unlink()
 
 
-
 @pytest.mark.with_profile
 def test_gridgen_DrivAer_profile():
     """Test the grid generation process."""

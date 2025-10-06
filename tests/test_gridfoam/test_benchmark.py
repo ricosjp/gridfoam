@@ -13,7 +13,6 @@ def benchmark_with_group(func: Callable) -> Callable:
     return pytest.mark.benchmark(group=func.__name__)(func)
 
 
-
 @pytest.mark.with_benchmark
 @pytest.mark.parametrize("depth_limit", [2, 3, 4, 5, 6, 7, 8])
 @benchmark_with_group

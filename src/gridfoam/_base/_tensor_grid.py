@@ -131,7 +131,7 @@ class TensorGrid:
     def update_halo_at_depth(self, depth: int) -> None:
         """Update halo cells for a given depth.
 
-        This method updates the halo (ghost) cells for all leaf cubes at a given depth.
+        This method updates the halo cells for all leaf cubes at a given depth.
         It needs a red-black coloring approach
         to avoid race conditions during parallel updates.
         """
@@ -346,7 +346,8 @@ class TensorGrid:
 
     def allocate_field_tensors(self) -> None:
         """
-        Allocate field tensors registered in field_dict for all nodes in the grid.
+        Allocate field tensors
+        registered in field_dict for all nodes in the grid.
 
         This method creates Field instances for each cube in the octree
         and allocates the cell and face tensors according to the

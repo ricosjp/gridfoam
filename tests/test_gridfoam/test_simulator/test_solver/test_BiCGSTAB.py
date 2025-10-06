@@ -117,9 +117,7 @@ class TestBiCGSTAB:
         rhs = torch.tensor([0.5, 1.0, 1.5])
 
         # Create mock expression that behaves like identity
-        expr = MockFVMTerm(
-            "identity", identity_diag, rhs
-        )
+        expr = MockFVMTerm("identity", identity_diag, rhs)
 
         # Initialize BiCGSTAB solver
         bicgstab = BiCGSTAB(expr)
