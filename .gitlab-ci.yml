@@ -51,7 +51,7 @@ gpu_pytest:
   image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
   before_script:
     - apt update
-    - apt install -y build-essential
+    - apt install -y build-essential libhdf5-dev
     - pip install uv
     - make install
   script:
