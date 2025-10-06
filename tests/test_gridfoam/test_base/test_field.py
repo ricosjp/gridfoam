@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from gridfoam._base._field import Field
@@ -37,6 +38,16 @@ class TestField:
         assert cell_tensor.w_halo == 1
         assert cell_tensor.raw.shape == (1, 6, 6, 6)  # 4 + 2*1
         assert cell_tensor.raw.dtype == torch.float32
+
+    @pytest.mark.with_device
+    def test_add_cell_tensor_cuda(self) -> None:
+        """Test adding a face tensor to a CUDA device."""
+        field = Field(
+            w_interior=4,
+            w_halo=1,
+            device=torch.device("cuda"),
+        )
+        field.add_cell_tensor("pressure", (1,), torch.float32)
 
     def test_add_cell_tensor_vector(self) -> None:
         """Test adding a vector cell tensor."""
