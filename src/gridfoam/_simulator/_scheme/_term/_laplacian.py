@@ -2,35 +2,34 @@ import torch
 from jaxtyping import Float
 
 from gridfoam._base import iter_leaf_cubes_of
-from gridfoam._base._face_tensor import FaceTensor
+from gridfoam._base._cell_tensor import grad
 from gridfoam._interface import IFVMTerm
 from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam.cubion import PyOctreeLevel
-from gridfoam.utils.enums import TVDScheme
 
 
-class Div(IFVMTerm):
+class Laplacian(IFVMTerm):
     """
-    Divergence term for finite volume method.
+    Laplacian term for finite volume method.
 
-    This class represents the divergence term (∇·) in the finite
+    This class represents the Laplacian term (∇·∇) in the finite
     volume method. It implements the spatial discretization for
     convective transport of a field variable.
     """
 
-    def __init__(self, velocity_name: str, fieldname: str):
+    def __init__(self, diffusion_name: str, fieldname: str):
         """
-        Initialize the divergence term.
+        Initialize the Laplacian term.
 
         Parameters
         ----------
-        velocity_name : str
-            Name of the velocity field.
+        diffusion_name : str
+            Name of the diffusion coefficient field.
         fieldname : str
-            Name of the field to compute divergence for.
+            Name of the field to compute Laplacian for.
         """
         self.fieldname = fieldname
-        self.U_f_name = "_" + velocity_name + "_f"
+        self.diffusion_name = diffusion_name
 
     def __add__(self, other: IFVMTerm) -> IFVMTerm:
         """
@@ -72,7 +71,7 @@ class Div(IFVMTerm):
         dx: Float[torch.Tensor, " 3"],
     ) -> torch.Tensor:
         """
-        Apply the divergence operator to a vector.
+        Apply the Laplacian operator to a vector.
 
         Note: Currently returns zero as implicit formulation is not implemented.
 
@@ -90,7 +89,7 @@ class Div(IFVMTerm):
         Returns
         -------
         torch.Tensor
-            Result of applying the divergence operator (currently zero).
+            Result of applying the Laplacian operator (currently zero).
         """
         return torch.zeros_like(x)
 
@@ -101,7 +100,7 @@ class Div(IFVMTerm):
         dx: Float[torch.Tensor, " 3"],
     ) -> torch.Tensor:
         """
-        Get the diagonal elements of the divergence operator.
+        Get the diagonal elements of the Laplacian operator.
 
         Note: Currently returns zero as implicit formulation is not implemented.
 
@@ -117,7 +116,7 @@ class Div(IFVMTerm):
         Returns
         -------
         torch.Tensor
-            Diagonal elements of the divergence operator (currently zero).
+            Diagonal elements of the Laplacian operator (currently zero).
         """
         return torch.zeros(octree_level.n_leaf_cells)
 
@@ -128,7 +127,7 @@ class Div(IFVMTerm):
         dx: Float[torch.Tensor, " 3"],
     ) -> torch.Tensor:
         """
-        Compute the right-hand side vector for the divergence term.
+        Compute the right-hand side vector for the Laplacian term.
 
         Note: Currently uses explicit formulation as implicit formulation
         across cubes and levels is not yet implemented.
@@ -145,7 +144,7 @@ class Div(IFVMTerm):
         Returns
         -------
         torch.Tensor
-            Right-hand side vector for the divergence term.
+            Right-hand side vector for the Laplacian term.
         """
         # NOTE: Implicit formulation across
         # cubes and levels is not yet implemented,
@@ -156,34 +155,11 @@ class Div(IFVMTerm):
         b = torch.zeros(octree_level.n_leaf_cells)
         for i, cube in enumerate(iter_leaf_cubes_of(octree_level)):
             _slice = slice(i * n_cells_per_cube, (i + 1) * n_cells_per_cube)
-            field_i = cube.old.cells[self.fieldname]
-            U_f = cube.old.faces[self.U_f_name]
-            field_f = field_i.face_tensor_for_advection(
-                U_f, scheme=TVDScheme.LIMITED_LINEAR
-            )
-            flow_rate_f = self._flow_rate(U_f, dS)
-            q_f = field_f * flow_rate_f
+            grad_field_f = grad(cube.old.cells[self.fieldname], dx)
+            nu_f = cube.old.cells[self.diffusion_name].face_average()
+            q_f = nu_f * grad_field_f
+            q_f.x *= dS[0]
+            q_f.y *= dS[1]
+            q_f.z *= dS[2]
             b[_slice] = -q_f.integrate_cell().reshape(-1) / dV
         return b
-
-    def _flow_rate(
-        self, U_f: FaceTensor, dS: Float[torch.Tensor, " 3"]
-    ) -> FaceTensor:
-        """
-        Compute the flow rate tensor from velocity and face areas.
-
-        Parameters
-        ----------
-        U_f : FaceTensor
-            Face-centered velocity tensor.
-        dS : Float[torch.Tensor, " 3"]
-            Face areas in each direction.
-
-        Returns
-        -------
-        FaceTensor
-            Flow rate tensor (velocity × face area).
-        """
-        return FaceTensor(
-            U_f.w_interior, U_f.x[0] * dS[0], U_f.y[1] * dS[1], U_f.z[2] * dS[2]
-        )

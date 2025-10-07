@@ -3,7 +3,12 @@ import torch
 
 from gridfoam._base import TensorGrid, iter_leaf_cubes_of
 from gridfoam._io import save_grid
-from gridfoam._simulator._scheme import Ddt, Div, RhieChowInterpolation
+from gridfoam._simulator._scheme import (
+    Ddt,
+    Div,
+    Laplacian,
+    RhieChowInterpolation,
+)
 from gridfoam._simulator._solver import BiCGSTAB
 from gridfoam.cubion import PyCubeCode
 from gridfoam.utils.grid_index import generate_grid_indices
@@ -35,7 +40,9 @@ class TransientSolver:
         self.finest_depth = grid.data.max_depth - 1
         self.w_interior = grid.config.cube.interior_width
         self.rhie_chow = RhieChowInterpolation(velocity_name="U")
-        self.solver = BiCGSTAB(Ddt("T") + Div("U", "T"))
+        self.solver = BiCGSTAB(Ddt("T") + Div("U", "T") - Laplacian("nu", "T"))
+        # self.solver = BiCGSTAB(Ddt("T") - Laplacian("nu", "T"))
+        # self.solver = BiCGSTAB(Ddt("T") + Div("U", "T"))
         self.solver.configure(max_iter=1000, tol=1e-6)
 
     def _solve_level(self, depth: int) -> None:
@@ -96,6 +103,7 @@ class TransientSolver:
         """
         self.grid.add_cell_field("U", (3,), torch.float32)
         self.grid.add_cell_field("T", (1,), torch.float32)
+        self.grid.add_cell_field("nu", (1,), torch.float32)
         self.grid.allocate_field_tensors()
         for octree_level in self.grid.data.octree_levels:
             depth = octree_level.depth
@@ -140,6 +148,10 @@ class TransientSolver:
                 # Set T to 1.0 where -2 < x < 0 and 1 < z < 3
                 mask = (-2.0 < x) & (x < 0.0) & (1.0 < z) & (z < 3.0)
                 cube.old.cells["T"].interior[0, mask] = 1.0
+                cube.old.cells["nu"].interior = torch.full(
+                    (1, self.w_interior, self.w_interior, self.w_interior),
+                    0.01,
+                )
 
         self.grid.update_halo()
 
