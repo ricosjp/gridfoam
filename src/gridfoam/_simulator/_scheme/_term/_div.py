@@ -3,7 +3,7 @@ from jaxtyping import Float
 
 from gridfoam._base import iter_leaf_cubes_of
 from gridfoam._base._face_tensor import FaceTensor
-from gridfoam._interface import IFVMTerm
+from gridfoam._interface._fvmterm import IFVMTerm
 from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam.cubion import PyOctreeLevel
 from gridfoam.utils.enums import TVDScheme

@@ -16,7 +16,7 @@ from gridfoam._base._iterator import (
     iter_ghost_from_parent_cubes_of,
     iter_leaf_cubes_of,
 )
-from gridfoam.config import Config
+from gridfoam.config import GridfoamConfig, YamlRoot
 from gridfoam.cubion import (
     PyCubeCode,
     PyGrid,
@@ -55,7 +55,7 @@ class TensorGrid:
     """
 
     data: PyGrid
-    config: Config
+    config: GridfoamConfig
     cell_field_dict: dict[str, TensorSpec]
     face_field_dict: dict[str, TensorSpec]
     mesh: pv.PolyData
@@ -88,7 +88,7 @@ class TensorGrid:
         # load the config
         with open(config_path) as f:
             raw_yaml = yaml.safe_load(f)
-        config = Config.model_validate(raw_yaml)
+        config = YamlRoot.model_validate(raw_yaml).gridfoam
         device = config.device
 
         # triangulate the mesh

@@ -1,7 +1,7 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam._interface import IFVMTerm
+from gridfoam._interface._fvmterm import IFVMTerm
 from gridfoam.cubion import PyOctreeLevel
 
 

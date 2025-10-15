@@ -1,6 +1,6 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
-build-backend = "maturin"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "gridfoam"
@@ -16,8 +16,8 @@ classifiers = [
 dependencies = [
   "pyvista>=0.44.2",
   "pydantic>=2.11.7",
-  "h5py>=3.14.0",
   "pyyaml>=6.0.2",
+  "cubion"
 ]
 
 [project.optional-dependencies]
@@ -38,6 +38,10 @@ ci = [
   { include-group = "visualize" },
   { include-group = "lint" },
   { include-group = "docs" },
+]
+benchmark = [
+  { include-group = "test" },
+  { include-group = "visualize" },
 ]
 test = [
   "pytest",
@@ -79,6 +83,7 @@ default-groups = ["ci"]
 conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
+cubion = {path = "lib/cubion"}
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu118", extra = "cu118" },
@@ -126,8 +131,3 @@ exclude_also = [
   # Don't complain about abstract methods, they aren't run:
   "@(abc\\.)?abstractmethod",
 ]
-
-[tool.maturin]
-manifest-path = "src/cubion/Cargo.toml"
-module-name = "gridfoam.cubion"
-python-source = "src"

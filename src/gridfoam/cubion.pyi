@@ -2,10 +2,11 @@
 
 import numpy as np
 import pyvista as pv
+from jaxtyping import Float64, Int64, UInt32, UInt64
 
 from gridfoam._base._field import Field
 
-DIRECTIONS: np.ndarray[tuple[int, int], np.dtype[np.int64]]
+DIRECTIONS: Int64[np.ndarray, " 27 3"]
 """
 Precomputed direction vectors for all 27 neighbors in 3D space.
 
@@ -87,16 +88,16 @@ class NodeType:
 class PyBBox:
     """Bounding box in 3D space."""
 
-    lower: np.ndarray[np.float64]
+    lower: Float64[np.ndarray, " 3"]
     """Lower bounds of the bounding box [x_min, y_min, z_min]."""
 
-    upper: np.ndarray[np.float64]
+    upper: Float64[np.ndarray, " 3"]
     """Upper bounds of the bounding box [x_max, y_max, z_max]."""
 
 class PyCubeCode:
     """Cube code for identifying octree nodes in 3D space."""
 
-    def to_global_index(self, depth: int) -> np.ndarray[np.uint64]: ...
+    def to_global_index(self, depth: int) -> Int64[np.ndarray, " 3"]: ...
     """
     Convert the cube code to a global index at the specified depth.
 
@@ -107,13 +108,13 @@ class PyCubeCode:
 
     Returns
     -------
-    np.ndarray[np.uint64]
+    Int64[np.ndarray, " 3"]
         A NumPy array containing the global index coordinates [x, y, z].
     """
 
     def parent_and_offset_py(
         self, depth: int
-    ) -> tuple[PyCubeCode, np.ndarray[np.uint32]]: ...
+    ) -> tuple[PyCubeCode, UInt32[np.ndarray, " 3"]]: ...
     """
     Get the parent cube code and local offset within the parent.
 
@@ -124,7 +125,7 @@ class PyCubeCode:
 
     Returns
     -------
-    tuple[PyCubeCode, np.ndarray[np.uint32]]
+    tuple[PyCubeCode, UInt32[np.ndarray, " 3"]]
         A tuple containing the parent cube code and local offset as NumPy array.
     """
 
@@ -146,7 +147,7 @@ class PyCubeCode:
     def neighbor_codes(
         self,
         depth: int,
-        bounds: np.ndarray[np.uint64],
+        bounds: UInt64[np.ndarray, " 3"],
         mode: RawIndexConversionMode,
         include_self: bool,
     ) -> list[PyCubeCode | None]: ...
@@ -184,7 +185,7 @@ class PyOctreeNode:
     cubecode: PyCubeCode
     """Unique identifier for this node in the octree hierarchy."""
 
-    face_ids: np.ndarray[np.uint32]
+    face_ids: UInt32[np.ndarray, " ..."]
     """Face IDs that intersect with this node's bounding box."""
 
     node_type: NodeType
@@ -199,10 +200,10 @@ class PyOctreeNode:
 class PyOctreeLevel:
     """A single level of the octree structure."""
 
-    nodes: dict[PyCubeCode, PyOctreeNode]
+    nodes: dict[int, PyOctreeNode]
     """Map of cube codes to nodes at this level."""
 
-    bounds: np.ndarray[np.uint64]
+    bounds: UInt64[np.ndarray, " 3"]
     """Grid bounds for this level [max_x, max_y, max_z]."""
 
     depth: int
@@ -223,7 +224,7 @@ class PyGrid:
     domain: PyBBox
     """Spatial domain of the octree."""
 
-    blocksize: np.ndarray[np.uint64]
+    blocksize: UInt64[np.ndarray, " 3"]
     """Block size at the root level [size_x, size_y, size_z]."""
 
     max_depth: int

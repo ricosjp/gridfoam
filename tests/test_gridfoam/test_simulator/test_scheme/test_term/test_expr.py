@@ -6,7 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam import TensorGrid
-from gridfoam._interface import IFVMTerm
+from gridfoam._interface._fvmterm import IFVMTerm
 from gridfoam._simulator._scheme._term._expr import Expr
 from gridfoam.cubion import PyOctreeLevel
 

@@ -137,7 +137,7 @@ class SimulatorConfig(BaseModel, frozen=True):
     """
 
 
-class Config(BaseModel, frozen=True):
+class GridfoamConfig(BaseModel, frozen=True):
     simulator: SimulatorConfig
     """
     simulator : SimulatorConfig
@@ -166,4 +166,11 @@ class Config(BaseModel, frozen=True):
     """
     device : torch.device
         Device on which tensors are allocated.
+    """
+
+class YamlRoot(BaseModel, frozen=True):
+    gridfoam: GridfoamConfig
+    """
+    gridfoam : Config
+        Gridfoam configuration.
     """

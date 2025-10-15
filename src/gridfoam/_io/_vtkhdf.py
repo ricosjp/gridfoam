@@ -9,7 +9,7 @@ from gridfoam.cubion import NodeType, PyOctreeNode
 from gridfoam.utils.enums import GridMode
 
 
-def amrbox(cube: PyOctreeNode, depth: int, cell_width: int) -> np.ndarray:
+def _amrbox(cube: PyOctreeNode, depth: int, cell_width: int) -> np.ndarray:
     """
     Calculate the AMR box for a given octree node and depth.
 
@@ -92,7 +92,7 @@ def save_grid(tensor_grid: TensorGrid, name: str) -> None:
             for cube in octree_level.nodes.values():
                 if only_leaves and cube.node_type != NodeType.LEAF:
                     continue
-                amrboxes.append(amrbox(cube, depth, cell_width))
+                amrboxes.append(_amrbox(cube, depth, cell_width))
                 cube_types.append(int(cube.node_type))
                 depths.append(depth)
                 if mode == GridMode.CUBE:

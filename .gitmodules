@@ -1,0 +1,3 @@
+[submodule "lib/cubion"]
+	path = lib/cubion
+	url = git@gitlab.ritc.jp:ricos/simulation/cubion.git

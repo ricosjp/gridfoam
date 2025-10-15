@@ -10,17 +10,13 @@ install:
 	uv sync --refresh --reinstall --extra ${CUDA_TAG}
 
 .PHONY: dev-install
-dev_install:
+dev-install:
 	uv sync --refresh --reinstall --extra ${CUDA_TAG} --group dev
 
 .PHONY: lint
 lint:
 	uv run ruff check --output-format=full
 	uv run ruff format --diff
-
-.PHONY: cubion-test
-cubion-test:
-	cd src/cubion && cargo nextest run
 
 .PHONY: cpu-test
 cpu-test:
@@ -41,7 +37,9 @@ document:
 .PHONY: benchmark
 benchmark:
 	mkdir -p ./tests/outputs/benchmark/time/
-	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-max-time=0.0001 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time --benchmark-autosave
+	uv sync --refresh --reinstall --group benchmark
+	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time --benchmark-autosave
+	uv run python visualization/benchmark.py
 
 .PHONY: profile
 profile:
