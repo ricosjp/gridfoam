@@ -5,4 +5,7 @@
   "python.testing.pytestEnabled": true,
   "esbonio.sphinx.buildDir" : "${workspaceFolder}/docs/build",
   "esbonio.sphinx.confDir"  : "${workspaceFolder}/docs/source",
+  "esbonio.sphinx.builderName": "html",
+  "esbonio.server.enabled": true,
+  "esbonio.server.logLevel": "info",
 }

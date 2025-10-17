@@ -63,13 +63,16 @@ lint = [
 ]
 docs = [
   "sphinx",
-  "furo",
+  "numpydoc",
+  "pydata-sphinx-theme",
+  "sphinxcontrib-mermaid",
   "sphinx-fontawesome",
   "sphinx-gallery",
   "sphinx-design",
   "sphinx-copybutton",
 ]
 note = [
+  "esbonio",
   "ipykernel",
   "ipywidgets",
   "nbstripout>=0.8.1",

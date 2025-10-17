@@ -29,10 +29,9 @@ gpu-test:
 .PHONY: document
 document:
 	rm -rf docs/build || true
-	rm -rf docs/source/reference/generated || true
 	rm -rf docs/source/tutorials || true
 	rm docs/source/sg_execution_times.rst || true
-	uv run sphinx-build -M html docs/source docs/build
+	uv run sphinx-build docs/source docs/build -b html
 
 .PHONY: benchmark
 benchmark:

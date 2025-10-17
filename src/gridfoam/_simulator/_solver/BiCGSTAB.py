@@ -8,12 +8,30 @@ from gridfoam.cubion import PyOctreeLevel
 
 class BiCGSTAB(ISolver):
     def __init__(self, expr: IFVMTerm):
+        """
+        Initialize the BiCGSTAB solver.
+
+        Parameters
+        ----------
+        expr : Expr
+            The expression representing the linear system to solve.
+        """
         self.expr = expr
         # default configurations
         self.max_iter = 1000
         self.tol = 1e-6
 
     def configure(self, max_iter: int, tol: float) -> None:
+        """
+        Configure the solver parameters.
+
+        Parameters
+        ----------
+        max_iter : int
+            Maximum number of iterations.
+        tol : float
+            Convergence tolerance.
+        """
         self.max_iter = max_iter
         self.tol = tol
 
@@ -23,6 +41,28 @@ class BiCGSTAB(ISolver):
         dt: float,
         dx: Float[torch.Tensor, " 3"],
     ) -> torch.Tensor:
+        """
+        Solve the linear system using the BiCGSTAB method.
+
+        Parameters
+        ----------
+        octree_level : PyOctreeLevel
+            The octree level containing the grid data.
+        dt : float
+            Time step size.
+        dx : Float[torch.Tensor, " 3"]
+            Grid spacing in each direction.
+
+        Returns
+        -------
+        torch.Tensor
+            The solution vector.
+
+        Raises
+        ------
+        ValueError
+            If the diagonal contains zeros or if convergence is not achieved.
+        """
         xi = torch.zeros(octree_level.n_leaf_cells)
         vi = torch.zeros(octree_level.n_leaf_cells)
         ri = self.expr.rhs(octree_level, dt, dx) - self.expr.matvec(
