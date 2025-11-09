@@ -3,9 +3,9 @@ import re
 from typing import Annotated
 
 import torch
-from pydantic import BaseModel, Field, PlainValidator
+from pydantic import BaseModel, Field, PlainValidator, field_validator
 
-from gridfoam.utils.enums import GridMode
+from gridfoam.utils.enums import DiscretizationMode, GridOutputMode, SolverName
 
 
 def device_validator(v: str | torch.device) -> torch.device:
@@ -48,7 +48,7 @@ class IoConfig(BaseModel, frozen=True):
     output_dir : pathlib.Path
         Output directory for the grid.
     """
-    mode: GridMode = Field(default=GridMode.CELL)
+    mode: GridOutputMode = Field(default=GridOutputMode.CELL)
     """
     mode : GridMode
         Mode for saving the grid.
@@ -74,25 +74,6 @@ class IoConfig(BaseModel, frozen=True):
     """
 
 
-class DdtConfig(BaseModel, frozen=True):
-    offset_coefficient: float = Field(default=0.9, ge=0.0, le=1.0)
-    """
-    offset_coefficient : float, default=0.9
-        Offset coefficient for the ddt.
-        Set 0 for Euler implicit scheme.
-        Set 1 for Crank-Nicolson scheme.
-        Set 0.9 for default.
-    """
-
-
-class DivConfig(BaseModel, frozen=True):
-    scheme: str
-    """
-    scheme : str
-        Scheme for the div.
-    """
-
-
 class ControlConfig(BaseModel, frozen=True):
     deltaT: float
     """
@@ -111,16 +92,83 @@ class ControlConfig(BaseModel, frozen=True):
     """
 
 
+class SchemeChoice(BaseModel, frozen=True):
+    mode: DiscretizationMode | None = DiscretizationMode.IMPLICIT
+    """
+    mode : DiscretizationMode | None
+        Mode of the discretization.
+        If None, the mode is implicit.
+    """
+    scheme: str
+    """
+    scheme : str
+        Scheme for the discretization.
+    """
+
+
 class fvSchemesConfig(BaseModel, frozen=True):
-    ddt: DdtConfig
+    ddtSchemes: dict[str, SchemeChoice]
     """
-    ddt : str
-        Scheme for the fv.
+    ddtSchemes : dict[str, SchemeChoice]
+        Scheme for the ddt.
     """
-    div: DivConfig
+    divSchemes: dict[str, SchemeChoice] | None = None
     """
-    div : DivConfig
+    divSchemes : dict[str, SchemeChoice] | None
         Scheme for the div.
+    """
+    laplacianSchemes: dict[str, SchemeChoice] | None = None
+    """
+    laplacianSchemes : dict[str, SchemeChoice] | None
+        Scheme for the laplacian.
+    """
+
+    @field_validator(
+        "ddtSchemes", "divSchemes", "laplacianSchemes", mode="before"
+    )
+    @classmethod
+    def regularize_keys(
+        cls, d: dict[str, SchemeChoice] | None
+    ) -> dict[str, SchemeChoice] | None:
+        if d is None:
+            return None
+        return {re.sub(r"\s*,\s*", ", ", k): v for k, v in d.items()}
+
+
+class SolverChoice(BaseModel, frozen=True):
+    type: SolverName
+    """
+    type : SolverName
+        Type of the solver.
+    """
+    preconditioner: str | None = None
+    """
+    preconditioner : str | None
+        Preconditioner for the solver.
+        If None, no preconditioner is used.
+    """
+    tolerance: float = Field(default=1e-6)
+    """
+    tolerance : float
+        Tolerance for the solver.
+    """
+    rel_tolerance: float = Field(default=1e-6)
+    """
+    rel_tolerance : float
+        Relative tolerance for the solver.
+    """
+    max_iter: int = Field(default=1000)
+    """
+    max_iter : int
+        Maximum number of iterations for the solver.
+    """
+
+
+class fvSolutionConfig(BaseModel, frozen=True):
+    solvers: dict[str, SolverChoice]
+    """
+    solvers : dict[str, SolverChoice]
+        Solvers configuration.
     """
 
 
@@ -134,6 +182,11 @@ class SimulatorConfig(BaseModel, frozen=True):
     """
     fvSchemes : fvSchemesConfig
         Fv schemes configuration.
+    """
+    fvSolution: fvSolutionConfig
+    """
+    fvSolution : fvSolutionConfig
+        Fv solution configuration.
     """
 
 
@@ -167,6 +220,7 @@ class GridfoamConfig(BaseModel, frozen=True):
     device : torch.device
         Device on which tensors are allocated.
     """
+
 
 class YamlRoot(BaseModel, frozen=True):
     gridfoam: GridfoamConfig

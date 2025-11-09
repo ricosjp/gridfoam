@@ -18,11 +18,31 @@ gridfoam:
       endTime: 1.0
       writeInterval: 1
     fvSchemes:
-      ddt:
-        offset_coefficient: 0.9
-      div:
-        scheme: "default"
-
+      ddtSchemes:
+        default:
+          scheme: Euler
+      divSchemes:
+        default:
+          mode: implicit
+          # mode: explicit
+          scheme: upwind
+        div(U, T):
+          mode: implicit
+          # mode: explicit
+          scheme: upwind   # upwind, MUSCL, QUICK…
+      laplacianSchemes:
+        default:
+          # mode: implicit
+          mode: explicit
+          scheme: GaussLinear
+        laplacian(nu, T):
+          # mode: implicit
+          mode: explicit
+          scheme: GaussLinear  # 2点中心 (面フラックス: Gauss積分 + 線形補間)
+    fvSolution:
+      solvers:
+        heat: # equation tag
+          type: BiCGSTAB
   io:
     output_dir: "tests/outputs/grid"
     mode: "cell"
