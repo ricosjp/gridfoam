@@ -1,10 +1,7 @@
-from collections.abc import Iterator
-
 import torch
 from jaxtyping import Float
 
 from gridfoam._base._field._descripter import FieldDescriptor
-from gridfoam._base._field._grid import PyOctreeNode
 from gridfoam._base._field._handle import FieldHandle
 from gridfoam._base._field._registry import FieldRegistry
 from gridfoam._base._interface._fvm_term import IFVMTerm
@@ -90,9 +87,7 @@ class BiCGSTAB(ISolver):
         y = torch.zeros(shape, device=target_fd.device, dtype=target_fd.dtype)
         z = torch.zeros(shape, device=target_fd.device, dtype=target_fd.dtype)
 
-        for i, (cube, depth) in enumerate(
-            self._iter_field_with_sync([self._p_fd])
-        ):
+        for i, (cube, depth) in enumerate(FieldHandle.iter_leaf_cubes()):
             dx_local = FieldHandle.get_dx_at(depth)
             x[i] = cube.old.cells[target_fd.canonical_name].interior
             r[i] = fvm_system.source(cube, dt, dx_local) - fvm_system.matvec(
@@ -101,6 +96,7 @@ class BiCGSTAB(ISolver):
             r0[i] = r[i]
             p[i] = r[i]
             cube.old.cells[self._p_fd.canonical_name].interior = p[i]
+        FieldHandle.sync_all([self._p_fd])
 
         rnorm_0 = self._compute_norm(r0)
         if rnorm_0 < self.tolerance:
@@ -108,7 +104,7 @@ class BiCGSTAB(ISolver):
             return
         for k in range(self.max_iter):
             # Update solution
-            for i, (cube, depth) in enumerate(self._iter_field()):
+            for i, (cube, depth) in enumerate(FieldHandle.iter_leaf_cubes()):
                 dx_local = FieldHandle.get_dx_at(depth)
                 y[i] = fvm_system.matvec(
                     cube, self._p_fd.canonical_name, dt, dx_local
@@ -117,12 +113,11 @@ class BiCGSTAB(ISolver):
             r0y = (r0 * y).sum()
             alpha = r0r / r0y if torch.abs(r0y) > 1e-12 else 0.0
             s = r - alpha * y
-            for i, (cube, _) in enumerate(
-                self._iter_field_with_sync([self._s_fd])
-            ):
+            for i, (cube, _) in enumerate(FieldHandle.iter_leaf_cubes()):
                 cube.old.cells[self._s_fd.canonical_name].interior = s[i]
+            FieldHandle.sync_all([self._s_fd])
 
-            for i, (cube, depth) in enumerate(self._iter_field()):
+            for i, (cube, depth) in enumerate(FieldHandle.iter_leaf_cubes()):
                 dx_local = FieldHandle.get_dx_at(depth)
                 z[i] = fvm_system.matvec(
                     cube, self._s_fd.canonical_name, dt, dx_local
@@ -141,20 +136,17 @@ class BiCGSTAB(ISolver):
                         residual: {rnorm},\
                         rel_residual: {rnorm / rnorm_0}"
                 )
-                for i, (cube, _) in enumerate(
-                    self._iter_field_with_sync([target_fd])
-                ):
+                for i, (cube, _) in enumerate(FieldHandle.iter_leaf_cubes()):
                     cube.old.cells[target_fd.canonical_name].interior = x[i]
-
+                FieldHandle.sync_all([target_fd])
                 return
 
             # Update search direction
             beta = (alpha / omega) * ((r0 * r).sum() / r0r)
             p = r + beta * (p - omega * y)
-            for i, (cube, _) in enumerate(
-                self._iter_field_with_sync([self._p_fd])
-            ):
+            for i, (cube, _) in enumerate(FieldHandle.iter_leaf_cubes()):
                 cube.old.cells[self._p_fd.canonical_name].interior = p[i]
+            FieldHandle.sync_all([self._p_fd])
 
         raise ValueError(
             f"BiCGSTAB did not converge\
@@ -169,47 +161,3 @@ class BiCGSTAB(ISolver):
                 return torch.max(torch.abs(x)).item()
             case NormType.L_2:
                 return torch.norm(x, p=2).item()
-
-    def _iter_field_with_sync(
-        self, fd_list: list[FieldDescriptor]
-    ) -> Iterator[tuple[PyOctreeNode, int]]:
-        yield from self._iter_field_with_sync_at_depth(0, fd_list)
-
-    def _iter_field(self) -> Iterator[tuple[PyOctreeNode, int]]:
-        yield from self._iter_field_at_depth(0)
-
-    def _iter_field_with_sync_at_depth(
-        self, depth: int, fd_list: list[FieldDescriptor]
-    ) -> Iterator[tuple[PyOctreeNode, int]]:
-        if depth == FieldHandle._grid.max_depth - 1:
-            for cube in FieldHandle.iter_leaf_cubes_of(
-                FieldHandle.get_octree_level_at(depth)
-            ):
-                yield cube, depth
-            FieldHandle.sync_halo_at_depth(depth, fd_list)
-            return
-        FieldHandle.sync_ghost_from_parent_at_depth(depth + 1, fd_list)
-        FieldHandle.sync_halo_at_depth(depth + 1, fd_list)
-        yield from self._iter_field_with_sync_at_depth(depth + 1, fd_list)
-        FieldHandle.sync_ghost_from_children_at_depth(depth, fd_list)
-        FieldHandle.sync_halo_at_depth(depth, fd_list)
-        for cube in FieldHandle.iter_leaf_cubes_of(
-            FieldHandle.get_octree_level_at(depth)
-        ):
-            yield cube, depth
-        FieldHandle.sync_halo_at_depth(depth, fd_list)
-
-    def _iter_field_at_depth(
-        self, depth: int
-    ) -> Iterator[tuple[PyOctreeNode, int]]:
-        if depth == FieldHandle._grid.max_depth - 1:
-            for cube in FieldHandle.iter_leaf_cubes_of(
-                FieldHandle.get_octree_level_at(depth)
-            ):
-                yield cube, depth
-            return
-        yield from self._iter_field_at_depth(depth + 1)
-        for cube in FieldHandle.iter_leaf_cubes_of(
-            FieldHandle.get_octree_level_at(depth)
-        ):
-            yield cube, depth

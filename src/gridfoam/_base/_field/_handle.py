@@ -70,6 +70,15 @@ class FieldHandle:
                     )
 
     @classmethod
+    def sync_all(cls, fd_list: list[FieldDescriptor]) -> None:
+        """
+        Synchronize all the halos for all depths.
+        """
+        cls.sync_ghost_from_parent(fd_list)
+        cls.sync_ghost_from_children(fd_list)
+        cls.sync_halo(fd_list)
+
+    @classmethod
     def sync_halo_at_depth(
         cls, depth: int, fd_list: list[FieldDescriptor]
     ) -> None:
@@ -194,6 +203,8 @@ class FieldHandle:
             List of field descriptors to synchronize.
         """
         for depth in range(cls._grid.max_depth):
+            if depth == 0:
+                continue
             cls.sync_ghost_from_parent_at_depth(depth, fd_list)
 
     @classmethod
@@ -265,6 +276,8 @@ class FieldHandle:
         (2x2x2 cells are averaged into 1 cell).
         """
         for depth in reversed(range(cls._grid.max_depth)):
+            if depth == cls._grid.max_depth - 1:
+                continue
             cls.sync_ghost_from_children_at_depth(depth, fd_list)
 
     @classmethod
