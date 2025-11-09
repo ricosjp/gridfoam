@@ -82,7 +82,7 @@ class TransientSystem:
         for octree_level in FieldHandle.iter_octree_levels():
             depth = octree_level.depth
             half_dx = 0.5 * FieldHandle.get_dx_at(depth)
-            for cube in octree_level.nodes.values():
+            for cube in FieldHandle.iter_leaf_cubes_of(octree_level):
                 divisions = torch.tensor(
                     [FieldHandle._N] * 3, dtype=torch.int64
                 )
@@ -123,7 +123,7 @@ class TransientSystem:
                     (1, FieldHandle._N, FieldHandle._N, FieldHandle._N),
                     0.01,
                 )
-        FieldHandle.sync_halo([T, U, nu])
+        FieldHandle.sync_all([T, U, nu])
 
     def advance(self) -> None:
         """
