@@ -21,7 +21,7 @@ class SimulationEngine:
         config = grid_handle.config
         registry.register_scheme(config.simulator.fvSchemes)
         registry.register_solver(config.simulator.fvSolution)
-        self.context = SimulationContext(
+        self._context = SimulationContext(
             registry=registry,
             grid_handle=grid_handle,
         )
@@ -71,3 +71,7 @@ class SimulationEngine:
         self.context.grid_handle.update_fvmatrix(equation_meta)
         solver = self.context.registry.get_solver(equation_meta.name)
         solver.solve(self.context.grid_handle)
+
+    @property
+    def context(self) -> SimulationContext:
+        return self._context

@@ -1,11 +1,12 @@
 import pathlib
 from collections.abc import Iterator
 
+import numpy as np
 import pyvista as pv
 import torch
 import torch.nn.functional as F
 import yaml
-from jaxtyping import Float
+from jaxtyping import Float, Int
 
 from gridfoam.DNA._grid._grid import (
     NodeType,
@@ -27,6 +28,39 @@ from gridfoam.DNA.fielddata import FVMatrix
 from gridfoam.DNA.meta.equation import EquationMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.RNA.registry import SimulationMetaRegistry
+
+
+def _generate_grid_indices(
+    divisions: Int[torch.Tensor, " 3"],
+) -> Int[torch.Tensor, "3 n_grid"]:
+    """
+    Generate 3D grid indices
+    according to the number of divisions along each axis.
+
+    The output indices are ordered in Z-order.
+
+    Parameters
+    ----------
+    divisions : Int32[torch.Tensor, " 3"]
+        The number of divisions along each axis (X, Y, Z).
+
+    Returns
+    -------
+    Int32[torch.Tensor, "3 n_grid"]
+        Tensor of shape (3, n_grid) containing all grid indices,
+        where n_grid = divisions[0] * divisions[1] * divisions[2].
+        Each row corresponds:
+        - 0: x-axis
+        - 1: y-axis
+        - 2: z-axis
+    """
+    indices_per_axis = [
+        torch.arange(n, dtype=divisions.dtype, device=divisions.device)
+        for n in reversed(divisions)
+    ]
+    indices = torch.meshgrid(*indices_per_axis, indexing="ij")
+    indices = torch.stack(indices[::-1], dim=0).reshape(3, -1)
+    return indices
 
 
 class GridHandle(IGridHandle):
@@ -71,14 +105,52 @@ class GridHandle(IGridHandle):
                 yield level.depth, cube
 
     ## Allocating fields
+    def _calculate_pos(
+        self, depth: int, cube: PyOctreeNode
+    ) -> tuple[
+        Float[torch.Tensor, "N N N"],
+        Float[torch.Tensor, "N N N"],
+        Float[torch.Tensor, "N N N"],
+    ]:
+        N = self._config.cube.interior_width
+        device = self._config.cube.device
+        divisions = torch.tensor([N, N, N], dtype=torch.int64, device=device)
+        dx = self.get_dx_at_depth(depth)  # (3,)
+        cube_index = torch.tensor(
+            cube.cubecode.to_global_index(depth).astype(np.int64),
+            dtype=torch.int64,
+            device=cube.field.device,
+        )  # (3,)
+        domain_lower_pos = torch.tensor(
+            self._grid.domain.lower,
+            device=cube.field.device,
+        )  # (3,)
+        cell_index_in_cube = _generate_grid_indices(divisions).reshape(
+            3, N, N, N
+        )  # (3, N, N, N)
+        cell_index_in_global = (
+            cell_index_in_cube + cube_index[:, None, None, None] * N
+        )  # (3, N, N, N)
+        x, y, z = (
+            domain_lower_pos[:, None, None, None]
+            + (2 * cell_index_in_global + 1) * 0.5 * dx[:, None, None, None]
+        )
+        return x, y, z
+
     def allocate_by_registry(self, registry: SimulationMetaRegistry) -> None:
         dt = self._config.simulator.control.deltaT
         for level in self.iter_levels():
             for cube in level.nodes.values():
                 dx = self.get_dx_at_depth(level.depth)
                 cube.field = CubeField(self._config.cube, dt, dx)
+                x, y, z = self._calculate_pos(level.depth, cube)
                 for field_meta in registry.fields.values():
                     cube.field.add_field(field_meta)
+                    if field_meta.initialize_func is not None:
+                        cell_field = cube.field.get_field(field_meta)
+                        cell_field.interior[0] = field_meta.initialize_func(
+                            x, y, z
+                        )
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
 
