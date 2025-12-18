@@ -332,7 +332,3 @@ class GridHandle(IGridHandle):
         bounds = level.bounds * self._config.cube.interior_width
         dx = (self._grid.domain.upper - self._grid.domain.lower) / bounds
         return torch.tensor(dx)
-
-    def save(self, path: pathlib.Path) -> None:
-        # TODO: Implement this
-        pass

@@ -1,5 +1,4 @@
 import abc
-import pathlib
 from collections.abc import Iterator
 
 import pyvista as pv
@@ -152,10 +151,6 @@ class IGridHandle(abc.ABC):
 
     @abc.abstractmethod
     def get_dx_at_depth(self, depth: int) -> Float[torch.Tensor, " 3"]:
-        pass
-
-    @abc.abstractmethod
-    def save(self, path: pathlib.Path) -> None:
         pass
 
     @property
