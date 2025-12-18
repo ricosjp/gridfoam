@@ -33,29 +33,32 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
         device = psi_c.raw.device
         fvmatrix = FVMatrix(C, N, H, dtype, device)
         Sf = torch.tensor([dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1]])
+        V = dx[0] * dx[1] * dx[2]
+        gamma_x = gamma_c.face_harmonic_mean_along(Axis.X) # (T C N N L)
+        gamma_y = gamma_c.face_harmonic_mean_along(Axis.Y) # (T C N L N)
+        gamma_z = gamma_c.face_harmonic_mean_along(Axis.Z) # (T C L N N)
 
         # (C N N N)
-        gamma_P = gamma_c.interior[0]
-        gamma_E = gamma_c.get_shifted_interior_along(Axis.X, 1)[0] # (C N N N)
-        gamma_W = gamma_c.get_shifted_interior_along(Axis.X, -1)[0] # (C N N N)
-        gamma_N = gamma_c.get_shifted_interior_along(Axis.Y, 1)[0] # (C N N N)
-        gamma_S = gamma_c.get_shifted_interior_along(Axis.Y, -1)[0] # (C N N N)
-        gamma_T = gamma_c.get_shifted_interior_along(Axis.Z, 1)[0] # (C N N N)
-        gamma_B = gamma_c.get_shifted_interior_along(Axis.Z, -1)[0] # (C N N N)
+        gamma_e = gamma_x[0, :, :, :, 1:]
+        gamma_w = gamma_x[0, :, :, :, :-1]
+        gamma_n = gamma_y[0, :, :, 1:, :]
+        gamma_s = gamma_y[0, :, :, :-1, :]
+        gamma_t = gamma_z[0, :, 1:, :, :]
+        gamma_b = gamma_z[0, :, :-1, :, :]
 
         # (C N N N)
-        a_E = Sf[0] * 0.5 *(gamma_E - gamma_P) / dx[0]
-        a_W = Sf[0] * 0.5 *(gamma_W - gamma_P) / dx[0]
-        a_N = Sf[1] * 0.5 *(gamma_N - gamma_P) / dx[1]
-        a_S = Sf[1] * 0.5 *(gamma_S - gamma_P) / dx[1]
-        a_T = Sf[2] * 0.5 *(gamma_T - gamma_P) / dx[2]
-        a_B = Sf[2] * 0.5 *(gamma_B - gamma_P) / dx[2]
+        a_E = gamma_e * Sf[0]/ dx[0]
+        a_W = gamma_w * Sf[0]/ dx[0]
+        a_N = gamma_n * Sf[1]/ dx[1]
+        a_S = gamma_s * Sf[1]/ dx[1]
+        a_T = gamma_t * Sf[2]/ dx[2]
+        a_B = gamma_b * Sf[2]/ dx[2]
         a_P = -(a_E + a_W + a_N + a_S + a_T + a_B)
-        fvmatrix.a_E.interior[0] += a_E
-        fvmatrix.a_W.interior[0] += a_W
-        fvmatrix.a_N.interior[0] += a_N
-        fvmatrix.a_S.interior[0] += a_S
-        fvmatrix.a_T.interior[0] += a_T
-        fvmatrix.a_B.interior[0] += a_B
-        fvmatrix.a_P.interior[0] += a_P
+        fvmatrix.a_E.interior[0] += a_E / V
+        fvmatrix.a_W.interior[0] += a_W / V
+        fvmatrix.a_N.interior[0] += a_N / V
+        fvmatrix.a_S.interior[0] += a_S / V
+        fvmatrix.a_T.interior[0] += a_T / V
+        fvmatrix.a_B.interior[0] += a_B / V
+        fvmatrix.a_P.interior[0] += a_P / V
         return fvmatrix

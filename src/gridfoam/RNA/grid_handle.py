@@ -153,6 +153,8 @@ class GridHandle(IGridHandle):
                         )
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
+        sync_list = [fm for fm in registry.fields.values() if fm.layout == FieldLayout.CELL]
+        self.sync_all(sync_list)
 
     def allocate_field(self, field_meta: FieldMeta) -> None:
         for level in self.iter_levels():
@@ -175,6 +177,7 @@ class GridHandle(IGridHandle):
                     equation_meta.ast_root, cube.field
                 )
                 cube.field.fvmatrices[equation_meta.name] = fvmatrix
+        #TODO: sync fvmatrix
 
     def _evaluate_node(self, node: IASTNode, field: CubeField) -> FVMatrix:
         if isinstance(node, ArithmeticNode):
