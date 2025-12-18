@@ -6,6 +6,7 @@ from jaxtyping import Float, UInt32
 
 from gridfoam.DNA.enum import Axis
 from gridfoam.DNA.fielddata._face import FaceField
+from gridfoam.DNA.utils.harmonic_mean import harmonic_mean
 
 
 class CellField:
@@ -393,6 +394,19 @@ class CellField:
         forward = self.get_shifted_interior_along_for_face(axis, 0)
         backward = self.get_shifted_interior_along_for_face(axis, -1)
         return forward - backward
+
+    def face_harmonic_mean_along(self, axis: Axis) -> torch.Tensor:
+        """
+        Get the face-harmonic mean values along the specified axis.
+
+        Parameters
+        ----------
+        axis : Axis
+            Axis to compute the face-harmonic mean values along.
+        """
+        forward = self.get_shifted_interior_along_for_face(axis, 0)
+        backward = self.get_shifted_interior_along_for_face(axis, -1)
+        return harmonic_mean(forward, backward)
 
     def face_average(self) -> FaceField:
         """

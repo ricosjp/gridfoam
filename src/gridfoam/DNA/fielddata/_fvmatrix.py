@@ -163,39 +163,17 @@ class FVMatrix:
         )
         return result
 
-    def _harmonic_mean(
-        self,
-        forward: torch.Tensor,
-        backward: torch.Tensor,
-    ) -> torch.Tensor:
-        denom = forward + backward
-        face = torch.zeros_like(denom)
-        nonzero = denom != 0
-        face[nonzero] = (
-            2.0 * forward[nonzero] * backward[nonzero] / denom[nonzero]
-        )
-        return face
-
     @property
     def a_fx(self) -> Float[torch.Tensor, "C N N L"]:
-        axis = Axis.X
-        forward = self.a_P.get_shifted_interior_along_for_face(axis, 0)[0]
-        backward = self.a_P.get_shifted_interior_along_for_face(axis, -1)[0]
-        return self._harmonic_mean(forward, backward)
+        return self.a_P.face_harmonic_mean_along(Axis.X)
 
     @property
     def a_fy(self) -> Float[torch.Tensor, "C N L N"]:
-        axis = Axis.Y
-        forward = self.a_P.get_shifted_interior_along_for_face(axis, 0)[0]
-        backward = self.a_P.get_shifted_interior_along_for_face(axis, -1)[0]
-        return self._harmonic_mean(forward, backward)
+        return self.a_P.face_harmonic_mean_along(Axis.Y)
 
     @property
     def a_fz(self) -> Float[torch.Tensor, "C L N N"]:
-        axis = Axis.Z
-        forward = self.a_P.get_shifted_interior_along_for_face(axis, 0)[0]
-        backward = self.a_P.get_shifted_interior_along_for_face(axis, -1)[0]
-        return self._harmonic_mean(forward, backward)
+        return self.a_P.face_harmonic_mean_along(Axis.Z)
 
     def apply(self, xi: CellField) -> Float[torch.Tensor, "C N N N"]:
         yi = self.a_P.interior[0] * xi.interior[0]
