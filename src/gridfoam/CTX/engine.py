@@ -25,6 +25,9 @@ class SimulationEngine:
             registry=registry,
             grid_handle=grid_handle,
         )
+        self._write_interval = config.simulator.control.writeInterval
+        self._end_time = config.simulator.control.endTime
+        self._deltaT = config.simulator.control.deltaT
 
     def initialize(self) -> None:
         self.context.grid_handle.allocate_by_registry(self.context.registry)
@@ -68,9 +71,25 @@ class SimulationEngine:
                     raise ValueError(f"Unknown operator type: {operator_type}")
 
     def solve(self, equation_meta: EquationMeta) -> None:
-        self.context.grid_handle.update_fvmatrix(equation_meta)
-        solver = self.context.registry.get_solver(equation_meta.name)
-        solver.solve(self.context.grid_handle)
+        step = 0
+        time = 0.0
+        self.context.save(f"bunny_{step:04d}.vtkhdf")
+
+        while 1:
+            print(f"Step {step:04d}")
+            step += 1
+            time += self._deltaT
+
+            self.context.grid_handle.update_fvmatrix(equation_meta)
+            solver = self.context.registry.get_solver(equation_meta.name)
+            solver.solve(self.context.grid_handle)
+
+            if step % self._write_interval == 0:
+                self.context.save(
+                    f"bunny_{step:04d}.vtkhdf"
+                )
+            if time >= self._end_time:
+                break
 
     @property
     def context(self) -> SimulationContext:
