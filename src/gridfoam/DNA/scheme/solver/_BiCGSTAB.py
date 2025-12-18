@@ -69,6 +69,7 @@ class BiCGSTAB(ILinearSolver):
         grid_handle : GridHandle
             Grid handle.
         """
+        eq_name = self._eq_meta.name
         x_fm = self._eq_meta.target_field
         n_leaf_nodes = grid_handle.grid.n_leaf_nodes
         N = grid_handle.config.cube.interior_width
@@ -84,7 +85,7 @@ class BiCGSTAB(ILinearSolver):
         for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
             field = cube.field
             xi = field.cells[x_fm.name]
-            fvmatrix = field.fvmatrices[self._eq_meta.name]
+            fvmatrix = field.fvmatrices[eq_name]
             x[i] = xi.interior[0]
             r[i] = fvmatrix.source.interior[0] - fvmatrix.apply(xi)
             r0[i] = r[i]
@@ -101,7 +102,8 @@ class BiCGSTAB(ILinearSolver):
             # Update solution
             for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                 field = cube.field
-                pi = field.cells[self._p_fm.name].interior[0]
+                fvmatrix = field.fvmatrices[eq_name]
+                pi = field.cells[self._p_fm.name]
                 y[i] = fvmatrix.apply(pi)
             r0r = (r0 * r).sum()
             r0y = (r0 * y).sum()
@@ -114,7 +116,9 @@ class BiCGSTAB(ILinearSolver):
 
             for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                 field = cube.field
-                z[i] = field.cells[self._s_fm.name].interior[0]
+                fvmatrix = field.fvmatrices[eq_name]
+                si = field.cells[self._s_fm.name]
+                z[i] = fvmatrix.apply(si)
             zz = (z * z).sum()
             omega = (z * s).sum() / zz if torch.abs(zz) > 1e-12 else 0.0
             x += alpha * p + omega * s
@@ -124,7 +128,7 @@ class BiCGSTAB(ILinearSolver):
             rnorm = self._compute_norm(r)
             print(
                 f"BiCGSTAB iteration {it + 1}, \
-                    residual: {rnorm}, rel_residual: {rnorm / rnorm_0}"
+                    residual: {rnorm:.6f}, rel_residual: {rnorm / rnorm_0:.6f}"
             )
             if (
                 rnorm < self._tolerance
@@ -134,8 +138,8 @@ class BiCGSTAB(ILinearSolver):
                 print(
                     f"BiCGSTAB converged\
                         -- iterations: {it + 1},\
-                        residual: {rnorm},\
-                        rel_residual: {rnorm / rnorm_0}"
+                        residual: {rnorm:.6f},\
+                        rel_residual: {rnorm / rnorm_0:.6f}"
                 )
                 for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                     field = cube.field
@@ -154,8 +158,8 @@ class BiCGSTAB(ILinearSolver):
         raise ValueError(
             f"BiCGSTAB did not converge\
                 -- iterations: {self._max_iter},\
-                residual: {rnorm},\
-                rel_residual: {rnorm / rnorm_0}"
+                residual: {rnorm:.6f},\
+                rel_residual: {rnorm / rnorm_0:.6f}"
         )
 
     def _compute_norm(self, x: Float[torch.Tensor, "..."]) -> float:

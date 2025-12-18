@@ -59,6 +59,7 @@ class CG(ILinearSolver):
         grid_handle : GridHandle
             Grid handle.
         """
+        eq_name = self._eq_meta.name
         x_fm = self._eq_meta.target_field
         n_leaf_nodes = grid_handle.grid.n_leaf_nodes
         N = grid_handle.config.cube.interior_width
@@ -74,7 +75,7 @@ class CG(ILinearSolver):
         for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
             field = cube.field
             xi = field.cells[x_fm.name]
-            fvmatrix = field.fvmatrices[self._eq_meta.name]
+            fvmatrix = field.fvmatrices[eq_name]
             x[i] = xi.interior[0]
             r[i] = fvmatrix.source.interior[0] - fvmatrix.apply(xi)
             p[i] = r[i] / fvmatrix.a_P.interior[0]
@@ -90,7 +91,8 @@ class CG(ILinearSolver):
             rr[None] = 0.0
             for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                 field = cube.field
-                pi = field.cells[self._p_fm.name].interior[0]
+                fvmatrix = field.fvmatrices[eq_name]
+                pi = field.cells[self._p_fm.name]
                 y[i] = fvmatrix.apply(pi)
                 rr += (r[i] * r[i] / fvmatrix.a_P.interior[0]).sum()
             py = (p * y).sum()
