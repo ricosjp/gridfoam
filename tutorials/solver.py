@@ -9,7 +9,7 @@ from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.RNA.builtins.builtin_fields import builtin_T
 from gridfoam.RNA.defaults import default_registry
-from gridfoam.RNA.equation.api import ddt, div, equation, laplacian
+from gridfoam.RNA.equation.api import ddt, div, equation
 
 configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
 
@@ -23,7 +23,7 @@ def initialize_U(
     device = x.device
     dtype = x.dtype
     U = torch.zeros((3, N, N, N), dtype=dtype, device=device)
-    U[0] = 1.0
+    U[0] = 0.1
     return U
 
 
@@ -36,10 +36,20 @@ def initialize_T(
     device = x.device
     dtype = x.dtype
     T = torch.zeros((1, N, N, N), dtype=dtype, device=device)
-    mask = (-1.0 < x) & (x < 1.0) & (-2.0 < z) & (z < 0.0)
+    mask = (-1.0 < x) & (x < 1.0) & (-1.0 < y) & (y < 1.0) & (0.0 < z) & (z < 2.0)
     T[0, mask] = 1.0
     return T
 
+def initialize_nu(
+    x: Float[torch.Tensor, "N N N"],
+    y: Float[torch.Tensor, "N N N"],
+    z: Float[torch.Tensor, "N N N"],
+) -> Float[torch.Tensor, "C N N N"]:
+    N = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+    nu = torch.full((1, N, N, N), 0.01, dtype=dtype, device=device)
+    return nu
 
 if __name__ == "__main__":
     registry = default_registry()
@@ -52,6 +62,7 @@ if __name__ == "__main__":
             layout=FieldLayout.CELL,
             components=1,
             unit="m^2/s",
+            initialize_func=initialize_nu,
         )
     )
 
@@ -74,14 +85,15 @@ if __name__ == "__main__":
             "domainZ-",
         ],
         type=BoundaryConditionType.DIRICHLET,
-        value=293.0,
+        value=1.0,
     )
 
     eq_heat_diffusion = equation(
         name="heat_diffusion",
         target=T,
         boundary_condition=bc_heat_diffusion,
-        lhs=ddt(T) + div(phi, T) - laplacian(nu, T),
+        lhs=ddt(T) + div(phi, T),
+        # lhs=ddt(T) + div(phi, T),
     )
     registry.register_equation(eq_heat_diffusion)
     simulation_engine = SimulationEngine(

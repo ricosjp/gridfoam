@@ -1,4 +1,5 @@
 import pathlib
+from collections import defaultdict
 from collections.abc import Iterator
 
 import numpy as np
@@ -151,9 +152,16 @@ class GridHandle(IGridHandle):
                         cell_field.interior[0] = field_meta.initialize_func(
                             x, y, z
                         )
+                    if field_meta.name == "phi":
+                        phi = cube.field.get_field(field_meta)
+                        phi.x[0] = 0.1*dx[1] * dx[2]
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
-        sync_list = [fm for fm in registry.fields.values() if fm.layout == FieldLayout.CELL]
+        sync_list = [
+            fm
+            for fm in registry.fields.values()
+            if fm.layout == FieldLayout.CELL
+        ]
         self.sync_all(sync_list)
 
     def allocate_field(self, field_meta: FieldMeta) -> None:
@@ -174,29 +182,34 @@ class GridHandle(IGridHandle):
         for level in self.iter_levels():
             for cube in level.nodes.values():
                 fvmatrix = self._evaluate_node(
-                    equation_meta.ast_root, cube.field
+                    equation_meta.ast_root, cube
                 )
                 cube.field.fvmatrices[equation_meta.name] = fvmatrix
-        #TODO: sync fvmatrix
+        self.sync_all(em_list=[equation_meta])
 
-    def _evaluate_node(self, node: IASTNode, field: CubeField) -> FVMatrix:
+    def _evaluate_node(self, node: IASTNode, cube: PyOctreeNode) -> FVMatrix:
         if isinstance(node, ArithmeticNode):
             match node.type:
                 case ArithmeticType.ADD:
                     return self._evaluate_node(
-                        node.arg1, field
-                    ) + self._evaluate_node(node.arg2, field)
+                        node.arg1, cube
+                    ) + self._evaluate_node(node.arg2, cube)
                 case ArithmeticType.SUB:
                     return self._evaluate_node(
-                        node.arg1, field
-                    ) - self._evaluate_node(node.arg2, field)
+                        node.arg1, cube
+                    ) - self._evaluate_node(node.arg2, cube)
                 case _:
                     raise ValueError(f"Unknown arithmetic type: {node.type}")
         if isinstance(node, OperatorNode):
-            return node.operator.build(field)
+            return node.operator.build(cube)
 
     ## Synchronizing halo
-    def sync_halo_at_depth(self, depth: int, fm_list: list[FieldMeta]) -> None:
+    def sync_halo_at_depth(
+        self,
+        depth: int,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize the halo for a given depth.
 
@@ -206,7 +219,13 @@ class GridHandle(IGridHandle):
             Depth to synchronize the halo at.
         fm_list : list[FieldMeta]
             List of field metas to synchronize.
+        em_list : list[EquationMeta]
+            List of equation metas to synchronize.
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         cell_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.CELL]
         # face_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.FACE]
 
@@ -234,8 +253,87 @@ class GridHandle(IGridHandle):
                     tgt_cell_field.set_halo_along(
                         axis, forward, nbr_interior_halo
                     )
+                for em in em_list:
+                    tgt_fvmatrix = cube.field.fvmatrices[em.name]
+                    nbr_fvmatrix = nbr_cube.field.fvmatrices[em.name]
+                    # a_P
+                    nbr_a_P_interior_halo = (
+                        nbr_fvmatrix.a_P.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_P.set_halo_along(
+                        axis, forward, nbr_a_P_interior_halo
+                    )
+                    # a_E
+                    nbr_a_E_interior_halo = (
+                        nbr_fvmatrix.a_E.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_E.set_halo_along(
+                        axis, forward, nbr_a_E_interior_halo
+                    )
+                    # a_W
+                    nbr_a_W_interior_halo = (
+                        nbr_fvmatrix.a_W.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_W.set_halo_along(
+                        axis, forward, nbr_a_W_interior_halo
+                    )
+                    # a_N
+                    nbr_a_N_interior_halo = (
+                        nbr_fvmatrix.a_N.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_N.set_halo_along(
+                        axis, forward, nbr_a_N_interior_halo
+                    )
+                    # a_S
+                    nbr_a_S_interior_halo = (
+                        nbr_fvmatrix.a_S.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_S.set_halo_along(
+                        axis, forward, nbr_a_S_interior_halo
+                    )
+                    # a_T
+                    nbr_a_T_interior_halo = (
+                        nbr_fvmatrix.a_T.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_T.set_halo_along(
+                        axis, forward, nbr_a_T_interior_halo
+                    )
+                    # a_B
+                    nbr_a_B_interior_halo = (
+                        nbr_fvmatrix.a_B.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.a_B.set_halo_along(
+                        axis, forward, nbr_a_B_interior_halo
+                    )
+                    # source
+                    nbr_source_interior_halo = (
+                        nbr_fvmatrix.source.get_interior_halo_along(
+                            axis, not forward
+                        )
+                    )
+                    tgt_fvmatrix.source.set_halo_along(
+                        axis, forward, nbr_source_interior_halo
+                    )
 
-    def sync_halo(self, fm_list: list[FieldMeta]) -> None:
+    def sync_halo(
+        self,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize the halo for all depths.
 
@@ -243,12 +341,23 @@ class GridHandle(IGridHandle):
         ----------
         fm_list : list[FieldMeta]
             List of field metas to synchronize.
+        em_list : list[EquationMeta]
+            List of equation metas to synchronize.
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         for depth in range(self._grid.max_depth):
-            self.sync_halo_at_depth(depth, fm_list)
+            self.sync_halo_at_depth(depth, fm_list, em_list)
 
     ## Synchronizing ghost from parent
-    def sync_gfp_at_depth(self, depth: int, fm_list: list[FieldMeta]) -> None:
+    def sync_gfp_at_depth(
+        self,
+        depth: int,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize ghost cubes from their parent cubes at a given depth.
 
@@ -262,7 +371,13 @@ class GridHandle(IGridHandle):
             The depth level to synchronize.
         fm_list : list[FieldMeta]
             List of field metas to synchronize.
+        em_list : list[EquationMeta]
+            List of equation metas to synchronize.
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         cell_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.CELL]
         # face_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.FACE]
 
@@ -295,8 +410,95 @@ class GridHandle(IGridHandle):
 
                 # assign the refined data to the ghost cube
                 tgt_cell_tensor.interior = refined_tensor
+            for em in em_list:
+                tgt_fvmatrix = cube.field.fvmatrices[em.name]
+                parent_fvmatrix = parent_cube.field.fvmatrices[em.name]
+                # a_P
+                parent_half_interior = parent_fvmatrix.a_P.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_P.interior = refined_tensor
+                # a_E
+                parent_half_interior = parent_fvmatrix.a_E.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_E.interior = refined_tensor
+                # a_W
+                parent_half_interior = parent_fvmatrix.a_W.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_W.interior = refined_tensor
+                # a_N
+                parent_half_interior = parent_fvmatrix.a_N.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_N.interior = refined_tensor
+                # a_S
+                parent_half_interior = parent_fvmatrix.a_S.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_S.interior = refined_tensor
+                # a_T
+                parent_half_interior = parent_fvmatrix.a_T.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_T.interior = refined_tensor
+                # a_B
+                parent_half_interior = parent_fvmatrix.a_B.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.a_B.interior = refined_tensor
+                # source
+                parent_half_interior = parent_fvmatrix.source.get_half_interior(
+                    offsets
+                )
+                refined_tensor = F.interpolate(
+                    parent_half_interior,
+                    scale_factor=2,
+                    mode="trilinear",
+                )  # (T C N N N)
+                tgt_fvmatrix.source.interior = refined_tensor
 
-    def sync_gfp(self, fm_list: list[FieldMeta]) -> None:
+    def sync_gfp(
+        self,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize ghost cubes from their parent cubes for all depths.
 
@@ -308,14 +510,25 @@ class GridHandle(IGridHandle):
         ----------
         fm_list : list[FieldMeta]
             List of field metas to synchronize.
+        em_list : list[EquationMeta]
+            List of equation metas to synchronize.
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         for depth in range(self._grid.max_depth):
             if depth == 0:
                 continue
-            self.sync_gfp_at_depth(depth, fm_list)
+            self.sync_gfp_at_depth(depth, fm_list, em_list)
 
     ## Synchronizing ghost from child
-    def sync_gfc_at_depth(self, depth: int, fm_list: list[FieldMeta]) -> None:
+    def sync_gfc_at_depth(
+        self,
+        depth: int,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize ghost cubes from their child cubes at a given depth.
 
@@ -330,34 +543,114 @@ class GridHandle(IGridHandle):
             The depth level to synchronize.
         fm_list : list[FieldMeta]
             List of field metas to synchronize.
+        em_list : list[EquationMeta]
+            List of equation metas to synchronize.
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         cell_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.CELL]
         # face_fm_list = [fm for fm in fm_list if fm.layout == FieldLayout.FACE]
 
         level = self._grid.octree_levels[depth]
         for cube in self.iter_gfc_on_level(level):
             child_codes = cube.cubecode.children(depth)
-            for fm in cell_fm_list:
-                coarsened_tensors = []
-                for child_code in child_codes:
-                    child_cube = self._grid.octree_levels[depth + 1].nodes[
-                        child_code.value()
-                    ]
+            # key: field name, value: list of coarsened tensors
+            coarsened_fm_tensors = defaultdict(list)
+            # key: equation name, value: list of coarsened tensors
+            coarsened_aP_tensors = defaultdict(list)
+            coarsened_aE_tensors = defaultdict(list)
+            coarsened_aW_tensors = defaultdict(list)
+            coarsened_aN_tensors = defaultdict(list)
+            coarsened_aS_tensors = defaultdict(list)
+            coarsened_aT_tensors = defaultdict(list)
+            coarsened_aB_tensors = defaultdict(list)
+            coarsened_source_tensors = defaultdict(list)
+            for child_code in child_codes:
+                child_cube = self._grid.octree_levels[depth + 1].nodes[
+                    child_code.value()
+                ]
+                for fm in cell_fm_list:
                     child_interior = child_cube.field.cells[
                         fm.name
                     ].interior  # (T C N N N)
 
                     # interpolation
-                    coarsened_tensor: torch.Tensor = F.avg_pool3d(
+                    coarsened_tensor = F.avg_pool3d(
                         child_interior,
                         kernel_size=2,
                         stride=2,
                     )  # (T C halfN halfN halfN)
 
-                    coarsened_tensors.append(coarsened_tensor)
+                    coarsened_fm_tensors[fm.name].append(coarsened_tensor)
+                for em in em_list:
+                    child_fvmatrix = child_cube.field.fvmatrices[em.name]
+                    child_aP_tensor = child_fvmatrix.a_P.interior
+                    child_aE_tensor = child_fvmatrix.a_E.interior
+                    child_aW_tensor = child_fvmatrix.a_W.interior
+                    child_aN_tensor = child_fvmatrix.a_N.interior
+                    child_aS_tensor = child_fvmatrix.a_S.interior
+                    child_aT_tensor = child_fvmatrix.a_T.interior
+                    child_aB_tensor = child_fvmatrix.a_B.interior
+                    child_source_tensor = child_fvmatrix.source.interior
 
-                tgt_cell_tensor = cube.field.cells[fm.name]
-                half_width = tgt_cell_tensor.N // 2  # (T C halfN halfN halfN)
+                    coarsened_aP_tensor = F.avg_pool3d(
+                        child_aP_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aE_tensor = F.avg_pool3d(
+                        child_aE_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aW_tensor = F.avg_pool3d(
+                        child_aW_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aN_tensor = F.avg_pool3d(
+                        child_aN_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aS_tensor = F.avg_pool3d(
+                        child_aS_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aT_tensor = F.avg_pool3d(
+                        child_aT_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aB_tensor = F.avg_pool3d(
+                        child_aB_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_source_tensor = F.avg_pool3d(
+                        child_source_tensor,
+                        kernel_size=2,
+                        stride=2,
+                    )
+                    coarsened_aP_tensors[em.name].append(coarsened_aP_tensor)
+                    coarsened_aE_tensors[em.name].append(coarsened_aE_tensor)
+                    coarsened_aW_tensors[em.name].append(coarsened_aW_tensor)
+                    coarsened_aN_tensors[em.name].append(coarsened_aN_tensor)
+                    coarsened_aS_tensors[em.name].append(coarsened_aS_tensor)
+                    coarsened_aT_tensors[em.name].append(coarsened_aT_tensor)
+                    coarsened_aB_tensors[em.name].append(coarsened_aB_tensor)
+                    coarsened_source_tensors[em.name].append(
+                        coarsened_source_tensor
+                    )
+
+            # fm
+            for fm in cell_fm_list:
+                tgt_cell_field = cube.field.cells[fm.name]
+                half_width = tgt_cell_field.N // 2  # (T C halfN halfN halfN)
+                coarsened_tensors = coarsened_fm_tensors[fm.name]
                 for i, tensor in enumerate(coarsened_tensors):
                     iz = i // (2 * 2)
                     iy = (i % (2 * 2)) // 2
@@ -365,9 +658,56 @@ class GridHandle(IGridHandle):
                     xs, xe = ix * half_width, (ix + 1) * half_width
                     ys, ye = iy * half_width, (iy + 1) * half_width
                     zs, ze = iz * half_width, (iz + 1) * half_width
-                    tgt_cell_tensor.interior[..., zs:ze, ys:ye, xs:xe] = tensor
+                    tgt_cell_field.interior[..., zs:ze, ys:ye, xs:xe] = tensor
 
-    def sync_gfc(self, fm_list: list[FieldMeta]) -> None:
+            # em
+            for em in em_list:
+                tgt_fvmatrix = cube.field.fvmatrices[em.name]
+                half_width = tgt_fvmatrix.N // 2  # (T C halfN halfN halfN)
+                coarsened_aP_tensors = coarsened_aP_tensors[em.name]
+                coarsened_aE_tensors = coarsened_aE_tensors[em.name]
+                coarsened_aW_tensors = coarsened_aW_tensors[em.name]
+                coarsened_aN_tensors = coarsened_aN_tensors[em.name]
+                coarsened_aS_tensors = coarsened_aS_tensors[em.name]
+                coarsened_aT_tensors = coarsened_aT_tensors[em.name]
+                coarsened_aB_tensors = coarsened_aB_tensors[em.name]
+                coarsened_source_tensors = coarsened_source_tensors[em.name]
+                coeff_zip = zip(
+                    coarsened_aP_tensors,
+                    coarsened_aE_tensors,
+                    coarsened_aW_tensors,
+                    coarsened_aN_tensors,
+                    coarsened_aS_tensors,
+                    coarsened_aT_tensors,
+                    coarsened_aB_tensors,
+                    coarsened_source_tensors,
+                    strict=True,
+                )
+                for i, (aP, aE, aW, aN, aS, aT, aB, source) in enumerate(
+                    coeff_zip
+                ):
+                    iz = i // (2 * 2)
+                    iy = (i % (2 * 2)) // 2
+                    ix = i % 2
+                    xs, xe = ix * half_width, (ix + 1) * half_width
+                    ys, ye = iy * half_width, (iy + 1) * half_width
+                    zs, ze = iz * half_width, (iz + 1) * half_width
+                    tgt_fvmatrix.a_P.interior[..., zs:ze, ys:ye, xs:xe] = aP
+                    tgt_fvmatrix.a_E.interior[..., zs:ze, ys:ye, xs:xe] = aE
+                    tgt_fvmatrix.a_W.interior[..., zs:ze, ys:ye, xs:xe] = aW
+                    tgt_fvmatrix.a_N.interior[..., zs:ze, ys:ye, xs:xe] = aN
+                    tgt_fvmatrix.a_S.interior[..., zs:ze, ys:ye, xs:xe] = aS
+                    tgt_fvmatrix.a_T.interior[..., zs:ze, ys:ye, xs:xe] = aT
+                    tgt_fvmatrix.a_B.interior[..., zs:ze, ys:ye, xs:xe] = aB
+                    tgt_fvmatrix.source.interior[..., zs:ze, ys:ye, xs:xe] = (
+                        source
+                    )
+
+    def sync_gfc(
+        self,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize ghost cubes from their child cubes for all depths.
 
@@ -377,18 +717,30 @@ class GridHandle(IGridHandle):
         The data is coarsened using average pooling
         (2x2x2 cells are averaged into 1 cell).
         """
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
         for depth in reversed(range(self._grid.max_depth)):
             if depth == self._grid.max_depth - 1:
                 continue
-            self.sync_gfc_at_depth(depth, fm_list)
+            self.sync_gfc_at_depth(depth, fm_list, em_list)
 
-    def sync_all(self, fm_list: list[FieldMeta]) -> None:
+    def sync_all(
+        self,
+        fm_list: list[FieldMeta] | None = None,
+        em_list: list[EquationMeta] | None = None,
+    ) -> None:
         """
         Synchronize all fields for all depths.
         """
-        self.sync_gfp(fm_list)
-        self.sync_gfc(fm_list)
-        self.sync_halo(fm_list)
+        if fm_list is None:
+            fm_list = []
+        if em_list is None:
+            em_list = []
+        self.sync_gfp(fm_list, em_list)
+        self.sync_gfc(fm_list, em_list)
+        self.sync_halo(fm_list, em_list)
 
     @property
     def grid(self) -> Grid:
