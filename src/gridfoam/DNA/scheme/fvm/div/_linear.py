@@ -1,5 +1,5 @@
 
-from gridfoam.DNA.cubefield import CubeField
+from gridfoam.DNA._grid._grid import PyOctreeNode
 from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import CellField, FVMatrix
 from gridfoam.DNA.meta.field import FieldMeta
@@ -13,8 +13,9 @@ class FVMDivLinear:
 
     def build(
         self,
-        cube_field: CubeField,
+        cube: PyOctreeNode,
     ) -> FVMatrix:
+        cube_field = cube.field
         dx = cube_field.dx
         psi_c = cube_field.get_field(self._psi_fm)
         assert isinstance(psi_c, CellField)

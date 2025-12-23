@@ -1,6 +1,6 @@
 import abc
 
-from gridfoam.DNA.cubefield import CubeField
+from gridfoam.DNA._grid._grid import PyOctreeNode
 from gridfoam.DNA.fielddata import FVMatrix
 
 
@@ -8,7 +8,7 @@ class IFVMOperator(abc.ABC):
     @abc.abstractmethod
     def build(
         self,
-        cube_field: CubeField,
+        cube: PyOctreeNode,
     ) -> FVMatrix:
         """
         Build the FVM operator.
