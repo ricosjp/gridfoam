@@ -1,6 +1,7 @@
 import torch
 
 from gridfoam.DNA._grid._grid import PyOctreeNode
+from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
 from gridfoam.DNA.enum import Axis, FieldLayout
 from gridfoam.DNA.fielddata import CellField, FVMatrix
 from gridfoam.DNA.meta.field import FieldMeta
@@ -17,9 +18,10 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
     def build(
         self,
         cube: PyOctreeNode,
+        ctx: CtxForCubeOperation,
     ) -> FVMatrix:
         cube_field = cube.field
-        dx = cube_field.dx
+        dx = ctx.dx
         gamma_c = cube_field.get_field(self._gamma_fm)
         psi_c = cube_field.get_field(self._psi_fm)
         assert isinstance(gamma_c, CellField)

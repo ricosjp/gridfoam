@@ -75,7 +75,6 @@ if __name__ == "__main__":
 
     bc_heat_diffusion = BoundaryConditionMeta(
         name="T_wall",
-        target_field=T,
         target_boundary_labels=[
             "domainX+",
             "domainX-",
@@ -91,7 +90,7 @@ if __name__ == "__main__":
     eq_heat_diffusion = equation(
         name="heat_diffusion",
         target=T,
-        boundary_condition=bc_heat_diffusion,
+        boundary_conditions=[bc_heat_diffusion],
         lhs=ddt(T) + div(phi, T),
         # lhs=ddt(T) + div(phi, T),
     )

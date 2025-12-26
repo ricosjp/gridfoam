@@ -71,13 +71,6 @@ class TimeLevel(Enum):
     OLD_OLD = auto()
 
 
-class ParamType(Enum):
-    FLOAT = auto()
-    INT = auto()
-    BOOL = auto()
-    ENUM = auto()
-
-
 class BoundaryConditionType(Enum):
     """
     Type of the boundary condition.

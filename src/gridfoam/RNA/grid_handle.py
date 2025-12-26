@@ -23,6 +23,7 @@ from gridfoam.DNA.ASTNodes.arithmetic_node import ArithmeticNode, ArithmeticType
 from gridfoam.DNA.ASTNodes.operator_node import OperatorNode
 from gridfoam.DNA.config import GridfoamConfig, YamlRoot
 from gridfoam.DNA.constants import FACE_NEIGHBOR_MAP
+from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
 from gridfoam.DNA.cubefield import CubeField
 from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import FVMatrix
@@ -139,11 +140,9 @@ class GridHandle(IGridHandle):
         return x, y, z
 
     def allocate_by_registry(self, registry: SimulationMetaRegistry) -> None:
-        dt = self._config.simulator.control.deltaT
         for level in self.iter_levels():
             for cube in level.nodes.values():
-                dx = self.get_dx_at_depth(level.depth)
-                cube.field = CubeField(self._config.cube, dt, dx)
+                cube.field = CubeField(self._config.cube)
                 x, y, z = self._calculate_pos(level.depth, cube)
                 for field_meta in registry.fields.values():
                     cube.field.add_field(field_meta)
@@ -154,7 +153,8 @@ class GridHandle(IGridHandle):
                         )
                     if field_meta.name == "phi":
                         phi = cube.field.get_field(field_meta)
-                        phi.x[0] = 0.1*dx[1] * dx[2]
+                        dx = self.get_dx_at_depth(level.depth)
+                        phi.x[0] = 0.1 * dx[1] * dx[2]
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
         sync_list = [
@@ -181,27 +181,43 @@ class GridHandle(IGridHandle):
     def update_fvmatrix(self, equation_meta: EquationMeta) -> None:
         for level in self.iter_levels():
             for cube in level.nodes.values():
+                ctx = CtxForCubeOperation(
+                    depth=level.depth,
+                    bounds=torch.tensor(
+                        level.bounds, device=self._config.cube.device
+                    ),
+                    dt=self._config.simulator.control.deltaT,
+                    dx=self.get_dx_at_depth(level.depth),
+                    vertices=torch.tensor(
+                        self._mesh.points,
+                        dtype=torch.float32,
+                        device=self._config.cube.device,
+                    ),
+                    bcs=equation_meta.boundary_conditions,
+                )
                 fvmatrix = self._evaluate_node(
-                    equation_meta.ast_root, cube
+                    equation_meta.ast_root, cube, ctx
                 )
                 cube.field.fvmatrices[equation_meta.name] = fvmatrix
         self.sync_all(em_list=[equation_meta])
 
-    def _evaluate_node(self, node: IASTNode, cube: PyOctreeNode) -> FVMatrix:
+    def _evaluate_node(
+        self, node: IASTNode, cube: PyOctreeNode, ctx: CtxForCubeOperation
+    ) -> FVMatrix:
         if isinstance(node, ArithmeticNode):
             match node.type:
                 case ArithmeticType.ADD:
                     return self._evaluate_node(
-                        node.arg1, cube
-                    ) + self._evaluate_node(node.arg2, cube)
+                        node.arg1, cube, ctx
+                    ) + self._evaluate_node(node.arg2, cube, ctx)
                 case ArithmeticType.SUB:
                     return self._evaluate_node(
-                        node.arg1, cube
-                    ) - self._evaluate_node(node.arg2, cube)
+                        node.arg1, cube, ctx
+                    ) - self._evaluate_node(node.arg2, cube, ctx)
                 case _:
                     raise ValueError(f"Unknown arithmetic type: {node.type}")
         if isinstance(node, OperatorNode):
-            return node.operator.build(cube)
+            return node.operator.build(cube, ctx)
 
     ## Synchronizing halo
     def sync_halo_at_depth(

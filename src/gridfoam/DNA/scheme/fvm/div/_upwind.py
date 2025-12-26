@@ -1,8 +1,10 @@
 import torch
 
 from gridfoam.DNA._grid._grid import PyOctreeNode
-from gridfoam.DNA.enum import FieldLayout
+from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
+from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout
 from gridfoam.DNA.fielddata import CellField, FaceField, FVMatrix
+from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.fvm.div._interface import IFVMDivOperator
 
@@ -17,9 +19,10 @@ class FVMDivUpwind(IFVMDivOperator):
     def build(
         self,
         cube: PyOctreeNode,
+        ctx: CtxForCubeOperation,
     ) -> FVMatrix:
         cube_field = cube.field
-        dx = cube_field.dx
+        dx = ctx.dx
         phi_f = cube_field.get_field(self._phi_fm)
         psi_c = cube_field.get_field(self._psi_fm)
         assert isinstance(phi_f, FaceField)

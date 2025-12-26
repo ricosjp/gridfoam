@@ -1,6 +1,7 @@
 import torch
 
 from gridfoam.DNA._grid._grid import PyOctreeNode
+from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
 from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import FVMatrix
 from gridfoam.DNA.meta.field import FieldMeta
@@ -15,9 +16,10 @@ class FVMDdtEuler(IFVMDdtOperator):
     def build(
         self,
         cube: PyOctreeNode,
+        ctx: CtxForCubeOperation,
     ) -> FVMatrix:
         cube_field = cube.field
-        dt = cube_field.dt
+        dt = ctx.dt
         psi = cube_field.get_field(self._psi_fm)
         C = psi.C
         N = psi.N

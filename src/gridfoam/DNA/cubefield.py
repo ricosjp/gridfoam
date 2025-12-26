@@ -1,5 +1,4 @@
 import torch
-from jaxtyping import Float
 
 from gridfoam.DNA.config import CubeConfig
 from gridfoam.DNA.enum import FieldLayout
@@ -18,9 +17,7 @@ class CubeField:
     a container that can hold multiple named tensors of different types.
     """
 
-    def __init__(
-        self, cube_config: CubeConfig, dt: float, dx: Float[torch.Tensor, " 3"]
-    ) -> None:
+    def __init__(self, cube_config: CubeConfig) -> None:
         """
         Initialize the field container.
         Parameters
@@ -34,8 +31,6 @@ class CubeField:
         self._cells: dict[str, CellField] = {}
         self._faces: dict[str, FaceField] = {}
         self._fvmatrices: dict[str, FVMatrix] = {}
-        self._dt = dt
-        self._dx = dx
 
     @property
     def cells(self) -> dict[str, CellField]:
@@ -136,11 +131,3 @@ class CubeField:
         Get the FV matrix for an equation.
         """
         return self._fvmatrices[em.name]
-
-    @property
-    def dt(self) -> float:
-        return self._dt
-
-    @property
-    def dx(self) -> Float[torch.Tensor, " 3"]:
-        return self._dx

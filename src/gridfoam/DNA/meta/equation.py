@@ -13,7 +13,7 @@ class EquationMeta:
 
     # Reference to the target field (meta)
     target_field: FieldMeta
-    boundary_condition: BoundaryConditionMeta
+    boundary_conditions: list[BoundaryConditionMeta]
 
     # Abstract Syntax Tree (AST) root node
     ast_root: IASTNode

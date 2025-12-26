@@ -59,7 +59,7 @@ def grad(psi: FieldMeta) -> IASTNode:
 def equation(
     name: str,
     target: FieldMeta,
-    boundary_condition: BoundaryConditionMeta,
+    boundary_conditions: list[BoundaryConditionMeta],
     lhs: IASTNode,
     rhs: IASTNode | None = None,
 ) -> EquationMeta:
@@ -74,8 +74,8 @@ def equation(
     target : FieldMeta
         Target field of the equation.
         Note that the target field must be a state field.
-    boundary_condition : BoundaryConditionMeta
-        Boundary condition of the equation.
+    boundary_conditions : list[BoundaryConditionMeta]
+        List of boundary conditions for the equation.
     lhs : ASTNode
         Left-hand side of the equation.
         Example:
@@ -92,6 +92,6 @@ def equation(
     return EquationMeta(
         name=name,
         target_field=target,
-        boundary_condition=boundary_condition,
+        boundary_conditions=boundary_conditions,
         ast_root=lhs-rhs,
     )
