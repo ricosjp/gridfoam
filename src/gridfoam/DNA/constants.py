@@ -8,3 +8,12 @@ FACE_NEIGHBOR_MAP = {
     16: (Axis.Y, True),  # +y face
     22: (Axis.Z, True),  # +z face
 }
+
+DOMAIN_BOUNDARY_MAP = {
+    "domainZ-": 4,
+    "domainY-": 10,
+    "domainX-": 12,
+    "domainX+": 14,
+    "domainY+": 16,
+    "domainZ+": 22,
+}

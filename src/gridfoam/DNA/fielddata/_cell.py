@@ -173,6 +173,36 @@ class CellField:
     def __rmul__(self, other: float) -> CellField:
         return self * other
 
+    def get_boundary_cell_along(self, axis: Axis, forward: bool) -> Float[torch.Tensor, "T C N N"]:
+        """
+        Get the boundary cell value along the specified axis.
+        """
+        cell = -1 if forward else 0
+        match axis:
+            case Axis.X:
+                return self.interior[:, :, :, :, cell]
+            case Axis.Y:
+                return self.interior[:, :, :, cell, :]
+            case Axis.Z:
+                return self.interior[:, :, cell, :, :]
+            case _:
+                raise ValueError(f"Invalid axis: {axis}")
+
+    def set_boundary_cell_along(self, axis: Axis, forward: bool, value: Float[torch.Tensor, "T C N N"]) -> None:
+        """
+        Set the boundary cell value along the specified axis.
+        """
+        cell = -1 if forward else 0
+        match axis:
+            case Axis.X:
+                self.interior[:, :, :, :, cell] = value
+            case Axis.Y:
+                self.interior[:, :, :, cell, :] = value
+            case Axis.Z:
+                self.interior[:, :, cell, :, :] = value
+            case _:
+                raise ValueError(f"Invalid axis: {axis}")
+
     def get_half_interior(
         self, offset: UInt32[np.ndarray, " 3"]
     ) -> Float[torch.Tensor, "T C halfN halfN halfN"]:
@@ -262,7 +292,7 @@ class CellField:
         self._raw[tuple(slices)] = value
 
     def get_interior_halo_along(
-        self, axis: Axis, forward: bool
+        self, axis: Axis, forward: bool, flip: bool = False
     ) -> torch.Tensor:
         """
         Get the interior halo slice along the specified axis,
@@ -276,6 +306,10 @@ class CellField:
             Forward or backward slicing.
             - True: Forward slicing (e.g. +x, +y, +z)
             - False: Backward slicing (e.g. -x, -y, -z)
+        flip : bool
+            Flip the halo slice along the specified axis.
+            - True: Flip the halo slice
+            - False: Do not flip the halo slice
 
         Returns
         -------
@@ -292,7 +326,11 @@ class CellField:
         slices = [slice(self._H, -self._H)] * 3
         slices[axis] = bnd_slice
         slices = [slice(None)] * 2 + slices
-        return self._raw[tuple(slices)]
+        ret = self._raw[tuple(slices)]
+        if flip:
+            return torch.flip(ret, dims=[2+axis])
+        else:
+            return ret
 
     def get_shifted_interior_along(
         self, axis: Axis, shift: int
@@ -423,6 +461,23 @@ class CellField:
         face_field.x = self.face_average_along(Axis.X)
         face_field.y = self.face_average_along(Axis.Y)
         face_field.z = self.face_average_along(Axis.Z)
+        return face_field
+
+    def face_harmonic_mean(self) -> FaceField:
+        """
+        Get the face-harmonic mean values.
+
+        Returns
+        -------
+        FaceField
+            Face-harmonic mean tensor.
+        """
+        face_field = FaceField(
+            self.T, self.C, self.N, self.raw.dtype, self.raw.device
+        )
+        face_field.x = self.face_harmonic_mean_along(Axis.X)
+        face_field.y = self.face_harmonic_mean_along(Axis.Y)
+        face_field.z = self.face_harmonic_mean_along(Axis.Z)
         return face_field
 
     def face_grad(self, dx: Float[torch.Tensor, " 3"]) -> FaceField:

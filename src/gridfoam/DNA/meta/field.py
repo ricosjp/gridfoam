@@ -33,11 +33,11 @@ class FieldMeta(IASTNode):
     initialize_func: (
         Callable[
             [
-                Float[torch.Tensor, "..."],  # x (N N N)
-                Float[torch.Tensor, "..."],  # y (N N N)
-                Float[torch.Tensor, "..."],  # z (N N N)
+                Float[torch.Tensor, "..."],  # x (W W W)
+                Float[torch.Tensor, "..."],  # y (W W W)
+                Float[torch.Tensor, "..."],  # z (W W W)
             ],
-            Float[torch.Tensor, "..."],  # (C N N N)
+            Float[torch.Tensor, "..."],  # (C W W W)
         ]
         | None
     ) = None

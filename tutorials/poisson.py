@@ -9,7 +9,7 @@ from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.RNA.builtins.builtin_fields import builtin_T
 from gridfoam.RNA.defaults import default_registry
-from gridfoam.RNA.equation.api import ddt, div, equation, laplacian
+from gridfoam.RNA.equation.api import equation, laplacian
 
 configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
 
@@ -36,8 +36,6 @@ def initialize_T(
     device = x.device
     dtype = x.dtype
     T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    mask = (-1.0 < x) & (x < 1.0) & (-1.0 < y) & (y < 1.0) & (0.0 < z) & (z < 2.0)
-    T[0, mask] = 1.0
     return T
 
 def initialize_nu(
@@ -48,8 +46,36 @@ def initialize_nu(
     W = x.shape[0]
     device = x.device
     dtype = x.dtype
-    nu = torch.full((1, W, W, W), 0.01, dtype=dtype, device=device)
+    nu = torch.full((1, W, W, W), 1.0, dtype=dtype, device=device)
     return nu
+
+def initialize_f(
+    x: Float[torch.Tensor, "W W W"],
+    y: Float[torch.Tensor, "W W W"],
+    z: Float[torch.Tensor, "W W W"],
+) -> Float[torch.Tensor, "C W W W"]:
+    W = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+    f = torch.zeros((1, W, W, W), dtype=dtype, device=device)
+    def base_func(t):
+        return torch.sin(0.25*torch.pi*(t+2))
+    f[0] = (3.0*(torch.pi**2)/16.0)*base_func(x) * base_func(y) * base_func(z)
+    return f
+
+def initialize_exact_T(
+    x: Float[torch.Tensor, "W W W"],
+    y: Float[torch.Tensor, "W W W"],
+    z: Float[torch.Tensor, "W W W"],
+) -> Float[torch.Tensor, "C W W W"]:
+    W = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+    exact_T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
+    def base_func(t):
+        return torch.sin(0.25*torch.pi*(t+2))
+    exact_T[0] = base_func(x) * base_func(y) * base_func(z)
+    return exact_T
 
 if __name__ == "__main__":
     registry = default_registry()
@@ -65,6 +91,27 @@ if __name__ == "__main__":
             initialize_func=initialize_nu,
         )
     )
+    registry.register_field(
+        FieldMeta(
+            name="f",
+            label="Source term",
+            role=FieldRole.AUXILIARY,
+            layout=FieldLayout.CELL,
+            components=1,
+            initialize_func=initialize_f,
+        )
+    )
+
+    registry.register_field(
+        FieldMeta(
+            name="exact_T",
+            label="Exact solution",
+            role=FieldRole.AUXILIARY,
+            layout=FieldLayout.CELL,
+            components=1,
+            initialize_func=initialize_exact_T,
+        )
+    )
 
     U = registry.get_field("U")
     T = registry.get_field("T")
@@ -72,21 +119,22 @@ if __name__ == "__main__":
     T.initialize_func = initialize_T
     phi = registry.get_field("phi")
     nu = registry.get_field("nu")
+    f = registry.get_field("f")
 
     bcs_heat_diffusion = [
         BoundaryConditionMeta(
             name="T_wall",
             target_field=T,
             target_boundary_labels=[
-                # "domainZ-",
-                # "domainY-",
+                "domainZ-",
+                "domainY-",
                 "domainX-",
-                # "domainX+",
-                # "domainY+",
-                # "domainZ+",
+                "domainX+",
+                "domainY+",
+                "domainZ+",
             ],
             type=BoundaryConditionType.DIRICHLET,
-            value=torch.ones((1,), dtype=torch.float64),
+            value=torch.zeros((1,), dtype=torch.float64),
         ),
     ]
 
@@ -94,9 +142,7 @@ if __name__ == "__main__":
         name="heat_diffusion",
         target=T,
         boundary_conditions=bcs_heat_diffusion,
-        # lhs=ddt(T) + div(phi, T),
-        # lhs=ddt(T) - laplacian(nu, T),
-        lhs=ddt(T) + div(phi, T) - laplacian(nu, T),
+        lhs=laplacian(nu, T) + f
     )
     registry.register_equation(eq_heat_diffusion)
     simulation_engine = SimulationEngine(
@@ -121,4 +167,3 @@ if __name__ == "__main__":
     #     cube_T = field.cells["T"].interior[0].sum()
     #     total_T += cube_T
     # print(f"Final total T: {total_T}")
-

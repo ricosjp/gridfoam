@@ -1,10 +1,11 @@
 import torch
 
-from gridfoam.DNA._grid._grid import PyOctreeNode
+from gridfoam.DNA._grid._grid import PyOctreeNode, RawIndexConversionMode
+from gridfoam.DNA.constants import DOMAIN_BOUNDARY_MAP, FACE_NEIGHBOR_MAP
 from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
-from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout
+from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import CellField, FaceField, FVMatrix
-from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
+from gridfoam.DNA.meta.boundary_condition import BoundaryConditionType
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.fvm.div._interface import IFVMDivOperator
 
@@ -62,4 +63,73 @@ class FVMDivUpwind(IFVMDivOperator):
             + torch.maximum(phi_t, zero)
             - torch.minimum(phi_b, zero)
         ) / V
+
+        self._apply_boundary_conditions(cube, ctx, fvmatrix)
+
         return fvmatrix
+
+    def _apply_boundary_conditions(
+        self,
+        cube: PyOctreeNode,
+        ctx: CtxForCubeOperation,
+        fvmatrix: FVMatrix,
+    ) -> None:
+        nbr_codes = cube.cubecode.neighbor_codes(
+            ctx.depth,
+            ctx.bounds,
+            RawIndexConversionMode.BORDER,
+            False,
+        )
+        for bc in ctx.bcs:
+            for label in bc.target_boundary_labels:
+                if (
+                    label in DOMAIN_BOUNDARY_MAP
+                    and nbr_codes[DOMAIN_BOUNDARY_MAP[label]] is None
+                ):
+                    axis, forward = FACE_NEIGHBOR_MAP[
+                        DOMAIN_BOUNDARY_MAP[label]
+                    ]
+                    target_coeff = fvmatrix.get_coeff_along(axis, forward)
+                    a_boundary = target_coeff.get_boundary_cell_along(
+                        axis, forward
+                    )
+                    zero = torch.zeros_like(a_boundary)
+                    source = fvmatrix.source.get_boundary_cell_along(
+                        axis, forward
+                    )
+                    match bc.type:
+                        case BoundaryConditionType.DIRICHLET:
+                            # (C N N)
+                            source -= a_boundary * bc.value[:, None, None]
+                            fvmatrix.source.set_boundary_cell_along(
+                                axis, forward, source
+                            )
+                            target_coeff.set_boundary_cell_along(
+                                axis, forward, zero
+                            )
+                        case BoundaryConditionType.NEUMANN:
+                            sign = 1.0 if forward else -1.0
+                            dx = ctx.dx[axis.value-1]
+                            source -= (
+                                sign
+                                * a_boundary
+                                * 0.5
+                                * dx
+                                * bc.value[:, None, None]
+                            )
+                            a_p_boundary = fvmatrix.a_P.get_boundary_cell_along(
+                                axis, forward
+                            )
+                            fvmatrix.a_P.set_boundary_cell_along(
+                                axis, forward, a_p_boundary + a_boundary
+                            )
+                            fvmatrix.source.set_boundary_cell_along(
+                                axis, forward, source
+                            )
+                            target_coeff.set_boundary_cell_along(
+                                axis, forward, zero
+                            )
+                        case _:
+                            raise ValueError(
+                                f"Invalid boundary condition type: {bc.type}"
+                            )

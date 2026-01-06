@@ -190,3 +190,36 @@ class FVMatrix:
             self.a_B.interior[0] * xi.get_shifted_interior_along(Axis.Z, -1)[0]
         )
         return yi
+
+    def get_coeff_along(self, axis: Axis, forward: bool) -> CellField:
+        match axis:
+            case Axis.X:
+                return self.a_E if forward else self.a_W
+            case Axis.Y:
+                return self.a_N if forward else self.a_S
+            case Axis.Z:
+                return self.a_T if forward else self.a_B
+            case _:
+                raise ValueError(f"Invalid axis: {axis}")
+
+    def set_coeff_along(
+        self, axis: Axis, forward: bool, value: Float[torch.Tensor, "C N N N"]
+    ) -> None:
+        match axis:
+            case Axis.X:
+                if forward:
+                    self.a_E.interior[0] = value
+                else:
+                    self.a_W.interior[0] = value
+            case Axis.Y:
+                if forward:
+                    self.a_N.interior[0] = value
+                else:
+                    self.a_S.interior[0] = value
+            case Axis.Z:
+                if forward:
+                    self.a_T.interior[0] = value
+                else:
+                    self.a_B.interior[0] = value
+            case _:
+                raise ValueError(f"Invalid axis: {axis}")

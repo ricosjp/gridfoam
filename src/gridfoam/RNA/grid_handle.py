@@ -29,6 +29,7 @@ from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import FVMatrix
 from gridfoam.DNA.meta.equation import EquationMeta
 from gridfoam.DNA.meta.field import FieldMeta
+from gridfoam.DNA.scheme.fvm.identity import FVMIdentity
 from gridfoam.RNA.registry import SimulationMetaRegistry
 
 
@@ -115,8 +116,10 @@ class GridHandle(IGridHandle):
         Float[torch.Tensor, "N N N"],
     ]:
         N = self._config.cube.interior_width
+        H = self._config.cube.halo_width
+        W = N + 2 * H
         device = self._config.cube.device
-        divisions = torch.tensor([N, N, N], dtype=torch.int64, device=device)
+        divisions = torch.tensor([W, W, W], dtype=torch.int64, device=device)
         dx = self.get_dx_at_depth(depth)  # (3,)
         cube_index = torch.tensor(
             cube.cubecode.to_global_index(depth).astype(np.int64),
@@ -128,11 +131,11 @@ class GridHandle(IGridHandle):
             device=cube.field.device,
         )  # (3,)
         cell_index_in_cube = _generate_grid_indices(divisions).reshape(
-            3, N, N, N
-        )  # (3, N, N, N)
+            3, W, W, W
+        )  # (3, W, W, W)
         cell_index_in_global = (
-            cell_index_in_cube + cube_index[:, None, None, None] * N
-        )  # (3, N, N, N)
+            cell_index_in_cube - H + cube_index[:, None, None, None] * N
+        )  # (3, W, W, W)
         x, y, z = (
             domain_lower_pos[:, None, None, None]
             + (2 * cell_index_in_global + 1) * 0.5 * dx[:, None, None, None]
@@ -141,6 +144,7 @@ class GridHandle(IGridHandle):
 
     def allocate_by_registry(self, registry: SimulationMetaRegistry) -> None:
         for level in self.iter_levels():
+            dx = self.get_dx_at_depth(level.depth)
             for cube in level.nodes.values():
                 cube.field = CubeField(self._config.cube)
                 x, y, z = self._calculate_pos(level.depth, cube)
@@ -148,13 +152,16 @@ class GridHandle(IGridHandle):
                     cube.field.add_field(field_meta)
                     if field_meta.initialize_func is not None:
                         cell_field = cube.field.get_field(field_meta)
-                        cell_field.interior[0] = field_meta.initialize_func(
+                        cell_field.raw[0] = field_meta.initialize_func(
                             x, y, z
                         )
                     if field_meta.name == "phi":
+                        U = cube.field.get_field(registry.get_field("U"))
                         phi = cube.field.get_field(field_meta)
-                        dx = self.get_dx_at_depth(level.depth)
-                        phi.x[0] = 0.1 * dx[1] * dx[2]
+                        Uf = U.face_average()
+                        phi.x[0] = Uf.x[0,0] * dx[1] * dx[2]
+                        phi.y[0] = Uf.y[0,1] * dx[0] * dx[2]
+                        phi.z[0] = Uf.z[0,2] * dx[0] * dx[1]
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
         sync_list = [
@@ -180,14 +187,13 @@ class GridHandle(IGridHandle):
 
     def update_fvmatrix(self, equation_meta: EquationMeta) -> None:
         for level in self.iter_levels():
+            dx = self.get_dx_at_depth(level.depth)
             for cube in level.nodes.values():
                 ctx = CtxForCubeOperation(
                     depth=level.depth,
-                    bounds=torch.tensor(
-                        level.bounds, device=self._config.cube.device
-                    ),
+                    bounds=level.bounds,
                     dt=self._config.simulator.control.deltaT,
-                    dx=self.get_dx_at_depth(level.depth),
+                    dx=dx,
                     vertices=torch.tensor(
                         self._mesh.points,
                         dtype=torch.float32,
@@ -218,6 +224,8 @@ class GridHandle(IGridHandle):
                     raise ValueError(f"Unknown arithmetic type: {node.type}")
         if isinstance(node, OperatorNode):
             return node.operator.build(cube, ctx)
+        if isinstance(node, FieldMeta):
+            return FVMIdentity(node).build(cube, ctx)
 
     ## Synchronizing halo
     def sync_halo_at_depth(
