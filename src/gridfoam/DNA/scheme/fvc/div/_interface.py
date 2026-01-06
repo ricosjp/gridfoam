@@ -14,7 +14,7 @@ class IFVCDivOperator(IFVCOperator):
         cls,
         psi_c: CellField,
         dx: Float[torch.Tensor, " 3"],
-    ) -> Float[torch.Tensor, "T C N N N"]:
+    ) -> Float[torch.Tensor, "T 1 N N N"]:
         """
         Apply the FVC div operator.
         """

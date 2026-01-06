@@ -216,9 +216,9 @@ class FaceField:
 
         Returns
         -------
-        Float[torch.Tensor, "C N N N"]
+        Float[torch.Tensor, "T C N N N"]
             Cell-centered divergence tensor with shape
-            (C, N, N, N).
+            (T, C, N, N, N).
         """
         xp = self.x[:, :, :, :, 1:] * Sf[0]
         xm = self.x[:, :, :, :, :-1] * Sf[0]

@@ -21,11 +21,10 @@ class FVMDivLinear:
         dx = ctx.dx
         psi_c = cube_field.get_field(self._psi_fm)
         assert isinstance(psi_c, CellField)
-        C = psi_c.C
         N = psi_c.N
         H = psi_c.H
         dtype = psi_c.raw.dtype
         device = psi_c.raw.device
-        fvmatrix = FVMatrix(C, N, H, dtype, device)
+        fvmatrix = FVMatrix(1, N, H, dtype, device)
         fvmatrix.source = -FVCDivLinear().apply(psi_c, dx)[0]
         return fvmatrix

@@ -45,7 +45,6 @@ class SimulationEngine:
             match operator_type:
                 case OperatorType.DDT:
                     operator = registry.get_ddt_operator(key, node.args[0])
-                    node.operator = operator
                 case OperatorType.DIV:
                     n_args = len(node.args)
                     if n_args == 1:
@@ -54,21 +53,19 @@ class SimulationEngine:
                         operator = registry.get_div_operator(
                             key, node.args[0], node.args[1]
                         )
-                        node.operator = operator
                     else:
                         raise ValueError(
                             f"Unknown number of arguments: {n_args}"
                         )
                 case OperatorType.GRAD:
                     operator = registry.get_grad_operator(key, node.args[0])
-                    node.operator = operator
                 case OperatorType.LAPLACIAN:
                     operator = registry.get_laplacian_operator(
                         key, node.args[0], node.args[1]
                     )
-                    node.operator = operator
                 case _:
                     raise ValueError(f"Unknown operator type: {operator_type}")
+            node.operator = operator
 
     def solve(self, equation_meta: EquationMeta) -> None:
         step = 0

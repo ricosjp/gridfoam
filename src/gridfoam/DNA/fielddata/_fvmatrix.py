@@ -165,15 +165,15 @@ class FVMatrix:
 
     @property
     def a_fx(self) -> Float[torch.Tensor, "C N N L"]:
-        return self.a_P.face_harmonic_mean_along(Axis.X)
+        return self.a_P.face_harmonic_mean_along(Axis.X)[0]
 
     @property
     def a_fy(self) -> Float[torch.Tensor, "C N L N"]:
-        return self.a_P.face_harmonic_mean_along(Axis.Y)
+        return self.a_P.face_harmonic_mean_along(Axis.Y)[0]
 
     @property
     def a_fz(self) -> Float[torch.Tensor, "C L N N"]:
-        return self.a_P.face_harmonic_mean_along(Axis.Z)
+        return self.a_P.face_harmonic_mean_along(Axis.Z)[0]
 
     def apply(self, xi: CellField) -> Float[torch.Tensor, "C N N N"]:
         yi = self.a_P.interior[0] * xi.interior[0]
