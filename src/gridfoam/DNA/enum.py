@@ -36,11 +36,6 @@ class Precision(Enum):
     FLOAT64 = auto()
 
 
-class Device(Enum):
-    CPU = auto()
-    CUDA = auto()
-
-
 class Axis(Enum):
     X = auto()
     Y = auto()
@@ -54,8 +49,8 @@ class NormType(Enum):
     - L_2: 2-norm.
     """
 
-    L_inf = auto()
-    L_2 = auto()
+    L_inf = "L_inf"
+    L_2 = "L_2"
 
 
 class TimeLevel(Enum):

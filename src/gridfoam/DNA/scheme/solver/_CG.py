@@ -69,7 +69,6 @@ class CG(ILinearSolver):
         r = torch.zeros(shape, device=device, dtype=x_fm.dtype)
         p = torch.zeros(shape, device=device, dtype=x_fm.dtype)
         y = torch.zeros(shape, device=device, dtype=x_fm.dtype)
-        z = torch.zeros(shape, device=device, dtype=x_fm.dtype)
         rr = torch.zeros((), device=device, dtype=x_fm.dtype)
 
         for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
@@ -78,7 +77,7 @@ class CG(ILinearSolver):
             fvmatrix = field.fvmatrices[eq_name]
             x[i] = xi.interior[0]
             r[i] = fvmatrix.source.interior[0] - fvmatrix.apply(xi)
-            p[i] = r[i] / fvmatrix.a_P.interior[0]
+            p[i] = r[i]
             field.cells[self._p_fm.name].interior[0] = p[i]
         grid_handle.sync_all([self._p_fm])
 
@@ -88,14 +87,14 @@ class CG(ILinearSolver):
             return
 
         for it in range(self._max_iter):
-            rr[None] = 0.0
+            # Update solution
             for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                 field = cube.field
                 fvmatrix = field.fvmatrices[eq_name]
                 pi = field.cells[self._p_fm.name]
                 y[i] = fvmatrix.apply(pi)
-                rr += (r[i] * r[i] / fvmatrix.a_P.interior[0]).sum()
             py = (p * y).sum()
+            rr = (r * r).sum()
             alpha = rr / py if torch.abs(py) > 1e-12 else 0.0
             x += alpha * p
             r -= alpha * y
@@ -104,14 +103,14 @@ class CG(ILinearSolver):
             rnorm = self._compute_norm(r)
             print(
                 f"CG iteration {it + 1}, \
-                    residual: {rnorm}, rel_residual: {rnorm / rnorm_0}"
+                    residual: {rnorm:.6f}, rel_residual: {rnorm / rnorm_0:.6f}"
             )
             if rnorm < self._tolerance or rnorm / rnorm_0 < self._rel_tolerance:
                 print(
                     f"CG converged\
                         -- iterations: {it + 1},\
-                        residual: {rnorm},\
-                        rel_residual: {rnorm / rnorm_0}"
+                        residual: {rnorm:.6f},\
+                        rel_residual: {rnorm / rnorm_0:.6f}"
                 )
                 for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                     field = cube.field
@@ -119,13 +118,9 @@ class CG(ILinearSolver):
                 grid_handle.sync_all([x_fm])
                 return
 
-            for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
-                field = cube.field
-                pi = field.cells[self._p_fm.name].interior[0]
-                z[i] = r[i] / fvmatrix.a_P.interior[0]
-
-            beta = (r * z).sum() / rr
-            p = z + beta * p
+            # Update search direction
+            beta = (r * r).sum() / rr
+            p = r + beta * p
             for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
                 field = cube.field
                 field.cells[self._p_fm.name].interior[0] = p[i]

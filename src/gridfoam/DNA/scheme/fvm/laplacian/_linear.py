@@ -100,15 +100,17 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
                     target_coeff = fvmatrix.get_coeff_along(axis, forward)
                     a_boundary = target_coeff.get_boundary_cell_along(
                         axis, forward
-                    ) # (T C N N)
+                    )  # (T C N N)
                     zero = torch.zeros_like(a_boundary)
                     source = fvmatrix.source.get_boundary_cell_along(
                         axis, forward
-                    ) # (T C N N)
+                    )  # (T C N N)
                     match bc.type:
                         case BoundaryConditionType.DIRICHLET:
                             # (T C N N)
-                            source -= 2.0 * a_boundary * bc.value[None, :, None, None]
+                            source -= (
+                                2.0 * a_boundary * bc.value[None, :, None, None]
+                            )
                             a_p_boundary = fvmatrix.a_P.get_boundary_cell_along(
                                 axis, forward
                             )
@@ -123,10 +125,9 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
                             )
                         case BoundaryConditionType.NEUMANN:
                             sign = 1.0 if forward else -1.0
-                            dx = ctx.dx[axis.value-1]
-                            source -= (
-                                sign * a_boundary * dx * bc.value[None,:, None, None]
-                            )
+                            dx = ctx.dx[axis.value - 1]
+                            value = bc.value[axis.value - 1]
+                            source -= sign * a_boundary * dx * value
                             a_p_boundary = fvmatrix.a_P.get_boundary_cell_along(
                                 axis, forward
                             )

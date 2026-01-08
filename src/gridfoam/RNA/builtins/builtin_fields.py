@@ -13,6 +13,17 @@ def builtin_U() -> FieldMeta:
         unit="m/s",
     )
 
+def builtin_rAU() -> FieldMeta:
+    return FieldMeta(
+        name="rAU",
+        label="reciprocal diagonal components of momentum equation",
+        description="reciprocal diagonal components of momentum equation",
+        role=FieldRole.AUXILIARY,
+        layout=FieldLayout.CELL,
+        components=3,
+        unit="1/s",
+    )
+
 def builtin_p() -> FieldMeta:
     return FieldMeta(
         name="p",

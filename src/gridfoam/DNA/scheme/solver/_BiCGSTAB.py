@@ -155,12 +155,17 @@ class BiCGSTAB(ILinearSolver):
                 field.cells[self._p_fm.name].interior[0] = p[i]
             grid_handle.sync_all([self._p_fm])
 
-        raise ValueError(
+        print(
             f"BiCGSTAB did not converge\
                 -- iterations: {self._max_iter},\
                 residual: {rnorm:.6f},\
                 rel_residual: {rnorm / rnorm_0:.6f}"
         )
+        for i, (_, cube) in enumerate(grid_handle.iter_all_leaves()):
+            field = cube.field
+            field.cells[x_fm.name].interior[0] = x[i]
+        grid_handle.sync_all([x_fm])
+        return
 
     def _compute_norm(self, x: Float[torch.Tensor, "..."]) -> float:
         match self._norm_type:
