@@ -1,3 +1,4 @@
+import csv
 import pathlib
 
 from gridfoam.CTX.context import SimulationContext
@@ -70,7 +71,18 @@ class SimulationEngine:
     def solve(self, equation_meta: EquationMeta) -> None:
         step = 0
         time = 0.0
-        self.context.save(f"bunny_{step:04d}.vtkhdf")
+        self.context.save(f"vortex_{step:04d}.vtkhdf")
+
+        time_vs_total_T = {"time": [], "total_T": []}
+
+        total_T = 0.0
+        for _, cube in self.context.grid_handle.iter_all_leaves():
+            field = cube.field
+            T_field = field.cells["T"]
+            cube_T = T_field.interior[0].sum()
+            total_T += cube_T
+        time_vs_total_T["time"].append(time)
+        time_vs_total_T["total_T"].append(total_T)
 
         while 1:
             print(f"Step {step:04d}")
@@ -81,12 +93,26 @@ class SimulationEngine:
             solver = self.context.registry.get_solver(equation_meta.name)
             solver.solve(self.context.grid_handle)
 
+            total_T = 0.0
+            for _, cube in self.context.grid_handle.iter_all_leaves():
+                field = cube.field
+                T_field = field.cells["T"]
+                cube_T = T_field.interior[0].sum()
+                total_T += cube_T
+            time_vs_total_T["time"].append(time)
+            time_vs_total_T["total_T"].append(total_T)
+
             if step % self._write_interval == 0:
                 self.context.save(
-                    f"bunny_{step:04d}.vtkhdf"
+                    f"vortex_{step:04d}.vtkhdf"
                 )
             if time >= self._end_time:
                 break
+
+        with open("time_vs_total_T.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(time_vs_total_T.keys())
+            writer.writerows(zip(*time_vs_total_T.values(), strict=True))
 
     @property
     def context(self) -> SimulationContext:
