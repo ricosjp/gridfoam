@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.fvm.div._choice import FVMDivSchemeChoice
 from gridfoam.DNA.scheme.fvm.div._interface import IFVMDivOperator
+from gridfoam.DNA.scheme.fvm.div._limited_linear import FVMDivLimitedLinear
 from gridfoam.DNA.scheme.fvm.div._upwind import FVMDivUpwind
 
 
@@ -22,6 +23,8 @@ class FVMDivSchemeConfig:
         match self.choice:
             case FVMDivSchemeChoice.UPWIND:
                 return FVMDivUpwind(phi_fm, psi_fm)
+            case FVMDivSchemeChoice.LIMITED_LINEAR:
+                return FVMDivLimitedLinear(phi_fm, psi_fm)
             case _:
                 raise ValueError(
                     f"Unknown div scheme choice: {self.choice.name}"

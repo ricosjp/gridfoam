@@ -12,8 +12,8 @@ class FVMDivSchemeChoice(Enum):
     """
     Upwind scheme.
     """
-    # LIMITED_LINEAR = "LimitedLinear"
-    # """
-    # Limited linear scheme.
-    # """
+    LIMITED_LINEAR = "LimitedLinear"
+    """
+    Limited linear scheme.
+    """
 
