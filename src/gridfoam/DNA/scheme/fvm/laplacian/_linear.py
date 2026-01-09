@@ -36,7 +36,7 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
         device = psi_c.raw.device
         fvmatrix = FVMatrix(C, N, H, dtype, device)
         Sf = torch.tensor([dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1]])
-        V = dx[0] * dx[1] * dx[2]
+        V = torch.prod(dx)
         gamma_f = gamma_c.face_harmonic_mean()
 
         # (C N N N)

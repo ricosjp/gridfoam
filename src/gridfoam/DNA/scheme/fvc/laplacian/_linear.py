@@ -14,7 +14,7 @@ class FVCLaplacianLinear(IFVCLaplacianOperator):
         dx: Float[torch.Tensor, " 3"],
     ) -> Float[torch.Tensor, "T 1 N N N"]:
         Sf = torch.tensor([dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1]])
-        V = dx[0] * dx[1] * dx[2]
+        V = torch.prod(dx)
         # x: (T C N N L), y: (T C N L N), z: (T C L N N)
         gamma_f = gamma_c.face_harmonic_mean()
         grad_psi_f = psi_c.face_grad(dx)

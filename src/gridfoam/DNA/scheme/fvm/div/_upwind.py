@@ -34,7 +34,7 @@ class FVMDivUpwind(IFVMDivOperator):
         dtype = psi_c.raw.dtype
         device = psi_c.raw.device
         fvmatrix = FVMatrix(C, N, H, dtype, device)
-        V = dx[0] * dx[1] * dx[2]
+        V = torch.prod(dx)
 
         # (C N N N)
         phi_e = phi_f.x[0, :, :, :, 1:]

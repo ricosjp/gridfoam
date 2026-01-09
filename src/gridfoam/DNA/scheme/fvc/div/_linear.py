@@ -13,7 +13,7 @@ class FVCDivLinear(IFVCDivOperator):
         dx: Float[torch.Tensor, " 3"],
     ) -> Float[torch.Tensor, "T 1 N N N"]:
         Sf = torch.tensor([dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1]])
-        V = dx[0] * dx[1] * dx[2]
+        V = torch.prod(dx)
         # x: (T C N N L), y: (T C N L N), z: (T C L N N)
         psi_f = psi_c.face_average()
         psi_f_diag = FaceField(
