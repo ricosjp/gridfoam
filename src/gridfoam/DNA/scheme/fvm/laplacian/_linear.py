@@ -89,6 +89,8 @@ class FVMLaplacianLinear(IFVMLaplacianOperator):
             False,
         )
         for bc in ctx.bcs:
+            if bc.target_field != self._psi_fm:
+                continue
             for label in bc.target_boundary_labels:
                 if (
                     label in DOMAIN_BOUNDARY_MAP

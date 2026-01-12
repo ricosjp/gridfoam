@@ -90,7 +90,6 @@ class RhieChowCorrection:
             RawIndexConversionMode.BORDER,
             False,
         )
-        N = gradp.shape[1]
         for bc in ctx.bcs:
             if (
                 bc.target_field != self._p_fm

@@ -16,4 +16,7 @@ class FVMDivSchemeChoice(Enum):
     """
     Limited linear scheme.
     """
-
+    LIMITED_LINEAR_V = "LimitedLinearV"
+    """
+    Limited linear V scheme.
+    """

@@ -23,6 +23,8 @@ def initialize_U(
     device = x.device
     dtype = x.dtype
     U = torch.zeros((3, W, W, W), dtype=dtype, device=device)
+    mask = y > 0.1
+    U[0, mask] = 1.0
     return U
 
 
@@ -122,18 +124,21 @@ if __name__ == "__main__":
         ),
     ]
 
+    bcs = bcs_U + bcs_p
+
     momentum_equation = equation(
         name="momentum",
         target=U,
-        boundary_conditions=bcs_U,
+        boundary_conditions=bcs,
         lhs=ddt(U) + div(phi, U) - laplacian(nu, U)
+        # lhs=ddt(U) + div(phi, U)
     )
     registry.register_equation(momentum_equation)
 
     poisson_equation = equation(
         name="poisson",
         target=p,
-        boundary_conditions=bcs_p,
+        boundary_conditions=bcs,
         lhs=laplacian(rAU, p) - div(U)
     )
     registry.register_equation(poisson_equation)
@@ -147,4 +152,6 @@ if __name__ == "__main__":
 
     simulation_engine.solve()
 
-
+#TODO empty boundary
+#TODO test
+#TODO check convergence

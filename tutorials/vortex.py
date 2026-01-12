@@ -9,7 +9,7 @@ from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.RNA.builtins.builtin_fields import builtin_T
 from gridfoam.RNA.defaults import default_registry
-from gridfoam.RNA.equation.api import ddt, div, equation
+from gridfoam.RNA.equation.api import ddt, div, equation, laplacian
 
 configpath = pathlib.Path("tests/data/yaml/vortex.yaml")
 
@@ -99,8 +99,8 @@ if __name__ == "__main__":
         name="heat_diffusion",
         target=T,
         boundary_conditions=bcs_T,
-        # lhs=ddt(T) + div(phi, T) - laplacian(nu, T),
-        lhs=ddt(T) + div(phi, T),
+        lhs=ddt(T) + div(phi, T) - laplacian(nu, T),
+        # lhs=ddt(T) + div(phi, T),
     )
     registry.register_equation(eq_heat_diffusion)
     simulation_engine = SimulationEngine(
