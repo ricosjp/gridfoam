@@ -29,6 +29,7 @@ class SimulationEngine:
         self._write_interval = config.simulator.control.writeInterval
         self._end_time = config.simulator.control.endTime
         self._deltaT = config.simulator.control.deltaT
+        self._base_name = config.io.base_name
 
     def initialize(self) -> None:
         self.context.grid_handle.allocate_by_registry(self.context.registry)
@@ -71,7 +72,7 @@ class SimulationEngine:
     def solve(self, equation_meta: EquationMeta) -> None:
         step = 0
         time = 0.0
-        self.context.save(f"vortex_{step:04d}.vtkhdf")
+        self.context.save(f"{self._base_name}_{step:04d}.vtkhdf")
 
         time_vs_total_T = {"time": [], "total_T": []}
 
@@ -104,7 +105,7 @@ class SimulationEngine:
 
             if step % self._write_interval == 0:
                 self.context.save(
-                    f"vortex_{step:04d}.vtkhdf"
+                    f"{self._base_name}_{step:04d}.vtkhdf"
                 )
             if time >= self._end_time:
                 break

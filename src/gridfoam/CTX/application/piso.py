@@ -42,6 +42,7 @@ class PISOEngine:
             p_fm=registry.get_field("p"),
             momentum_eq=registry.get_equation("momentum"),
         )
+        self._base_name = config.io.base_name
 
     def initialize(self) -> None:
         self.context.grid_handle.allocate_by_registry(self.context.registry)
@@ -84,7 +85,7 @@ class PISOEngine:
     def solve(self) -> None:
         step = 0
         time = 0.0
-        self.context.save(f"cavity_{step:04d}.vtkhdf")
+        self.context.save(f"{self._base_name}_{step:04d}.vtkhdf")
 
         while 1:
             print(f"Step {step:04d}")
@@ -97,7 +98,7 @@ class PISOEngine:
             solver = self.context.registry.get_solver(momentum_eq.name)
             solver.solve(self.context.grid_handle)
 
-            self.context.save(f"cavity_{step:04d}_momentum.vtkhdf")
+            # self.context.save(f"cavity_{step:04d}_momentum.vtkhdf")
 
             # momentum correction
             for level in self.context.grid_handle.iter_levels():
@@ -114,7 +115,7 @@ class PISOEngine:
             solver = self.context.registry.get_solver(poisson_eq.name)
             solver.solve(self.context.grid_handle)
 
-            self.context.save(f"cavity_{step:04d}_poisson.vtkhdf")
+            # self.context.save(f"cavity_{step:04d}_poisson.vtkhdf")
 
             # rhie-chow correction
             for level in self.context.grid_handle.iter_levels():
@@ -135,7 +136,7 @@ class PISOEngine:
                     self._rhie_chow_correction.update_velocity(cube, ctx)
             self.context.grid_handle.sync_all(fm_list=[self.context.registry.fields["U"]])
 
-            self.context.save(f"cavity_{step:04d}_rhie_chow.vtkhdf")
+            # self.context.save(f"cavity_{step:04d}_rhie_chow.vtkhdf")
 
             # flux correction
             for level in self.context.grid_handle.iter_levels():
@@ -157,7 +158,7 @@ class PISOEngine:
 
             if step % self._write_interval == 0:
                 self.context.save(
-                    f"cavity_{step:04d}.vtkhdf"
+                    f"{self._base_name}_{step:04d}.vtkhdf"
                 )
             if time >= self._end_time:
                 break

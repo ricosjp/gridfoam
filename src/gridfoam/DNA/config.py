@@ -58,6 +58,11 @@ class IoConfig(BaseModel, frozen=True):
     output_dir : pathlib.Path
         Output directory for the grid.
     """
+    base_name: str
+    """
+    base_name : str
+        Base name for the output files.
+    """
     only_leaves: bool = Field(default=True)
     """
     only_leaves : bool

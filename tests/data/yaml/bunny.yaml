@@ -39,6 +39,7 @@ gridfoam:
         #   method: CG
   io:
     output_dir: "tests/outputs/grid"
+    base_name: "bunny"
     only_leaves: true
     overwrite_file: true
 
