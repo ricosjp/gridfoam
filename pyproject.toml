@@ -17,7 +17,8 @@ dependencies = [
   "pyvista>=0.44.2",
   "pydantic>=2.11.7",
   "pyyaml>=6.0.2",
-  "cubion"
+  "cubion",
+  "marimo>=0.19.0",
 ]
 
 [project.optional-dependencies]
@@ -75,6 +76,7 @@ note = [
   "esbonio",
   "ipykernel",
   "ipywidgets",
+  "marimo>=0.18.4",
   "nbstripout>=0.8.1",
   "trame",
   "trame-vtk",

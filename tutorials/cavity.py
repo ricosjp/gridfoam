@@ -3,7 +3,7 @@ import pathlib
 import torch
 from jaxtyping import Float
 
-from gridfoam.CTX.application.piso import PISOEngine
+from gridfoam.CTX.application.ico import ICOEngine
 from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout, FieldRole
 from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     )
     registry.register_equation(poisson_equation)
 
-    simulation_engine = PISOEngine(
+    simulation_engine = ICOEngine(
         registry=registry,
         configpath=configpath,
     )
@@ -152,6 +152,4 @@ if __name__ == "__main__":
 
     simulation_engine.solve()
 
-#TODO empty boundary
 #TODO test
-#TODO check convergence

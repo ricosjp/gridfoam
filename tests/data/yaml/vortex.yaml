@@ -21,8 +21,8 @@ gridfoam:
       ddtSchemes:
         default: Euler
       divSchemes:
-        div(phi, T): LimitedLinear
-        # div(phi, T): Upwind
+        # div(phi, T): LimitedLinear
+        div(phi, T): Upwind
       laplacianSchemes:
         default: GaussLinear
         laplacian(nu, T): GaussLinear
@@ -34,7 +34,7 @@ gridfoam:
         heat_diffusion: # equation tag
           method: BiCGSTAB
   io:
-    output_dir: "tests/outputs/grid"
+    output_dir: "tests/outputs/grid/vortex/upwind_depth4"
     base_name: "vortex"
     only_leaves: true
     overwrite_file: true

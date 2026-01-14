@@ -11,20 +11,7 @@ from gridfoam.RNA.builtins.builtin_fields import builtin_T
 from gridfoam.RNA.defaults import default_registry
 from gridfoam.RNA.equation.api import equation, laplacian
 
-configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
-
-
-def initialize_U(
-    x: Float[torch.Tensor, "W W W"],
-    y: Float[torch.Tensor, "W W W"],
-    z: Float[torch.Tensor, "W W W"],
-) -> Float[torch.Tensor, "C W W W"]:
-    W = x.shape[0]
-    device = x.device
-    dtype = x.dtype
-    U = torch.zeros((3, W, W, W), dtype=dtype, device=device)
-    U[0] = 0.1
-    return U
+configpath = pathlib.Path("tests/data/yaml/SpatialConvergenceTest/poisson.yaml")
 
 
 def initialize_T(
@@ -58,7 +45,7 @@ def initialize_f(
     device = x.device
     dtype = x.dtype
     f = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    def base_func(t):
+    def base_func(t: Float[torch.Tensor, "W W W"]) -> Float[torch.Tensor, "W W W"]:
         return torch.sin(0.25*torch.pi*(t+2))
     f[0] = (3.0*(torch.pi**2)/16.0)*base_func(x) * base_func(y) * base_func(z)
     return f
@@ -72,7 +59,7 @@ def initialize_exact_T(
     device = x.device
     dtype = x.dtype
     exact_T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    def base_func(t):
+    def base_func(t: Float[torch.Tensor, "W W W"]) -> Float[torch.Tensor, "W W W"]:
         return torch.sin(0.25*torch.pi*(t+2))
     exact_T[0] = base_func(x) * base_func(y) * base_func(z)
     return exact_T
@@ -113,15 +100,12 @@ if __name__ == "__main__":
         )
     )
 
-    U = registry.get_field("U")
     T = registry.get_field("T")
-    U.initialize_func = initialize_U
     T.initialize_func = initialize_T
-    phi = registry.get_field("phi")
     nu = registry.get_field("nu")
     f = registry.get_field("f")
 
-    bcs_heat_diffusion = [
+    bcs_poisson = [
         BoundaryConditionMeta(
             name="T_wall",
             target_field=T,
@@ -138,32 +122,16 @@ if __name__ == "__main__":
         ),
     ]
 
-    eq_heat_diffusion = equation(
-        name="heat_diffusion",
+    eq_poisson = equation(
+        name="poisson",
         target=T,
-        boundary_conditions=bcs_heat_diffusion,
+        boundary_conditions=bcs_poisson,
         lhs=laplacian(nu, T) + f
     )
-    registry.register_equation(eq_heat_diffusion)
+    registry.register_equation(eq_poisson)
     simulation_engine = SimulationEngine(
         registry=registry,
         configpath=configpath,
     )
     simulation_engine.initialize()
-
-    # total_T = 0.0
-    # for _, cube in simulation_engine.context.grid_handle.iter_all_leaves():
-    #     field = cube.field
-    #     T_field = field.cells["T"]
-    #     cube_T = T_field.interior[0].sum()
-    #     total_T += cube_T
-    # print(f"Initial total T: {total_T}")
-
-    simulation_engine.solve(eq_heat_diffusion)
-
-    # total_T = 0.0
-    # for _, cube in simulation_engine.context.grid_handle.iter_all_leaves():
-    #     field = cube.field
-    #     cube_T = field.cells["T"].interior[0].sum()
-    #     total_T += cube_T
-    # print(f"Final total T: {total_T}")
+    simulation_engine.solve(eq_poisson)

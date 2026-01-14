@@ -3,7 +3,7 @@ cubion:
     domain:
       lower: [-2.0, -2.0, -2.0]
       upper: [2.0, 2.0, 2.0]
-    blocksize: [1, 1, 1]
+    blocksize: [32, 32, 32]
 
   octree:
     refinement:
@@ -32,13 +32,13 @@ gridfoam:
           method: BiCGSTAB
 
   io:
-    output_dir: "tests/outputs/grid"
-    base_name: "poisson"
+    output_dir: "tests/outputs/grid/SpatialConvergenceTest/uniform"
+    base_name: "poisson_depth_5"
     only_leaves: true
     overwrite_file: true
 
   mesh:
-    file: "tests/data/stl/circle.stl"
+    file: "tests/data/stl/sphere.stl"
 
   cube:
     interior_width: 8

@@ -15,7 +15,7 @@ from gridfoam.RNA.grid_handle import GridHandle
 from gridfoam.RNA.registry import SimulationMetaRegistry
 
 
-class PISOEngine:
+class ICOEngine:
     def __init__(
         self,
         registry: SimulationMetaRegistry,

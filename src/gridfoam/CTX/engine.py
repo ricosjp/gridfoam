@@ -81,7 +81,7 @@ class SimulationEngine:
             field = cube.field
             T_field = field.cells["T"]
             cube_T = T_field.interior[0].sum()
-            total_T += cube_T
+            total_T += cube_T.item()
         time_vs_total_T["time"].append(time)
         time_vs_total_T["total_T"].append(total_T)
 
@@ -99,7 +99,7 @@ class SimulationEngine:
                 field = cube.field
                 T_field = field.cells["T"]
                 cube_T = T_field.interior[0].sum()
-                total_T += cube_T
+                total_T += cube_T.item()
             time_vs_total_T["time"].append(time)
             time_vs_total_T["total_T"].append(total_T)
 
