@@ -39,6 +39,7 @@ def initialize_nu(
     nu = torch.full((1, W, W, W), 0.01, dtype=dtype, device=device)
     return nu
 
+
 def initialize_p(
     x: Float[torch.Tensor, "W W W"],
     y: Float[torch.Tensor, "W W W"],
@@ -151,5 +152,3 @@ if __name__ == "__main__":
 
 
     simulation_engine.solve()
-
-#TODO test

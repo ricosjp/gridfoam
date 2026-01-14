@@ -87,7 +87,7 @@ class ICOEngine:
         time = 0.0
         self.context.save(f"{self._base_name}_{step:04d}.vtkhdf")
 
-        while 1:
+        while True:
             print(f"Step {step:04d}")
             step += 1
             time += self._deltaT
