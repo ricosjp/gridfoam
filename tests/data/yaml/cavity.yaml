@@ -1,28 +1,28 @@
 cubion:
   grid:
     domain:
-      lower: [-5.0, -4.0, 0.0]
-      upper: [11.0, 4.0, 4.0]
-    blocksize: [8, 4, 2]
+      lower: [0.0, 0.0, 0.0]
+      upper: [0.1, 0.1, 0.1]
+    blocksize: [1, 1, 1]
 
   octree:
     refinement:
       strategy: "default"
-      depth_limit: 4
+      depth_limit: 3
       alpha: 0.3
 
 gridfoam:
   simulator:
     control:
-      deltaT: 0.1
-      endTime: 1.0
-      writeInterval: 1
+      deltaT: 0.0005
+      endTime: 0.5
+      writeInterval: 10
     fvSchemes:
       ddtSchemes:
         default: Euler
       divSchemes:
-        div(phi, T): LimitedLinear
-        # div(phi, T): Upwind
+        default: Upwind
+        # div(phi, U): LimitedLinearV
       laplacianSchemes:
         default: GaussLinear
         laplacian(nu, T): GaussLinear
@@ -31,17 +31,20 @@ gridfoam:
         grad(p): GaussLinear
     fvSolution:
       solvers:
-        heat_diffusion: # equation tag
+        momentum:
           method: BiCGSTAB
-
+        poisson:
+          method: CG
+          norm_type: L_inf
+          max_iter: 2000
   io:
-    output_dir: "tests/outputs/grid"
-    base_name: "DrivAer"
+    output_dir: "tests/outputs/grid/cavity"
+    base_name: "cavity"
     only_leaves: true
     overwrite_file: true
 
   mesh:
-    file: "tests/data/stl/DrivAer.stl"
+    file: "tests/data/stl/cavity.stl"
 
   cube:
     interior_width: 8

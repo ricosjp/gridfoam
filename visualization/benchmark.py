@@ -88,12 +88,12 @@ def plot_level_vs_time(
     for group_name, benchmarks in latest_benchmark_groups.items():
         records = []
         for bench in benchmarks:
-            if bench.params is None or "level_limit" not in bench.params:
+            if bench.params is None or "depth_limit" not in bench.params:
                 continue
             records.append(
                 {
                     "group": group_name,
-                    "level": bench.params["level_limit"],
+                    "level": bench.params["depth_limit"],
                     "time": bench.data,
                 }
             )
@@ -151,7 +151,7 @@ def plot_version_vs_time(
     fig = go.Figure()
     fig.update_layout(
         template="google",
-        xaxis_title="Version",
+        xaxis_title="Commit ID",
         yaxis_title="Grid Generation Time (s)",
         title="Grid Generation Time for an 8-Level Grid by Version",
         width=1200,
@@ -159,7 +159,7 @@ def plot_version_vs_time(
     )
     records = []
     for benchmark_file in benchmark_files:
-        version = benchmark_file.version
+        commit_id = benchmark_file.commit_info.id[:8]
         benchmark_groups = benchmark_file.benchmark_groups
 
         for group_name, benchmarks in benchmark_groups.items():
@@ -167,7 +167,7 @@ def plot_version_vs_time(
             records.append(
                 {
                     "group": group_name,
-                    "version": version,
+                    "commit_id": commit_id,
                     "time": finest_grid_bench.data,
                 }
             )
@@ -190,7 +190,7 @@ def plot_version_vs_time(
         group_df = df.filter(pl.col("group") == group)
         fig.add_trace(
             go.Scatter(
-                x=group_df["version"],
+                x=group_df["commit_id"],
                 y=group_df["upper"],
                 mode="lines",
                 line={"width": 0},
@@ -200,7 +200,7 @@ def plot_version_vs_time(
         )
         fig.add_trace(
             go.Scatter(
-                x=group_df["version"],
+                x=group_df["commit_id"],
                 y=group_df["lower"],
                 mode="lines",
                 fill="tonexty",
@@ -211,7 +211,7 @@ def plot_version_vs_time(
         )
         fig.add_trace(
             go.Scatter(
-                x=group_df["version"],
+                x=group_df["commit_id"],
                 y=group_df["mean"],
                 mode="lines+markers",
                 name=group,
@@ -228,7 +228,8 @@ if __name__ == "__main__":
     files = benchmark_dir.glob("*.json")
 
     benchmark_files = sorted(
-        [load_benchmark(file) for file in files], key=lambda x: x.version
+        [load_benchmark(file) for file in files],
+        key=lambda x: x.commit_info.id[:8],
     )
     plot_level_vs_time(benchmark_files, output_dir)
     plot_version_vs_time(benchmark_files, output_dir)

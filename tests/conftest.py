@@ -1,3 +1,3 @@
 import logging.config
 
-logging.config.fileConfig("src/gridfoam/utils/logging.conf")
+logging.config.fileConfig("src/gridfoam/logging.conf")

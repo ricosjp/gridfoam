@@ -1,9 +1,9 @@
 cubion:
   grid:
     domain:
-      lower: [-5.0, -4.0, 0.0]
-      upper: [11.0, 4.0, 4.0]
-    blocksize: [8, 4, 2]
+      lower: [0.0, 0.0, 0.0]
+      upper: [1.0, 1.0, 0.1]
+    blocksize: [2, 2, 1]
 
   octree:
     refinement:
@@ -15,14 +15,14 @@ gridfoam:
   simulator:
     control:
       deltaT: 0.1
-      endTime: 1.0
+      endTime: 5.0
       writeInterval: 1
     fvSchemes:
       ddtSchemes:
         default: Euler
       divSchemes:
-        div(phi, T): LimitedLinear
-        # div(phi, T): Upwind
+        # div(phi, T): LimitedLinear
+        div(phi, T): Upwind
       laplacianSchemes:
         default: GaussLinear
         laplacian(nu, T): GaussLinear
@@ -33,15 +33,14 @@ gridfoam:
       solvers:
         heat_diffusion: # equation tag
           method: BiCGSTAB
-
   io:
-    output_dir: "tests/outputs/grid"
-    base_name: "DrivAer"
+    output_dir: "tests/outputs/grid/vortex/upwind_depth4"
+    base_name: "vortex"
     only_leaves: true
     overwrite_file: true
 
   mesh:
-    file: "tests/data/stl/DrivAer.stl"
+    file: "tests/data/stl/circle.stl"
 
   cube:
     interior_width: 8
