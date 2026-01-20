@@ -59,6 +59,35 @@ cpu-pytest:
 #   tags:
 #     - gpu
 
+
+coverage:
+  stage: test
+  needs:
+    - job: cpu-pytest
+      artifacts: true
+    # - job: gpu_pytest
+    #   artifacts: true
+  script:
+    # - uv run coverage combine .coverage.cpu .coverage.gpu
+    - uv run coverage combine .coverage.cpu
+    - uv run coverage html -d coverage
+    - uv run coverage xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    expose_as: coverage
+    paths:
+      - coverage/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  tags:
+    - no-gpu
+    - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
+
 pages:
   stage: deploy
   script:
