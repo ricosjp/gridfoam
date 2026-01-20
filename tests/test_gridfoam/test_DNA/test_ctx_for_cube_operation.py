@@ -1,7 +1,6 @@
 """Tests for ctx_for_cube_operation module."""
 
 import numpy as np
-import pytest
 import torch
 
 from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation

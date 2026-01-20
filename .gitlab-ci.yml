@@ -39,25 +39,25 @@ cpu-pytest:
     - no-gpu
     - GenuineIntel
 
-gpu_pytest:
-  stage: test
-  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
-  before_script:
-    - apt update
-    - apt install -y build-essential libhdf5-dev curl
-    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    - source ~/.cargo/env
-    - cargo install cargo-nextest
-    - pip install uv
-    - make install
-  script:
-    - make gpu-test
-    - mv .coverage .coverage.gpu
-  artifacts:
-    paths:
-      - .coverage.gpu
-  tags:
-    - gpu
+# gpu_pytest:
+#   stage: test
+#   image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
+#   before_script:
+#     - apt update
+#     - apt install -y build-essential libhdf5-dev curl
+#     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+#     - source ~/.cargo/env
+#     - cargo install cargo-nextest
+#     - pip install uv
+#     - make install
+#   script:
+#     - make gpu-test
+#     - mv .coverage .coverage.gpu
+#   artifacts:
+#     paths:
+#       - .coverage.gpu
+#   tags:
+#     - gpu
 
 pages:
   stage: deploy

@@ -1,10 +1,12 @@
 """Pytest configuration and fixtures for gridfoam tests."""
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 import torch
-from unittest.mock import MagicMock
 
+from gridfoam.DNA._grid._grid import PyOctreeNode
 from gridfoam.DNA.config import CubeConfig
 from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
 from gridfoam.DNA.cubefield import CubeField
@@ -13,7 +15,7 @@ from gridfoam.DNA.meta.field import FieldMeta
 
 
 @pytest.fixture
-def cube_config():
+def cube_config() -> CubeConfig:
     """Create a test CubeConfig."""
     return CubeConfig(
         interior_width=8,
@@ -23,15 +25,15 @@ def cube_config():
 
 
 @pytest.fixture
-def cube_field(cube_config):
+def cube_field(cube_config: CubeConfig) -> CubeField:
     """Create a test CubeField."""
     return CubeField(cube_config)
 
 
 @pytest.fixture
-def mock_cube_node(cube_field):
+def mock_cube_node(cube_field: CubeField) -> PyOctreeNode:
     """Create a mock PyOctreeNode with a CubeField."""
-    mock_node = MagicMock()
+    mock_node = MagicMock(spec=PyOctreeNode)
     mock_node.field = cube_field
     # Mock cubecode.neighbor_codes to return all None (no neighbors)
     mock_node.cubecode.neighbor_codes = MagicMock(return_value=[None] * 27)
@@ -39,7 +41,7 @@ def mock_cube_node(cube_field):
 
 
 @pytest.fixture
-def ctx_for_cube_operation():
+def ctx_for_cube_operation() -> CtxForCubeOperation:
     """Create a test CtxForCubeOperation."""
     return CtxForCubeOperation(
         depth=0,
@@ -52,7 +54,7 @@ def ctx_for_cube_operation():
 
 
 @pytest.fixture
-def cell_field_meta():
+def cell_field_meta() -> FieldMeta:
     """Create a test cell-centered FieldMeta."""
     return FieldMeta(
         name="test_cell",
@@ -65,7 +67,7 @@ def cell_field_meta():
 
 
 @pytest.fixture
-def face_field_meta():
+def face_field_meta() -> FieldMeta:
     """Create a test face-centered FieldMeta."""
     return FieldMeta(
         name="test_face",

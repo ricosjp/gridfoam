@@ -1,6 +1,5 @@
 """Tests for Van Albada TVD scheme."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.scheme.tvd._van_albada import VanAlbada

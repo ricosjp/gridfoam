@@ -1,6 +1,5 @@
 """Tests for cubefield module."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.config import CubeConfig

@@ -1,15 +1,13 @@
 """Tests for builtin fields."""
 
-import pytest
-
 from gridfoam.DNA.enum import FieldLayout, FieldRole
 from gridfoam.RNA.builtins.builtin_fields import (
-    builtin_T,
-    builtin_U,
     builtin_p,
     builtin_phi,
-    builtin_rho,
     builtin_rAU,
+    builtin_rho,
+    builtin_T,
+    builtin_U,
 )
 
 

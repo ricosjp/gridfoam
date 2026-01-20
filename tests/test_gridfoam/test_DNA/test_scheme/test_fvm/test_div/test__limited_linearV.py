@@ -121,8 +121,8 @@ def test_fvm_div_limited_linear_v_build_uniform_fields():
 
 
 def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
-    """Test FVMDivLimitedLinearV build with steepest gradient multi-component fields."""
-    # V scheme: compute limiter based on steepest gradient direction (largest magnitude)
+    """Test FVMDivLimitedLinearV build with steepest gradient fields."""
+    # V scheme: compute limiter based on steepest gradient direction
     # and apply the same limiter to all components
     # Setup
     N = 8
@@ -160,7 +160,8 @@ def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
     # x-direction: large gradient (magnitude ~1.0 per step)
     # y-direction: small gradient (magnitude ~0.1 per step)
     # z-direction: medium gradient (magnitude ~0.5 per step)
-    # The steepest gradient is in x-direction, so limiter should be based on x-direction
+    # The steepest gradient is in x-direction,
+    # so limiter should be based on x-direction
     psi_c = cube_field.get_field(psi_field)
     # Initialize all cells to avoid boundary issues
     psi_c.interior[0, :, :, :, :] = 0.0
@@ -207,22 +208,14 @@ def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
     assert fvmatrix.N == N
     assert fvmatrix.H == H
 
-    # V scheme: all components should have the same limiter (based on steepest gradient)
-    # Since x-direction has the steepest gradient, the limiter should be based on x-direction
-    # and applied to all components uniformly
     source = fvmatrix.source.interior[0]  # (C, N, N, N)
 
-    # All components should have non-zero source (since we have gradients)
     assert torch.all(torch.isfinite(source))
-
-    # Since limiter is based on steepest gradient (x-direction with magnitude ~1.0),
-    # and applied uniformly to all components, all components should have similar
-    # correction magnitude (though the actual values may differ due to flux direction)
-    # Check that all components have non-zero correction
     assert not torch.allclose(source, torch.zeros_like(source), atol=1e-6)
 
     # The correction should be finite and reasonable
-    # For uniform positive flux and gradients, source should be negative (upwind correction)
+    # For uniform positive flux and gradients,
+    # source should be negative (upwind correction)
     # Check that correction is applied (not all zeros)
     max_source = torch.max(torch.abs(source))
     assert max_source > 0.0

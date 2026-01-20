@@ -3,8 +3,7 @@
 import pytest
 import torch
 
-from gridfoam.DNA.ASTNodes._interface import IASTNode
-from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout, FieldRole
+from gridfoam.DNA.enum import BoundaryConditionType, FieldRole
 from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.equation import EquationMeta
 from gridfoam.DNA.meta.field import FieldMeta

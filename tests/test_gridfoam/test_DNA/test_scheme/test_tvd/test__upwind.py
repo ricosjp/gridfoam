@@ -1,6 +1,5 @@
 """Tests for Upwind TVD scheme."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.scheme.tvd._upwind import Upwind

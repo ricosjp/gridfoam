@@ -1,7 +1,5 @@
 """Tests for OperatorNode."""
 
-import pytest
-
 from gridfoam.DNA.ASTNodes.arithmetic_node import ArithmeticNode, ArithmeticType
 from gridfoam.DNA.ASTNodes.operator_node import OperatorNode
 from gridfoam.DNA.enum import OperatorType

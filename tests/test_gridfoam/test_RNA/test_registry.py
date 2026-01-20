@@ -3,12 +3,11 @@
 import pytest
 import torch
 
-from gridfoam.DNA.config import fvSchemesConfig, fvSolutionConfig, SolverChoice
+from gridfoam.DNA.config import fvSchemesConfig
 from gridfoam.DNA.enum import (
     BoundaryConditionType,
     FieldLayout,
     FieldRole,
-    NormType,
 )
 from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.equation import EquationMeta
@@ -17,7 +16,6 @@ from gridfoam.DNA.scheme.fvm.ddt._choice import FVMDdtSchemeChoice
 from gridfoam.DNA.scheme.fvm.div._choice import FVMDivSchemeChoice
 from gridfoam.DNA.scheme.fvm.grad._choice import FVMGradSchemeChoice
 from gridfoam.DNA.scheme.fvm.laplacian._choice import FVMLaplacianSchemeChoice
-from gridfoam.DNA.scheme.solver._choice import SolverMethodChoice
 from gridfoam.RNA.registry import SimulationMetaRegistry
 
 

@@ -24,7 +24,7 @@ cpu-test:
 
 .PHONY: gpu-test
 gpu-test:
-	uv run pytest tests -m with_device
+	uv run pytest tests -m with_device --cov=src --cov-report term-missing --durations 5
 
 .PHONY: document
 document:

@@ -4,6 +4,7 @@ import pathlib
 
 import pytest
 import torch
+from pydantic import ValidationError
 
 from gridfoam.DNA.config import (
     ControlConfig,
@@ -12,11 +13,11 @@ from gridfoam.DNA.config import (
     IoConfig,
     MeshConfig,
     SimulatorConfig,
+    SolverChoice,
     YamlRoot,
     device_validator,
     fvSchemesConfig,
     fvSolutionConfig,
-    SolverChoice,
 )
 from gridfoam.DNA.enum import NormType
 from gridfoam.DNA.scheme.fvm.ddt._choice import FVMDdtSchemeChoice
@@ -76,7 +77,7 @@ def test_cube_config_custom():
 
 def test_cube_config_validation():
     """Test CubeConfig validation."""
-    with pytest.raises(Exception):  # Pydantic validation error
+    with pytest.raises(ValidationError):
         CubeConfig(interior_width=4)  # Less than minimum 8
 
 

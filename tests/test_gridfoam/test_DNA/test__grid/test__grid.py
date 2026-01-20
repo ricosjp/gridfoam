@@ -1,7 +1,5 @@
 """Tests for _grid/_grid module."""
 
-import pytest
-
 from gridfoam.DNA._grid._grid import (
     NodeType,
     PyBBox,

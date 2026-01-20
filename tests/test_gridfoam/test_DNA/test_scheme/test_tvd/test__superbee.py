@@ -1,6 +1,5 @@
 """Tests for Superbee TVD scheme."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.scheme.tvd._superbee import Superbee

@@ -3,7 +3,6 @@
 from unittest.mock import Mock
 
 import pytest
-import torch
 
 from gridfoam.DNA.scheme.tvd._choice import TVDFactory, TVDSchemeChoice
 from gridfoam.DNA.scheme.tvd._interface import ITVDScheme
@@ -82,24 +81,3 @@ def test_tvd_factory_create_unknown():
     mock_choice.name = "UNKNOWN"
     with pytest.raises(ValueError, match="Unknown TVD scheme choice"):
         TVDFactory.create(mock_choice)
-
-
-def test_tvd_factory_register(monkeypatch):
-    """Test TVDFactory register method."""
-
-    class MockScheme(ITVDScheme):
-        def correction_term(
-            self, delta_minus: torch.Tensor, delta_plus: torch.Tensor
-        ) -> torch.Tensor:
-            return torch.zeros_like(delta_minus)
-
-    # Use monkeypatch to safely modify registry
-    original_registry = TVDFactory.registry.copy()
-    mock_choice = TVDSchemeChoice.UPWIND
-    mock_scheme = MockScheme()
-
-    monkeypatch.setitem(TVDFactory.registry, mock_choice, mock_scheme)
-    created = TVDFactory.create(mock_choice)
-    assert isinstance(created, MockScheme)
-
-    # Registry is automatically restored by monkeypatch

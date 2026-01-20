@@ -9,6 +9,7 @@ from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.RNA.builtins.builtin_fields import builtin_T
 from gridfoam.RNA.defaults import default_registry
 from gridfoam.RNA.grid_handle import GridHandle, _generate_grid_indices
+from gridfoam.RNA.registry import SimulationMetaRegistry
 
 
 def test__generate_grid_indices():
@@ -19,36 +20,30 @@ def test__generate_grid_indices():
     Y = indices[1]
     Z = indices[2]
 
-    # X: each value repeats 100 times (10*10=100)
-    # Pattern: [0,1,2,...,9] repeated 100 times
     expected_X = torch.arange(10).repeat(100)
     torch.testing.assert_close(X, expected_X)
 
-    # Y: each value repeats 10 times, and this pattern repeats 10 times
-    # Pattern: [0,0,...,0 (10 times), 1,1,...,1 (10 times), ..., 9,9,...,9 (10 times)] repeated 10 times
     expected_Y = torch.arange(10).repeat_interleave(10).repeat(10)
     torch.testing.assert_close(Y, expected_Y)
 
-    # Z: each value repeats 100 times
-    # Pattern: [0,0,...,0 (100 times), 1,1,...,1 (100 times), ..., 9,9,...,9 (100 times)]
     expected_Z = torch.arange(10).repeat_interleave(100)
     torch.testing.assert_close(Z, expected_Z)
 
 
 @pytest.fixture
-def grid_handle():
+def grid_handle() -> GridHandle:
     configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
     return GridHandle(configpath)
 
 
-def test_grid_handle_properties(grid_handle):
+def test_grid_handle_properties(grid_handle: GridHandle) -> None:
     """Test GridHandle properties."""
     assert grid_handle.grid is not None
     assert grid_handle.mesh is not None
     assert grid_handle.config is not None
 
 
-def test_grid_handle_iter_levels(grid_handle):
+def test_grid_handle_iter_levels(grid_handle: GridHandle) -> None:
     """Test GridHandle.iter_levels method."""
     levels = list(grid_handle.iter_levels())
     assert len(levels) == 3
@@ -57,28 +52,28 @@ def test_grid_handle_iter_levels(grid_handle):
     assert levels[2].depth == 2
 
 
-def test_grid_handle_iter_leaf_on_level(grid_handle):
+def test_grid_handle_iter_leaf_on_level(grid_handle: GridHandle) -> None:
     """Test GridHandle.iter_leaf_on_level method."""
     level = list(grid_handle.iter_levels())[2]
     leaves = list(grid_handle.iter_leaf_on_level(level))
     assert len(leaves) == 512
 
 
-def test_grid_handle_iter_gfp_on_level(grid_handle):
+def test_grid_handle_iter_gfp_on_level(grid_handle: GridHandle) -> None:
     """Test GridHandle.iter_gfp_on_level method."""
     level = list(grid_handle.iter_levels())[1]
     gfps = list(grid_handle.iter_gfp_on_level(level))
     assert len(gfps) == 0
 
 
-def test_grid_handle_iter_gfc_on_level(grid_handle):
+def test_grid_handle_iter_gfc_on_level(grid_handle: GridHandle) -> None:
     """Test GridHandle.iter_gfc_on_level method."""
     level = list(grid_handle.iter_levels())[0]
     gfcs = list(grid_handle.iter_gfc_on_level(level))
     assert len(gfcs) == 0
 
 
-def test_grid_handle_iter_all_leaves(grid_handle):
+def test_grid_handle_iter_all_leaves(grid_handle: GridHandle) -> None:
     """Test GridHandle.iter_all_leaves method."""
     leaves = list(grid_handle.iter_all_leaves())
     assert len(leaves) == 512
@@ -91,7 +86,9 @@ def registry():
     return registry
 
 
-def test_grid_handle_allocate_by_registry(grid_handle, registry):
+def test_grid_handle_allocate_by_registry(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.allocate_by_registry method."""
     grid_handle.allocate_by_registry(registry)
     for level in grid_handle.iter_levels():
@@ -99,7 +96,9 @@ def test_grid_handle_allocate_by_registry(grid_handle, registry):
             assert cube.field.cells["T"] is not None
 
 
-def test_grid_handle_allocate_field(grid_handle, registry):
+def test_grid_handle_allocate_field(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.allocate_field method."""
     grid_handle.allocate_by_registry(registry)
     field_meta = FieldMeta(
@@ -115,7 +114,9 @@ def test_grid_handle_allocate_field(grid_handle, registry):
             assert cube.field.cells["rho"] is not None
 
 
-def test_grid_handle_allocate_equation(grid_handle, registry):
+def test_grid_handle_allocate_equation(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.allocate_equation method."""
     grid_handle.allocate_by_registry(registry)
     T = registry.get_field("T")
@@ -131,7 +132,9 @@ def test_grid_handle_allocate_equation(grid_handle, registry):
             assert cube.field.fvmatrices["heat_diffusion"] is not None
 
 
-def test_grid_handle_update_fvmatrix(grid_handle, registry):
+def test_grid_handle_update_fvmatrix(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.update_fvmatrix method."""
     grid_handle.allocate_by_registry(registry)
     T = registry.get_field("T")
@@ -148,7 +151,9 @@ def test_grid_handle_update_fvmatrix(grid_handle, registry):
             assert cube.field.fvmatrices["heat_diffusion"] is not None
 
 
-def test_grid_handle_sync_halo(grid_handle, registry):
+def test_grid_handle_sync_halo(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.sync_halo method."""
     from gridfoam.DNA.enum import Axis
 
@@ -166,7 +171,8 @@ def test_grid_handle_sync_halo(grid_handle, registry):
     grid_handle.sync_halo([T])
 
     # Check that halo regions have been synchronized from neighbors
-    # For leaf cubes with neighbors, halo should contain neighbor's interior values
+    # For leaf cubes with neighbors,
+    # halo should contain neighbor's interior values
     for level in grid_handle.iter_levels():
         for cube in grid_handle.iter_leaf_on_level(level):
             T_field = cube.field.cells["T"]
@@ -177,7 +183,9 @@ def test_grid_handle_sync_halo(grid_handle, registry):
             assert torch.all(torch.isfinite(halo_x_backward))
 
 
-def test_grid_handle_sync_gfp(grid_handle, registry):
+def test_grid_handle_sync_gfp(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.sync_gfp method."""
     grid_handle.allocate_by_registry(registry)
     T = registry.get_field("T")
@@ -208,7 +216,9 @@ def test_grid_handle_sync_gfp(grid_handle, registry):
                 )
 
 
-def test_grid_handle_sync_gfc(grid_handle, registry):
+def test_grid_handle_sync_gfc(
+    grid_handle: GridHandle, registry: SimulationMetaRegistry
+) -> None:
     """Test GridHandle.sync_gfc method."""
     grid_handle.allocate_by_registry(registry)
     T = registry.get_field("T")
@@ -232,7 +242,8 @@ def test_grid_handle_sync_gfc(grid_handle, registry):
                 # Interior should be finite (coarsened from children)
                 assert torch.all(torch.isfinite(T_field.interior[0]))
                 # Should have some non-zero values (coarsened from children)
-                # Note: coarsened values may be different from original due to averaging
+                # Note: coarsened values may be different from original
+                # due to averaging
                 assert not torch.allclose(
                     T_field.interior[0, 0],
                     torch.zeros_like(T_field.interior[0, 0]),
@@ -240,7 +251,7 @@ def test_grid_handle_sync_gfc(grid_handle, registry):
                 )
 
 
-def test_grid_handle_get_dx_at_depth(grid_handle):
+def test_grid_handle_get_dx_at_depth(grid_handle: GridHandle) -> None:
     """Test GridHandle.get_dx_at_depth method."""
     dx = grid_handle.get_dx_at_depth(0)
     assert dx[0] == torch.tensor(2.0 / 8.0)

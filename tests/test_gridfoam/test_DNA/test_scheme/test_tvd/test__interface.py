@@ -1,7 +1,6 @@
 """Tests for TVD scheme interface."""
 
 import pytest
-import torch
 
 from gridfoam.DNA.scheme.tvd._interface import ITVDScheme
 

@@ -1,7 +1,5 @@
 """Tests for enum module."""
 
-import pytest
-
 from gridfoam.DNA.enum import (
     Axis,
     BoundaryConditionType,

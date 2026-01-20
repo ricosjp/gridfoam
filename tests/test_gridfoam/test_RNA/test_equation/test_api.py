@@ -1,7 +1,5 @@
 """Tests for equation API."""
 
-import pytest
-
 from gridfoam.DNA.ASTNodes.operator_node import OperatorNode
 from gridfoam.DNA.enum import OperatorType
 from gridfoam.DNA.meta.field import FieldMeta

@@ -1,7 +1,5 @@
 """Tests for defaults module."""
 
-import pytest
-
 from gridfoam.RNA.defaults import default_registry
 from gridfoam.RNA.registry import SimulationMetaRegistry
 

@@ -1,7 +1,6 @@
 """Tests for FVM identity operator."""
 
 import pytest
-from unittest.mock import MagicMock
 
 from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.meta.field import FieldMeta

@@ -1,8 +1,6 @@
 """Tests for FVM ddt Euler operator."""
 
 import pytest
-import torch
-from unittest.mock import MagicMock
 
 from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.meta.field import FieldMeta

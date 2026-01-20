@@ -52,5 +52,5 @@ def test_simulation_context_save():
 
     context = SimulationContext(registry=registry, grid_handle=mock_grid_handle)
 
-    # Save should be callable (may fail due to file operations, but structure should be correct)
+    # Save should be callable
     assert hasattr(context, "save")

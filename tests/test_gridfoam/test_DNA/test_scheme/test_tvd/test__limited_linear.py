@@ -1,6 +1,5 @@
 """Tests for Limited Linear TVD scheme."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.scheme.tvd._limited_linear import LimitedLinear

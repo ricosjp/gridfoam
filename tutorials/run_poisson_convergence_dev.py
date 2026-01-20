@@ -41,7 +41,7 @@ def main() -> None:
             temp_yaml.write_text(rendered_yaml)
 
             try:
-                # Run poisson.py sequentially (subprocess.run blocks until completion)
+                # Run poisson.py sequentially
                 result = subprocess.run(
                     [
                         sys.executable,
@@ -51,20 +51,21 @@ def main() -> None:
                     check=False,
                 )
 
-                # Flush output after process completes to ensure sequential execution
+                # Flush output to ensure sequential execution
                 sys.stdout.flush()
                 sys.stderr.flush()
 
                 if result.returncode != 0:
                     print(
-                        f"Warning: poisson.py failed with depth_limit={depth_limit}",
+                        f"Warning: poisson.py failed \
+                            with depth_limit={depth_limit}",
                         file=sys.stderr,
                     )
                 else:
                     print(f"Successfully completed depth_limit={depth_limit}")
 
             finally:
-                # Clean up temporary file (optional - comment out if you want to keep them)
+                # Clean up temporary file
                 # temp_yaml.unlink()
                 pass
 

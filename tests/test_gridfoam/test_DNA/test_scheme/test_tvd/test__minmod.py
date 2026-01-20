@@ -1,6 +1,5 @@
 """Tests for Minmod TVD scheme."""
 
-import pytest
 import torch
 
 from gridfoam.DNA.scheme.tvd._minmod import Minmod

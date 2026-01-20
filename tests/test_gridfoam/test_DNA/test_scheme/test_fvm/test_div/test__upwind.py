@@ -342,7 +342,8 @@ def test_fvm_div_upwind_build_with_dirichlet_bc():
     operator = FVMDivUpwind(phi_field, psi_field)
     fvmatrix = operator.build(mock_node, ctx)
 
-    # Verify BC was applied: -X face (forward=False) should have coeff zeroed and source shifted
+    # Verify BC was applied:
+    # -X face (forward=False) should have coeff zeroed and source shifted
     a_w_bound = fvmatrix.a_W.get_boundary_cell_along(axis=Axis.X, forward=False)
     source_bound = fvmatrix.source.get_boundary_cell_along(
         axis=Axis.X, forward=False
@@ -423,7 +424,6 @@ def test_fvm_div_upwind_build_with_neumann_bc():
         axis=Axis.X, forward=True
     )
     torch.testing.assert_close(a_e_bound, torch.zeros_like(a_e_bound))
-    # a_P boundary should be increased by a_boundary (original negative) -> check finite
     torch.testing.assert_close(
         a_p_bound[0, 0], torch.ones(N, N) * 1.0, rtol=1e-6, atol=1e-6
     )

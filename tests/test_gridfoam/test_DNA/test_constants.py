@@ -1,7 +1,5 @@
 """Tests for constants module."""
 
-import pytest
-
 from gridfoam.DNA.constants import DOMAIN_BOUNDARY_MAP, FACE_NEIGHBOR_MAP
 from gridfoam.DNA.enum import Axis
 

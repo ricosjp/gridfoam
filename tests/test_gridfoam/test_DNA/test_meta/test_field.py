@@ -37,7 +37,9 @@ def test_field_meta_auxiliary_role():
 def test_field_meta_initialize_func_cell():
     """Test FieldMeta with initialize_func for cell-centered field."""
 
-    def init_func(x, y, z):
+    def init_func(
+        x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> torch.Tensor:
         return torch.zeros(1, *x.shape)
 
     field = FieldMeta(
@@ -50,9 +52,13 @@ def test_field_meta_initialize_func_cell():
 
 
 def test_field_meta_initialize_func_face_error():
-    """Test FieldMeta raises error for initialize_func on face-centered field."""
+    """Test FieldMeta raises error
+    for initialize_func on face-centered field.
+    """
 
-    def init_func(x, y, z):
+    def init_func(
+        x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> torch.Tensor:
         return torch.zeros(1, *x.shape)
 
     with pytest.raises(ValueError, match="initialize_func is only supported"):

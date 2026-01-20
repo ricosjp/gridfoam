@@ -149,8 +149,10 @@ def test_fvm_div_limited_linear_build_uniform_fields_exact():
 def test_fvm_div_limited_linear_tvd_correction_gradient_sign_change():
     """Test FVMDivLimitedLinear TVD correction with gradient sign change."""
     # Create field with gradient sign change: psi = [0, 1, 2, 1]
-    # At cell 1-2 boundary: delta_minus=1, delta_plus=1 (same sign, correction applied)
-    # At cell 2-3 boundary: delta_minus=1, delta_plus=-1 (opposite sign, no correction)
+    # At cell 1-2 boundary: delta_minus=1, delta_plus=1
+    # (same sign, correction applied)
+    # At cell 2-3 boundary: delta_minus=1, delta_plus=-1
+    # (opposite sign, no correction)
     N = 8
     H = 2
     cube_config = CubeConfig(
