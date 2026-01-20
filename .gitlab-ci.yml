@@ -4,7 +4,9 @@ variables:
   # GitLab CI creates a separate mountpoint for the build directory,
   # so we need to copy instead of using hard links.
   UV_LINK_MODE: copy
+  GIT_STRATEGY: fetch
   GIT_SUBMODULE_STRATEGY: recursive
+  GIT_DEPTH: 0
 
 stages:
   - test
