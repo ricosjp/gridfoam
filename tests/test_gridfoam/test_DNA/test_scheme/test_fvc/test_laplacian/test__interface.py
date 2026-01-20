@@ -1,6 +1,5 @@
 """Tests for FVC laplacian operator interface."""
 
-
 from gridfoam.DNA.scheme.fvc.laplacian._interface import IFVCLaplacianOperator
 
 

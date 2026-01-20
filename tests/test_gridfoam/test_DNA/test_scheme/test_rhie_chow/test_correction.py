@@ -11,6 +11,7 @@ from gridfoam.DNA.scheme.rhie_chow.correction import RhieChowCorrection
 def test_rhie_chow_correction_import():
     """Test that RhieChowCorrection can be imported."""
     from gridfoam.DNA.scheme.rhie_chow.correction import RhieChowCorrection
+
     assert RhieChowCorrection is not None
 
 
@@ -32,7 +33,7 @@ def test_rhie_chow_correction_init():
         boundary_conditions=[],
         ast_root=U_field,
     )
-    
+
     correction = RhieChowCorrection(
         U_fm=U_field,
         p_fm=p_field,
@@ -61,7 +62,7 @@ def test_rhie_chow_correction_init_errors():
         boundary_conditions=[],
         ast_root=U_field,
     )
-    
+
     with pytest.raises(AssertionError):
         RhieChowCorrection(
             U_fm=U_field,

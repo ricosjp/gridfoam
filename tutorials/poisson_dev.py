@@ -25,6 +25,7 @@ def initialize_T(
     T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
     return T
 
+
 def initialize_nu(
     x: Float[torch.Tensor, "W W W"],
     y: Float[torch.Tensor, "W W W"],
@@ -36,6 +37,7 @@ def initialize_nu(
     nu = torch.full((1, W, W, W), 1.0, dtype=dtype, device=device)
     return nu
 
+
 def initialize_f(
     x: Float[torch.Tensor, "W W W"],
     y: Float[torch.Tensor, "W W W"],
@@ -45,10 +47,20 @@ def initialize_f(
     device = x.device
     dtype = x.dtype
     f = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    def base_func(t: Float[torch.Tensor, "W W W"]) -> Float[torch.Tensor, "W W W"]:
-        return torch.sin(0.25*torch.pi*(t+2))
-    f[0] = (3.0*(torch.pi**2)/16.0)*base_func(x) * base_func(y) * base_func(z)
+
+    def base_func(
+        t: Float[torch.Tensor, "W W W"],
+    ) -> Float[torch.Tensor, "W W W"]:
+        return torch.sin(0.25 * torch.pi * (t + 2))
+
+    f[0] = (
+        (3.0 * (torch.pi**2) / 16.0)
+        * base_func(x)
+        * base_func(y)
+        * base_func(z)
+    )
     return f
+
 
 def initialize_exact_T(
     x: Float[torch.Tensor, "W W W"],
@@ -59,10 +71,15 @@ def initialize_exact_T(
     device = x.device
     dtype = x.dtype
     exact_T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    def base_func(t: Float[torch.Tensor, "W W W"]) -> Float[torch.Tensor, "W W W"]:
-        return torch.sin(0.25*torch.pi*(t+2))
+
+    def base_func(
+        t: Float[torch.Tensor, "W W W"],
+    ) -> Float[torch.Tensor, "W W W"]:
+        return torch.sin(0.25 * torch.pi * (t + 2))
+
     exact_T[0] = base_func(x) * base_func(y) * base_func(z)
     return exact_T
+
 
 if __name__ == "__main__":
     registry = default_registry()
@@ -126,7 +143,7 @@ if __name__ == "__main__":
         name="poisson",
         target=T,
         boundary_conditions=bcs_poisson,
-        lhs=laplacian(nu, T) + f
+        lhs=laplacian(nu, T) + f,
     )
     registry.register_equation(eq_poisson)
     simulation_engine = SimulationEngine(

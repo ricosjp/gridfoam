@@ -28,6 +28,6 @@ class FVMDdtEuler(IFVMDdtOperator):
         device = psi.raw.device
         fvmatrix = FVMatrix(C, N, H, dtype, device)
         rdt = 1.0 / dt
-        fvmatrix.a_P = torch.full_like(psi.interior[0], rdt) # (C N N N)
-        fvmatrix.source = rdt * psi.interior[0] # (C N N N)
+        fvmatrix.a_P = torch.full_like(psi.interior[0], rdt)  # (C N N N)
+        fvmatrix.source = rdt * psi.interior[0]  # (C N N N)
         return fvmatrix

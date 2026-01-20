@@ -51,6 +51,7 @@ def initialize_p(
     p = torch.zeros((1, W, W, W), dtype=dtype, device=device)
     return p
 
+
 if __name__ == "__main__":
     registry = default_registry()
     registry.register_field(builtin_rAU())
@@ -131,7 +132,7 @@ if __name__ == "__main__":
         name="momentum",
         target=U,
         boundary_conditions=bcs,
-        lhs=ddt(U) + div(phi, U) - laplacian(nu, U)
+        lhs=ddt(U) + div(phi, U) - laplacian(nu, U),
         # lhs=ddt(U) + div(phi, U)
     )
     registry.register_equation(momentum_equation)
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         name="poisson",
         target=p,
         boundary_conditions=bcs,
-        lhs=laplacian(rAU, p) - div(U)
+        lhs=laplacian(rAU, p) - div(U),
     )
     registry.register_equation(poisson_equation)
 
@@ -149,6 +150,5 @@ if __name__ == "__main__":
         configpath=configpath,
     )
     simulation_engine.initialize()
-
 
     simulation_engine.solve()

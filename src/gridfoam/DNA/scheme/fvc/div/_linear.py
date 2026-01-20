@@ -19,7 +19,7 @@ class FVCDivLinear(IFVCDivOperator):
         psi_f_diag = FaceField(
             psi_c.T, 1, psi_c.N, psi_c.raw.dtype, psi_c.raw.device
         )
-        psi_f_diag.x = psi_f.x[:, [0], :, :, :] # (T 1 N N L)
-        psi_f_diag.y = psi_f.y[:, [1], :, :, :] # (T 1 N L N)
-        psi_f_diag.z = psi_f.z[:, [2], :, :, :] # (T 1 L N N)
-        return psi_f_diag.integrate_dSn(Sf) / V # (T 1 N N N)
+        psi_f_diag.x = psi_f.x[:, [0], :, :, :]  # (T 1 N N L)
+        psi_f_diag.y = psi_f.y[:, [1], :, :, :]  # (T 1 N L N)
+        psi_f_diag.z = psi_f.z[:, [2], :, :, :]  # (T 1 L N N)
+        return psi_f_diag.integrate_dSn(Sf) / V  # (T 1 N N N)

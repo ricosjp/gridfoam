@@ -1,6 +1,5 @@
 """Tests for FVC grad operator interface."""
 
-
 from gridfoam.DNA.scheme.fvc.grad._interface import IFVCGradOperator
 
 

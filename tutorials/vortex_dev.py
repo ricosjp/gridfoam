@@ -5,6 +5,7 @@ Compute vortex flow
 
 This tutorial shows how to compute the vortex flow problem.
 """
+
 import pathlib
 
 import torch
@@ -31,7 +32,7 @@ def initialize_U(
     dtype = x.dtype
     U = torch.zeros((3, W, W, W), dtype=dtype, device=device)
     U[0] = -(y - 0.5)
-    U[1] = (x - 0.5)
+    U[1] = x - 0.5
     U[2] = 0.0
     return U
 
@@ -46,11 +47,16 @@ def initialize_T(
     dtype = x.dtype
     T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
     mask = (
-        (0.25 < x) & (x < 0.75) & (0.25 < y) & (y < 0.75)
-        & (0.0 < z) & (z < 0.1)
+        (0.25 < x)
+        & (x < 0.75)
+        & (0.25 < y)
+        & (y < 0.75)
+        & (0.0 < z)
+        & (z < 0.1)
     )
     T[0, mask] = 1.0
     return T
+
 
 def initialize_nu(
     x: Float[torch.Tensor, "W W W"],
@@ -62,6 +68,7 @@ def initialize_nu(
     dtype = x.dtype
     nu = torch.full((1, W, W, W), 0.001, dtype=dtype, device=device)
     return nu
+
 
 if __name__ == "__main__":
     registry = default_registry()

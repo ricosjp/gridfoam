@@ -9,6 +9,7 @@ def _():
     import pathlib
 
     import polars as pl
+
     return pathlib, pl
 
 
@@ -40,6 +41,7 @@ def _():
     import numpy as np
     import plotly.graph_objects as go
     import plotly.io as pio
+
     return go, np, pio
 
 
@@ -59,7 +61,7 @@ def _(df_with_dx, go, np, pio):
 
     # Generate regression line
     dx_fit = np.array(dx_values)
-    l_inf_fit = np.exp(intercept) * (dx_fit ** slope)
+    l_inf_fit = np.exp(intercept) * (dx_fit**slope)
 
     # Create log-log line plot
     fig = go.Figure()

@@ -1,6 +1,5 @@
 """Tests for solver method choice."""
 
-
 from gridfoam.DNA.scheme.solver._choice import SolverMethodChoice
 
 

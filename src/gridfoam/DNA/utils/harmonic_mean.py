@@ -8,7 +8,5 @@ def harmonic_mean(
     denom = forward + backward
     face = torch.zeros_like(denom)
     nonzero = denom != 0
-    face[nonzero] = (
-        2.0 * forward[nonzero] * backward[nonzero] / denom[nonzero]
-    )
+    face[nonzero] = 2.0 * forward[nonzero] * backward[nonzero] / denom[nonzero]
     return face

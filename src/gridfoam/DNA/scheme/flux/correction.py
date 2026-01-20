@@ -50,7 +50,10 @@ class FluxCorrection:
         C = Uf.C
         N = Uf.N
         for bc in ctx.bcs:
-            if bc.target_field != self._U_fm or bc.type != BoundaryConditionType.DIRICHLET:
+            if (
+                bc.target_field != self._U_fm
+                or bc.type != BoundaryConditionType.DIRICHLET
+            ):
                 continue
             for label in bc.target_boundary_labels:
                 if (

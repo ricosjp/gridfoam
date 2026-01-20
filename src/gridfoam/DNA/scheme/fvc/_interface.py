@@ -13,4 +13,3 @@ class IFVCOperator(abc.ABC):
         Apply the FVC operator.
         """
         pass
-

@@ -1,6 +1,5 @@
 """Tests for FVM grad scheme choice."""
 
-
 from gridfoam.DNA.scheme.fvm.grad._choice import FVMGradSchemeChoice
 
 

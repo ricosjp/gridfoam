@@ -1,4 +1,3 @@
-
 from gridfoam.DNA._grid._grid import PyOctreeNode
 from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
 from gridfoam.DNA.enum import FieldLayout
@@ -8,9 +7,7 @@ from gridfoam.DNA.scheme.fvm._interface import IFVMOperator
 
 
 class FVMIdentity(IFVMOperator):
-    def __init__(
-        self, psi_fm: FieldMeta
-    ) -> None:
+    def __init__(self, psi_fm: FieldMeta) -> None:
         assert psi_fm.layout == FieldLayout.CELL
         self._psi_fm = psi_fm
 

@@ -104,9 +104,7 @@ class SimulationEngine:
             time_vs_total_T["total_T"].append(total_T)
 
             if step % self._write_interval == 0:
-                self.context.save(
-                    f"{self._base_name}_{step:04d}.vtkhdf"
-                )
+                self.context.save(f"{self._base_name}_{step:04d}.vtkhdf")
             if time >= self._end_time:
                 break
 

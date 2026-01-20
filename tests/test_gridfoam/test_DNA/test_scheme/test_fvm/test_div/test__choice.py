@@ -1,6 +1,5 @@
 """Tests for FVM div scheme choice."""
 
-
 from gridfoam.DNA.scheme.fvm.div._choice import FVMDivSchemeChoice
 
 

@@ -1,6 +1,5 @@
 """Tests for FVC div operator interface."""
 
-
 from gridfoam.DNA.scheme.fvc.div._interface import IFVCDivOperator
 
 

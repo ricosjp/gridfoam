@@ -11,6 +11,7 @@ from gridfoam.DNA.scheme.flux.correction import FluxCorrection
 def test_flux_correction_import():
     """Test that FluxCorrection can be imported."""
     from gridfoam.DNA.scheme.flux.correction import FluxCorrection
+
     assert FluxCorrection is not None
 
 
@@ -32,7 +33,7 @@ def test_flux_correction_init():
         boundary_conditions=[],
         ast_root=U_field,
     )
-    
+
     correction = FluxCorrection(
         phi_fm=phi_field,
         U_fm=U_field,
@@ -61,7 +62,7 @@ def test_flux_correction_init_errors():
         boundary_conditions=[],
         ast_root=U_field,
     )
-    
+
     with pytest.raises(AssertionError):
         FluxCorrection(
             phi_fm=phi_field,

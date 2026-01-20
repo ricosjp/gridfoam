@@ -34,16 +34,19 @@ def test__generate_grid_indices():
     expected_Z = torch.arange(10).repeat_interleave(100)
     torch.testing.assert_close(Z, expected_Z)
 
+
 @pytest.fixture
 def grid_handle():
     configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
     return GridHandle(configpath)
+
 
 def test_grid_handle_properties(grid_handle):
     """Test GridHandle properties."""
     assert grid_handle.grid is not None
     assert grid_handle.mesh is not None
     assert grid_handle.config is not None
+
 
 def test_grid_handle_iter_levels(grid_handle):
     """Test GridHandle.iter_levels method."""
@@ -53,11 +56,13 @@ def test_grid_handle_iter_levels(grid_handle):
     assert levels[1].depth == 1
     assert levels[2].depth == 2
 
+
 def test_grid_handle_iter_leaf_on_level(grid_handle):
     """Test GridHandle.iter_leaf_on_level method."""
     level = list(grid_handle.iter_levels())[2]
     leaves = list(grid_handle.iter_leaf_on_level(level))
     assert len(leaves) == 512
+
 
 def test_grid_handle_iter_gfp_on_level(grid_handle):
     """Test GridHandle.iter_gfp_on_level method."""
@@ -65,22 +70,26 @@ def test_grid_handle_iter_gfp_on_level(grid_handle):
     gfps = list(grid_handle.iter_gfp_on_level(level))
     assert len(gfps) == 0
 
+
 def test_grid_handle_iter_gfc_on_level(grid_handle):
     """Test GridHandle.iter_gfc_on_level method."""
     level = list(grid_handle.iter_levels())[0]
     gfcs = list(grid_handle.iter_gfc_on_level(level))
     assert len(gfcs) == 0
 
+
 def test_grid_handle_iter_all_leaves(grid_handle):
     """Test GridHandle.iter_all_leaves method."""
     leaves = list(grid_handle.iter_all_leaves())
     assert len(leaves) == 512
+
 
 @pytest.fixture
 def registry():
     registry = default_registry()
     registry.register_field(builtin_T())
     return registry
+
 
 def test_grid_handle_allocate_by_registry(grid_handle, registry):
     """Test GridHandle.allocate_by_registry method."""
@@ -105,6 +114,7 @@ def test_grid_handle_allocate_field(grid_handle, registry):
         for cube in level.nodes.values():
             assert cube.field.cells["rho"] is not None
 
+
 def test_grid_handle_allocate_equation(grid_handle, registry):
     """Test GridHandle.allocate_equation method."""
     grid_handle.allocate_by_registry(registry)
@@ -113,12 +123,13 @@ def test_grid_handle_allocate_equation(grid_handle, registry):
         name="heat_diffusion",
         target_field=T,
         boundary_conditions=[],
-        ast_root=T
+        ast_root=T,
     )
     grid_handle.allocate_equation(equation_meta)
     for level in grid_handle.iter_levels():
         for cube in level.nodes.values():
             assert cube.field.fvmatrices["heat_diffusion"] is not None
+
 
 def test_grid_handle_update_fvmatrix(grid_handle, registry):
     """Test GridHandle.update_fvmatrix method."""
@@ -128,13 +139,14 @@ def test_grid_handle_update_fvmatrix(grid_handle, registry):
         name="heat_diffusion",
         target_field=T,
         boundary_conditions=[],
-        ast_root=T
+        ast_root=T,
     )
     grid_handle.update_fvmatrix(equation_meta)
 
     for level in grid_handle.iter_levels():
         for cube in level.nodes.values():
             assert cube.field.fvmatrices["heat_diffusion"] is not None
+
 
 def test_grid_handle_sync_halo(grid_handle, registry):
     """Test GridHandle.sync_halo method."""
@@ -164,6 +176,7 @@ def test_grid_handle_sync_halo(grid_handle, registry):
             assert torch.all(torch.isfinite(halo_x_forward))
             assert torch.all(torch.isfinite(halo_x_backward))
 
+
 def test_grid_handle_sync_gfp(grid_handle, registry):
     """Test GridHandle.sync_gfp method."""
     grid_handle.allocate_by_registry(registry)
@@ -188,7 +201,12 @@ def test_grid_handle_sync_gfp(grid_handle, registry):
                 # Interior should be finite (interpolated from parent)
                 assert torch.all(torch.isfinite(T_field.interior[0]))
                 # Should have some non-zero values (interpolated from parent)
-                assert not torch.allclose(T_field.interior[0, 0], torch.zeros_like(T_field.interior[0, 0]), atol=1e-6)
+                assert not torch.allclose(
+                    T_field.interior[0, 0],
+                    torch.zeros_like(T_field.interior[0, 0]),
+                    atol=1e-6,
+                )
+
 
 def test_grid_handle_sync_gfc(grid_handle, registry):
     """Test GridHandle.sync_gfc method."""
@@ -215,15 +233,20 @@ def test_grid_handle_sync_gfc(grid_handle, registry):
                 assert torch.all(torch.isfinite(T_field.interior[0]))
                 # Should have some non-zero values (coarsened from children)
                 # Note: coarsened values may be different from original due to averaging
-                assert not torch.allclose(T_field.interior[0, 0], torch.zeros_like(T_field.interior[0, 0]), atol=1e-6)
+                assert not torch.allclose(
+                    T_field.interior[0, 0],
+                    torch.zeros_like(T_field.interior[0, 0]),
+                    atol=1e-6,
+                )
+
 
 def test_grid_handle_get_dx_at_depth(grid_handle):
     """Test GridHandle.get_dx_at_depth method."""
     dx = grid_handle.get_dx_at_depth(0)
-    assert dx[0] == torch.tensor(2.0/8.0)
-    assert dx[1] == torch.tensor(2.0/8.0)
-    assert dx[2] == torch.tensor(2.0/8.0)
+    assert dx[0] == torch.tensor(2.0 / 8.0)
+    assert dx[1] == torch.tensor(2.0 / 8.0)
+    assert dx[2] == torch.tensor(2.0 / 8.0)
     dx = grid_handle.get_dx_at_depth(1)
-    assert dx[0] == torch.tensor(2.0/16.0)
-    assert dx[1] == torch.tensor(2.0/16.0)
-    assert dx[2] == torch.tensor(2.0/16.0)
+    assert dx[0] == torch.tensor(2.0 / 16.0)
+    assert dx[1] == torch.tensor(2.0 / 16.0)
+    assert dx[2] == torch.tensor(2.0 / 16.0)

@@ -86,6 +86,7 @@ def test_tvd_factory_create_unknown():
 
 def test_tvd_factory_register(monkeypatch):
     """Test TVDFactory register method."""
+
     class MockScheme(ITVDScheme):
         def correction_term(
             self, delta_minus: torch.Tensor, delta_plus: torch.Tensor

@@ -24,4 +24,3 @@ class FVMDdtSchemeConfig:
                 raise ValueError(
                     f"Unknown ddt scheme choice: {self.choice.name}"
                 )
-

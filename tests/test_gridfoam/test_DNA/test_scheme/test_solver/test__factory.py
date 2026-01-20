@@ -1,8 +1,5 @@
 """Tests for solver factory."""
 
-
-
-
 from gridfoam.DNA.config import SolverChoice
 from gridfoam.DNA.enum import FieldLayout, FieldRole, NormType
 from gridfoam.DNA.meta.equation import EquationMeta

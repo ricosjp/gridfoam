@@ -36,6 +36,7 @@ def test_field_meta_auxiliary_role():
 
 def test_field_meta_initialize_func_cell():
     """Test FieldMeta with initialize_func for cell-centered field."""
+
     def init_func(x, y, z):
         return torch.zeros(1, *x.shape)
 
@@ -50,6 +51,7 @@ def test_field_meta_initialize_func_cell():
 
 def test_field_meta_initialize_func_face_error():
     """Test FieldMeta raises error for initialize_func on face-centered field."""
+
     def init_func(x, y, z):
         return torch.zeros(1, *x.shape)
 

@@ -1,6 +1,5 @@
 """Tests for ArithmeticNode."""
 
-
 from gridfoam.DNA.ASTNodes.arithmetic_node import ArithmeticNode, ArithmeticType
 from gridfoam.DNA.meta.field import FieldMeta
 

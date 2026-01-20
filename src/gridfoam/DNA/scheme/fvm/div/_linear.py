@@ -1,4 +1,3 @@
-
 import torch
 
 from gridfoam.DNA._grid._grid import PyOctreeNode, RawIndexConversionMode

@@ -64,7 +64,9 @@ class SimulationMetaRegistry:
                 )
         if config.gradSchemes is not None:
             for key, choice in config.gradSchemes.items():
-                self.grad_scheme_configs[key] = FVMGradSchemeConfig(choice=choice)
+                self.grad_scheme_configs[key] = FVMGradSchemeConfig(
+                    choice=choice
+                )
 
     # Register linear solver
     def register_solver(self, config: fvSolutionConfig) -> None:

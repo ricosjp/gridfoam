@@ -27,12 +27,11 @@ class FVCLaplacianLinear(IFVCLaplacianOperator):
             gamma_f_diag.y = gamma_f.y
             gamma_f_diag.z = gamma_f.z
         elif gamma_c.C == 3:
-            gamma_f_diag.x = gamma_f.x[:, [0], :, :, :] # (T 1 N N L)
-            gamma_f_diag.y = gamma_f.y[:, [1], :, :, :] # (T 1 N L N)
-            gamma_f_diag.z = gamma_f.z[:, [2], :, :, :] # (T 1 L N N)
+            gamma_f_diag.x = gamma_f.x[:, [0], :, :, :]  # (T 1 N N L)
+            gamma_f_diag.y = gamma_f.y[:, [1], :, :, :]  # (T 1 N L N)
+            gamma_f_diag.z = gamma_f.z[:, [2], :, :, :]  # (T 1 L N N)
         else:
             raise ValueError(f"Invalid number of components: {gamma_c.C}")
-
 
         grad_psi_f_diag = FaceField(
             psi_c.T, 1, psi_c.N, psi_c.raw.dtype, psi_c.raw.device
@@ -42,11 +41,11 @@ class FVCLaplacianLinear(IFVCLaplacianOperator):
             grad_psi_f_diag.y = grad_psi_f.y
             grad_psi_f_diag.z = grad_psi_f.z
         elif psi_c.C == 3:
-            grad_psi_f_diag.x = grad_psi_f.x[:, [0], :, :, :] # (T 1 N N L)
-            grad_psi_f_diag.y = grad_psi_f.y[:, [1], :, :, :] # (T 1 N L N)
-            grad_psi_f_diag.z = grad_psi_f.z[:, [2], :, :, :] # (T 1 L N N)
+            grad_psi_f_diag.x = grad_psi_f.x[:, [0], :, :, :]  # (T 1 N N L)
+            grad_psi_f_diag.y = grad_psi_f.y[:, [1], :, :, :]  # (T 1 N L N)
+            grad_psi_f_diag.z = grad_psi_f.z[:, [2], :, :, :]  # (T 1 L N N)
         else:
             raise ValueError(f"Invalid number of components: {psi_c.C}")
 
         face_element = gamma_f_diag * grad_psi_f_diag
-        return face_element.integrate_dSn(Sf) / V # (T 1 N N N)
+        return face_element.integrate_dSn(Sf) / V  # (T 1 N N N)

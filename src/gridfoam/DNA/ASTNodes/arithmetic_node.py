@@ -9,6 +9,7 @@ class ArithmeticType(Enum):
     SUB = "-"
     MUL = "*"
 
+
 @dataclass(slots=True)
 class ArithmeticNode(IASTNode):
     type: ArithmeticType
@@ -28,4 +29,3 @@ class ArithmeticNode(IASTNode):
     @property
     def key(self) -> str:
         return f"{self.arg1.key} {self.type.value} {self.arg2.key}"
-

@@ -1,6 +1,5 @@
 """Tests for FVM laplacian scheme choice."""
 
-
 from gridfoam.DNA.scheme.fvm.laplacian._choice import FVMLaplacianSchemeChoice
 
 

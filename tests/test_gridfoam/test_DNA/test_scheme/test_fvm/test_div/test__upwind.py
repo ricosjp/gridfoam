@@ -64,7 +64,9 @@ def test_fvm_div_upwind_build_uniform_positive_flux_exact():
 
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -87,13 +89,13 @@ def test_fvm_div_upwind_build_uniform_positive_flux_exact():
 
     # Set uniform positive flux = 1.0
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     # Set uniform cell field (not used in upwind, but required)
     psi_c = cube_field.get_field(psi_field)
-    psi_c.raw[0] = torch.ones(1, N+2*H, N+2*H, N+2*H) * 2.0
+    psi_c.raw[0] = torch.ones(1, N + 2 * H, N + 2 * H, N + 2 * H) * 2.0
 
     mock_node = MagicMock(spec=PyOctreeNode)
     mock_node.field = cube_field
@@ -120,13 +122,48 @@ def test_fvm_div_upwind_build_uniform_positive_flux_exact():
     expected_a_B_center = torch.ones(N, N, N) * -1.0 / V
     expected_a_P_center = torch.ones(N, N, N) * 3.0 / V
 
-    torch.testing.assert_close(fvmatrix.a_E.interior[0, 0, :, :, :], expected_a_E_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_W.interior[0, 0, :, :, :], expected_a_W_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_N.interior[0, 0, :, :, :], expected_a_N_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_S.interior[0, 0, :, :, :], expected_a_S_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_T.interior[0, 0, :, :, :], expected_a_T_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_B.interior[0, 0, :, :, :], expected_a_B_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_P.interior[0, 0, :, :, :], expected_a_P_center, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(
+        fvmatrix.a_E.interior[0, 0, :, :, :],
+        expected_a_E_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_W.interior[0, 0, :, :, :],
+        expected_a_W_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_N.interior[0, 0, :, :, :],
+        expected_a_N_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_S.interior[0, 0, :, :, :],
+        expected_a_S_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_T.interior[0, 0, :, :, :],
+        expected_a_T_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_B.interior[0, 0, :, :, :],
+        expected_a_B_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_P.interior[0, 0, :, :, :],
+        expected_a_P_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
 
 
 def test_fvm_div_upwind_build_uniform_negative_flux_exact():
@@ -139,7 +176,9 @@ def test_fvm_div_upwind_build_uniform_negative_flux_exact():
 
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -162,12 +201,12 @@ def test_fvm_div_upwind_build_uniform_negative_flux_exact():
 
     # Set uniform negative flux = -1.0
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * -1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * -1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * -1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * -1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * -1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * -1.0
 
     psi_c = cube_field.get_field(psi_field)
-    psi_c.raw[0] = torch.ones(1, N+2*H, N+2*H, N+2*H) * 2.0
+    psi_c.raw[0] = torch.ones(1, N + 2 * H, N + 2 * H, N + 2 * H) * 2.0
 
     mock_node = MagicMock(spec=PyOctreeNode)
     mock_node.field = cube_field
@@ -194,13 +233,48 @@ def test_fvm_div_upwind_build_uniform_negative_flux_exact():
     expected_a_B_center = torch.zeros(N, N, N)
     expected_a_P_center = torch.ones(N, N, N) * 3.0 / V
 
-    torch.testing.assert_close(fvmatrix.a_E.interior[0, 0, :, :, :], expected_a_E_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_W.interior[0, 0, :, :, :], expected_a_W_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_N.interior[0, 0, :, :, :], expected_a_N_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_S.interior[0, 0, :, :, :], expected_a_S_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_T.interior[0, 0, :, :, :], expected_a_T_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_B.interior[0, 0, :, :, :], expected_a_B_center, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(fvmatrix.a_P.interior[0, 0, :, :, :], expected_a_P_center, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(
+        fvmatrix.a_E.interior[0, 0, :, :, :],
+        expected_a_E_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_W.interior[0, 0, :, :, :],
+        expected_a_W_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_N.interior[0, 0, :, :, :],
+        expected_a_N_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_S.interior[0, 0, :, :, :],
+        expected_a_S_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_T.interior[0, 0, :, :, :],
+        expected_a_T_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_B.interior[0, 0, :, :, :],
+        expected_a_B_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    torch.testing.assert_close(
+        fvmatrix.a_P.interior[0, 0, :, :, :],
+        expected_a_P_center,
+        rtol=1e-6,
+        atol=1e-6,
+    )
 
 
 def test_fvm_div_upwind_build_with_dirichlet_bc():
@@ -208,7 +282,9 @@ def test_fvm_div_upwind_build_with_dirichlet_bc():
 
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -231,12 +307,12 @@ def test_fvm_div_upwind_build_with_dirichlet_bc():
 
     # Set uniform positive flux
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     psi_c = cube_field.get_field(psi_field)
-    psi_c.raw[0] = torch.ones(1, N+2*H, N+2*H, N+2*H)
+    psi_c.raw[0] = torch.ones(1, N + 2 * H, N + 2 * H, N + 2 * H)
 
     # Create boundary condition
     bc = BoundaryConditionMeta(
@@ -268,19 +344,23 @@ def test_fvm_div_upwind_build_with_dirichlet_bc():
 
     # Verify BC was applied: -X face (forward=False) should have coeff zeroed and source shifted
     a_w_bound = fvmatrix.a_W.get_boundary_cell_along(axis=Axis.X, forward=False)
-    source_bound = fvmatrix.source.get_boundary_cell_along(axis=Axis.X, forward=False)
-    torch.testing.assert_close(
-        a_w_bound, torch.zeros_like(a_w_bound)
+    source_bound = fvmatrix.source.get_boundary_cell_along(
+        axis=Axis.X, forward=False
     )
+    torch.testing.assert_close(a_w_bound, torch.zeros_like(a_w_bound))
     # Source should reflect Dirichlet shift: source -= a_boundary * bc_value
-    torch.testing.assert_close(source_bound[0, 0], torch.ones(N, N) * 5.0, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(
+        source_bound[0, 0], torch.ones(N, N) * 5.0, rtol=1e-6, atol=1e-6
+    )
 
 
 def test_fvm_div_upwind_build_with_neumann_bc():
     """Test FVMDivUpwind build with Neumann boundary condition."""
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -302,13 +382,13 @@ def test_fvm_div_upwind_build_with_neumann_bc():
     cube_field.add_field(psi_field)
 
     phi_f = cube_field.get_field(phi_field)
-    for i in range(N+1):
+    for i in range(N + 1):
         phi_f.x[0, 0, :, :, i] = -float(i)
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     psi_c = cube_field.get_field(psi_field)
-    psi_c.raw[0] = torch.ones(1, N+2*H, N+2*H, N+2*H)
+    psi_c.raw[0] = torch.ones(1, N + 2 * H, N + 2 * H, N + 2 * H)
 
     # Create Neumann boundary condition
     bc = BoundaryConditionMeta(
@@ -339,10 +419,17 @@ def test_fvm_div_upwind_build_with_neumann_bc():
     # Verify Neumann BC was applied: boundary coeff zeroed and a_P incremented
     a_e_bound = fvmatrix.a_E.get_boundary_cell_along(axis=Axis.X, forward=True)
     a_p_bound = fvmatrix.a_P.get_boundary_cell_along(axis=Axis.X, forward=True)
-    source_bound = fvmatrix.source.get_boundary_cell_along(axis=Axis.X, forward=True)
-    torch.testing.assert_close(
-        a_e_bound, torch.zeros_like(a_e_bound)
+    source_bound = fvmatrix.source.get_boundary_cell_along(
+        axis=Axis.X, forward=True
     )
+    torch.testing.assert_close(a_e_bound, torch.zeros_like(a_e_bound))
     # a_P boundary should be increased by a_boundary (original negative) -> check finite
-    torch.testing.assert_close(a_p_bound[0, 0], torch.ones(N, N) * 1.0, rtol=1e-6, atol=1e-6)
-    torch.testing.assert_close(source_bound[0, 0], torch.ones(N, N) * 8.0*0.5*0.1, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(
+        a_p_bound[0, 0], torch.ones(N, N) * 1.0, rtol=1e-6, atol=1e-6
+    )
+    torch.testing.assert_close(
+        source_bound[0, 0],
+        torch.ones(N, N) * 8.0 * 0.5 * 0.1,
+        rtol=1e-6,
+        atol=1e-6,
+    )

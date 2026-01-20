@@ -1,6 +1,5 @@
 """Tests for FVM ddt scheme choice."""
 
-
 from gridfoam.DNA.scheme.fvm.ddt._choice import FVMDdtSchemeChoice
 
 

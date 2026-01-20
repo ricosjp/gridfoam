@@ -16,6 +16,7 @@ from gridfoam.RNA.registry import SimulationMetaRegistry
 def test_fractional_step_engine_import():
     """Test that FractionalStepEngine can be imported."""
     from gridfoam.CTX.application.fractional_step import FractionalStepEngine
+
     assert FractionalStepEngine is not None
 
 
@@ -63,7 +64,7 @@ def test_fractional_step_engine_init_with_mock():
     registry.register_equation(momentum_eq)
 
     from gridfoam.DNA.config import ControlConfig, IoConfig, SolverChoice
-    
+
     mock_config = MagicMock()
     mock_config.simulator.control = ControlConfig(
         writeInterval=1,
@@ -90,16 +91,27 @@ def test_fractional_step_engine_init_with_mock():
         }
     )
 
-    mock_grid_handle = create_autospec(GridHandle, spec_set=False, instance=True)
+    mock_grid_handle = create_autospec(
+        GridHandle, spec_set=False, instance=True
+    )
     mock_grid_handle.config = mock_config
 
-    mock_context = create_autospec(SimulationContext, spec_set=False, instance=True)
+    mock_context = create_autospec(
+        SimulationContext, spec_set=False, instance=True
+    )
     mock_context.registry = registry
     mock_context.grid_handle = mock_grid_handle
     mock_context.registry.equations = {"momentum": momentum_eq}
 
-    with patch("gridfoam.CTX.application.fractional_step.GridHandle", return_value=mock_grid_handle), \
-         patch("gridfoam.CTX.context.SimulationContext", return_value=mock_context):
+    with (
+        patch(
+            "gridfoam.CTX.application.fractional_step.GridHandle",
+            return_value=mock_grid_handle,
+        ),
+        patch(
+            "gridfoam.CTX.context.SimulationContext", return_value=mock_context
+        ),
+    ):
         configpath = pathlib.Path("dummy.yaml")
         engine = FractionalStepEngine(registry=registry, configpath=configpath)
 
@@ -157,7 +169,7 @@ def test_fractional_step_engine_initialize_with_mock():
     registry.register_equation(momentum_eq)
 
     from gridfoam.DNA.config import ControlConfig, IoConfig, SolverChoice
-    
+
     mock_config = MagicMock()
     mock_config.simulator.control = ControlConfig(
         writeInterval=1,
@@ -184,17 +196,28 @@ def test_fractional_step_engine_initialize_with_mock():
         }
     )
 
-    mock_grid_handle = create_autospec(GridHandle, spec_set=False, instance=True)
+    mock_grid_handle = create_autospec(
+        GridHandle, spec_set=False, instance=True
+    )
     mock_grid_handle.config = mock_config
     mock_grid_handle.allocate_by_registry = MagicMock()
 
-    mock_context = create_autospec(SimulationContext, spec_set=False, instance=True)
+    mock_context = create_autospec(
+        SimulationContext, spec_set=False, instance=True
+    )
     mock_context.registry = registry
     mock_context.grid_handle = mock_grid_handle
     mock_context.registry.equations = {"momentum": momentum_eq}
 
-    with patch("gridfoam.CTX.application.fractional_step.GridHandle", return_value=mock_grid_handle), \
-         patch("gridfoam.CTX.context.SimulationContext", return_value=mock_context):
+    with (
+        patch(
+            "gridfoam.CTX.application.fractional_step.GridHandle",
+            return_value=mock_grid_handle,
+        ),
+        patch(
+            "gridfoam.CTX.context.SimulationContext", return_value=mock_context
+        ),
+    ):
         configpath = pathlib.Path("dummy.yaml")
         engine = FractionalStepEngine(registry=registry, configpath=configpath)
 

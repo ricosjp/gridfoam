@@ -14,4 +14,3 @@ class SolverMethodChoice(Enum):
     """
     BiCGSTAB solver.
     """
-

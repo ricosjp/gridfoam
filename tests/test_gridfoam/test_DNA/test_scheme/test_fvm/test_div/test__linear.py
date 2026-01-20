@@ -42,7 +42,9 @@ def test_fvm_div_linear_build_uniform_field():
     # Setup
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     psi_field = FieldMeta(
@@ -57,7 +59,7 @@ def test_fvm_div_linear_build_uniform_field():
 
     # Set uniform cell field
     psi_c = cube_field.get_field(psi_field)
-    psi_c.raw[0] = torch.ones(3, N+2*H, N+2*H, N+2*H) * 2.0
+    psi_c.raw[0] = torch.ones(3, N + 2 * H, N + 2 * H, N + 2 * H) * 2.0
 
     # Create mock cube node
     mock_node = MagicMock(spec=PyOctreeNode)
@@ -97,7 +99,9 @@ def test_fvm_div_linear_build_linear_field():
     # Setup
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     psi_field = FieldMeta(
@@ -112,7 +116,7 @@ def test_fvm_div_linear_build_linear_field():
 
     # Set linear field in x direction
     psi_c = cube_field.get_field(psi_field)
-    for i in range(N+2*H):
+    for i in range(N + 2 * H):
         psi_c.raw[0, 0, :, :, i] = float(i)
 
     # Create mock cube node

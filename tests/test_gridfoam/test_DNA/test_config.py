@@ -67,7 +67,9 @@ def test_cube_config_defaults():
 
 def test_cube_config_custom():
     """Test CubeConfig with custom values."""
-    config = CubeConfig(interior_width=16, halo_width=4, device=torch.device("cpu"))
+    config = CubeConfig(
+        interior_width=16, halo_width=4, device=torch.device("cpu")
+    )
     assert config.interior_width == 16
     assert config.halo_width == 4
 
@@ -153,7 +155,9 @@ def test_simulator_config():
     control = ControlConfig(deltaT=0.1, endTime=10.0, writeInterval=10)
     schemes = fvSchemesConfig()
     solution = fvSolutionConfig(solvers={})
-    config = SimulatorConfig(control=control, fvSchemes=schemes, fvSolution=solution)
+    config = SimulatorConfig(
+        control=control, fvSchemes=schemes, fvSolution=solution
+    )
     assert config.control == control
     assert config.fvSchemes == schemes
     assert config.fvSolution == solution

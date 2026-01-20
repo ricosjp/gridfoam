@@ -4,6 +4,7 @@ variables:
   # GitLab CI creates a separate mountpoint for the build directory,
   # so we need to copy instead of using hard links.
   UV_LINK_MODE: copy
+  GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
   - test
@@ -43,7 +44,10 @@ gpu_pytest:
   image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
   before_script:
     - apt update
-    - apt install -y build-essential libhdf5-dev
+    - apt install -y build-essential libhdf5-dev curl
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source ~/.cargo/env
+    - cargo install cargo-nextest
     - pip install uv
     - make install
   script:
@@ -54,14 +58,6 @@ gpu_pytest:
       - .coverage.gpu
   tags:
     - gpu
-
-rust-test:
-  stage: test
-  script:
-    - make cubion-test
-  tags:
-    - no-gpu
-    - GenuineIntel
 
 pages:
   stage: deploy

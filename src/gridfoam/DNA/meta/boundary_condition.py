@@ -10,7 +10,7 @@ from gridfoam.DNA.meta.field import FieldMeta
 @dataclass(slots=True)
 class BoundaryConditionMeta:
     # Identification
-    name: str                     # e.g. "inlet", "outlet", "wall"
+    name: str  # e.g. "inlet", "outlet", "wall"
 
     # Boundary condition
     # "domainX+", "domainX-", "domainY+", "domainY-", "domainZ+", "domainZ-"

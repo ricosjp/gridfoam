@@ -20,5 +20,3 @@ class FVMDdtSchemeChoice(Enum):
     # """
     # Crank-Nicolson scheme.
     # """
-
-

@@ -13,9 +13,9 @@ def test_fvc_laplacian_linear_apply():
     device = torch.device("cpu")
     dtype = torch.float32
     gamma_field = CellField(T, C, N, H, dtype, device)
-    gamma_field.raw[0] = torch.ones(T, C, N+2*H, N+2*H, N+2*H)
+    gamma_field.raw[0] = torch.ones(T, C, N + 2 * H, N + 2 * H, N + 2 * H)
     psi_field = CellField(T, C, N, H, dtype, device)
-    psi_field.raw[0] = torch.ones(T, C, N+2*H, N+2*H, N+2*H)
+    psi_field.raw[0] = torch.ones(T, C, N + 2 * H, N + 2 * H, N + 2 * H)
 
     dx = torch.tensor([1.0, 1.0, 1.0])
     result = FVCLaplacianLinear.apply(gamma_field, psi_field, dx)
@@ -49,11 +49,11 @@ def test_fvc_laplacian_linear_apply_quadratic_field():
     device = torch.device("cpu")
     dtype = torch.float32
     gamma_field = CellField(T, C, N, H, dtype, device)
-    gamma_field.raw[0] = torch.ones(T, C, N+2*H, N+2*H, N+2*H)
+    gamma_field.raw[0] = torch.ones(T, C, N + 2 * H, N + 2 * H, N + 2 * H)
 
     psi_field = CellField(T, C, N, H, dtype, device)
     # Create quadratic field: psi[i] = i^2
-    for i in range(N+2*H):
+    for i in range(N + 2 * H):
         psi_field.raw[0, 0, :, :, i] = float(i * i)
 
     dx = torch.tensor([1.0, 1.0, 1.0])
@@ -79,11 +79,11 @@ def test_fvc_laplacian_linear_apply_linear_field():
     device = torch.device("cpu")
     dtype = torch.float32
     gamma_field = CellField(T, C, N, H, dtype, device)
-    gamma_field.raw[0] = torch.ones(T, C, N+2*H, N+2*H, N+2*H)
+    gamma_field.raw[0] = torch.ones(T, C, N + 2 * H, N + 2 * H, N + 2 * H)
 
     psi_field = CellField(T, C, N, H, dtype, device)
     # Create linear field: psi[i] = i
-    for i in range(N+2*H):
+    for i in range(N + 2 * H):
         psi_field.raw[0, 0, :, :, i] = float(i)
 
     dx = torch.tensor([1.0, 1.0, 1.0])

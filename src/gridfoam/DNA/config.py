@@ -52,6 +52,7 @@ class CubeConfig(BaseModel, frozen=True):
         Device on which tensors are allocated.
     """
 
+
 class IoConfig(BaseModel, frozen=True):
     output_dir: pathlib.Path
     """
@@ -100,7 +101,6 @@ class ControlConfig(BaseModel, frozen=True):
     """
 
 
-
 class fvSchemesConfig(BaseModel, frozen=True):
     ddtSchemes: dict[str, FVMDdtSchemeChoice] | None = None
     """
@@ -124,7 +124,11 @@ class fvSchemesConfig(BaseModel, frozen=True):
     """
 
     @field_validator(
-        "ddtSchemes", "divSchemes", "laplacianSchemes", "gradSchemes", mode="before"
+        "ddtSchemes",
+        "divSchemes",
+        "laplacianSchemes",
+        "gradSchemes",
+        mode="before",
     )
     @classmethod
     def regularize_keys(

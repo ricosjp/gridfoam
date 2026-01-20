@@ -12,4 +12,3 @@ class FVMGradSchemeChoice(Enum):
     """
     Linear scheme.
     """
-

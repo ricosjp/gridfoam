@@ -12,6 +12,7 @@ from gridfoam.DNA.meta.field import FieldMeta
 def test_cube_field_import():
     """Test that CubeField can be imported."""
     from gridfoam.DNA.cubefield import CubeField
+
     assert CubeField is not None
 
 

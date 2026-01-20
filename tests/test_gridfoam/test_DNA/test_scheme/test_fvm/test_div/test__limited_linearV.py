@@ -56,7 +56,9 @@ def test_fvm_div_limited_linear_v_build_uniform_fields():
     # Setup
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -79,9 +81,9 @@ def test_fvm_div_limited_linear_v_build_uniform_fields():
 
     # Set uniform flux
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     # Set uniform multi-component cell field
     psi_c = cube_field.get_field(psi_field)
@@ -125,7 +127,9 @@ def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
     # Setup
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -148,9 +152,9 @@ def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
 
     # Set uniform positive flux
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     # Set multi-component field with different gradients in different directions
     # x-direction: large gradient (magnitude ~1.0 per step)
@@ -163,15 +167,21 @@ def test_fvm_div_limited_linear_v_build_steepest_gradient_fields():
 
     # Set gradient in x-direction (steepest): component 0 has large gradient
     for i in range(N):
-        psi_c.interior[0, 0, :, :, i] = float(i)  # Large gradient in x, component 0
+        psi_c.interior[0, 0, :, :, i] = float(
+            i
+        )  # Large gradient in x, component 0
 
     # Set gradient in y-direction (small): component 1 has small gradient
     for j in range(N):
-        psi_c.interior[0, 1, :, j, :] = float(j) * 0.1  # Small gradient in y, component 1
+        psi_c.interior[0, 1, :, j, :] = (
+            float(j) * 0.1
+        )  # Small gradient in y, component 1
 
     # Set gradient in z-direction (medium): component 2 has medium gradient
     for k in range(N):
-        psi_c.interior[0, 2, k, :, :] = float(k) * 0.5  # Medium gradient in z, component 2
+        psi_c.interior[0, 2, k, :, :] = (
+            float(k) * 0.5
+        )  # Medium gradient in z, component 2
 
     # Create mock cube node
     mock_node = MagicMock(spec=PyOctreeNode)

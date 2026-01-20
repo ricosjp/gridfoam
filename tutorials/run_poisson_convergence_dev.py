@@ -11,7 +11,9 @@ def main() -> None:
     # Setup paths
     script_dir = pathlib.Path(__file__).parent
     project_root = script_dir.parent
-    template_dir = project_root / "tests" / "data" / "yaml" / "SpatialConvergenceTest"
+    template_dir = (
+        project_root / "tests" / "data" / "yaml" / "SpatialConvergenceTest"
+    )
     # template_file = "poisson.yaml.j2"
     template_file = "adaptive_poisson.yaml.j2"
     poisson_script = script_dir / "poisson.py"
@@ -27,9 +29,9 @@ def main() -> None:
 
         # Run for each depth_limit
         for depth_limit in range(6):  # 0 to 5
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Running with depth_limit = {depth_limit}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             # Render template with current depth_limit
             rendered_yaml = template.render(depth_limit=depth_limit)

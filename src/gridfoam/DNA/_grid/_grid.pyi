@@ -209,7 +209,6 @@ class PyOctreeLevel:
     n_leaf_nodes: int
     """Number of leaf nodes at this level."""
 
-
 class PyGrid:
     """A complete octree grid structure."""
 

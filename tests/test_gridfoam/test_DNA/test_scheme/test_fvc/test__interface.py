@@ -1,6 +1,5 @@
 """Tests for FVC operator interface."""
 
-
 from gridfoam.DNA.scheme.fvc._interface import IFVCOperator
 
 

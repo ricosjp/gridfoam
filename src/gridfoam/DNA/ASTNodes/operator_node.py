@@ -25,4 +25,3 @@ class OperatorNode(IASTNode):
     @property
     def key(self) -> str:
         return f"{self.type.value}({', '.join([arg.key for arg in self.args])})"
-

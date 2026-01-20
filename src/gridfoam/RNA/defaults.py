@@ -10,10 +10,12 @@ from .registry import SimulationMetaRegistry
 #         _autoregister_builtin_fields(_default_registry)
 #     return _default_registry
 
+
 def default_registry() -> SimulationMetaRegistry:
     reg = SimulationMetaRegistry()
     _autoregister_builtin_fields(reg)
     return reg
+
 
 def _autoregister_builtin_fields(reg: SimulationMetaRegistry) -> None:
     """
@@ -22,4 +24,3 @@ def _autoregister_builtin_fields(reg: SimulationMetaRegistry) -> None:
     reg.register_field(builtin_p())
     reg.register_field(builtin_U())
     reg.register_field(builtin_phi())
-

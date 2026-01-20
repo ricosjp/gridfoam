@@ -5,6 +5,7 @@ Compute solver
 
 This tutorial shows how to compute basic equations.
 """
+
 import pathlib
 
 import torch
@@ -43,9 +44,12 @@ def initialize_T(
     device = x.device
     dtype = x.dtype
     T = torch.zeros((1, W, W, W), dtype=dtype, device=device)
-    mask = (-1.0 < x) & (x < 1.0) & (-1.0 < y) & (y < 1.0) & (0.0 < z) & (z < 2.0)
+    mask = (
+        (-1.0 < x) & (x < 1.0) & (-1.0 < y) & (y < 1.0) & (0.0 < z) & (z < 2.0)
+    )
     T[0, mask] = 1.0
     return T
+
 
 def initialize_nu(
     x: Float[torch.Tensor, "W W W"],
@@ -57,6 +61,7 @@ def initialize_nu(
     dtype = x.dtype
     nu = torch.full((1, W, W, W), 0.01, dtype=dtype, device=device)
     return nu
+
 
 if __name__ == "__main__":
     registry = default_registry()
@@ -128,4 +133,3 @@ if __name__ == "__main__":
     #     cube_T = field.cells["T"].interior[0].sum()
     #     total_T += cube_T
     # print(f"Final total T: {total_T}")
-

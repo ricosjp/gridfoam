@@ -93,5 +93,5 @@ def equation(
         name=name,
         target_field=target,
         boundary_conditions=boundary_conditions,
-        ast_root=lhs-rhs,
+        ast_root=lhs - rhs,
     )

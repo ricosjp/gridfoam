@@ -88,7 +88,9 @@ def test_fvm_div_limited_linear_build_uniform_fields_exact():
     # For uniform fields, TVD correction should be zero
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -111,9 +113,9 @@ def test_fvm_div_limited_linear_build_uniform_fields_exact():
 
     # Set uniform flux
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     # Set uniform cell field
     psi_c = cube_field.get_field(psi_field)
@@ -151,7 +153,9 @@ def test_fvm_div_limited_linear_tvd_correction_gradient_sign_change():
     # At cell 2-3 boundary: delta_minus=1, delta_plus=-1 (opposite sign, no correction)
     N = 8
     H = 2
-    cube_config = CubeConfig(interior_width=N, halo_width=H, device=torch.device("cpu"))
+    cube_config = CubeConfig(
+        interior_width=N, halo_width=H, device=torch.device("cpu")
+    )
     cube_field = CubeField(cube_config)
 
     phi_field = FieldMeta(
@@ -174,9 +178,9 @@ def test_fvm_div_limited_linear_tvd_correction_gradient_sign_change():
 
     # Set uniform positive flux
     phi_f = cube_field.get_field(phi_field)
-    phi_f.x[0] = torch.ones(1, 1, N, N, N+1) * 1.0
-    phi_f.y[0] = torch.ones(1, 1, N, N+1, N) * 1.0
-    phi_f.z[0] = torch.ones(1, 1, N+1, N, N) * 1.0
+    phi_f.x[0] = torch.ones(1, 1, N, N, N + 1) * 1.0
+    phi_f.y[0] = torch.ones(1, 1, N, N + 1, N) * 1.0
+    phi_f.z[0] = torch.ones(1, 1, N + 1, N, N) * 1.0
 
     psi_c = cube_field.get_field(psi_field)
     # Set values in x direction: [0, 1, 2, 1, ...] with extension

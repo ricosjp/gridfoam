@@ -9,6 +9,7 @@ def _():
     import pathlib
 
     import polars as pl
+
     return pathlib, pl
 
 
@@ -40,6 +41,7 @@ def _(df, pl):
 def _():
     import plotly.graph_objects as go
     import plotly.io as pio
+
     return go, pio
 
 

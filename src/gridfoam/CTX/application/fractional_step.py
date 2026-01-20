@@ -107,7 +107,9 @@ class FractionalStepEngine:
                     fvmatrix = cube.field.fvmatrices[momentum_eq.name]
                     ap = fvmatrix.a_P.interior
                     cube.field.cells["rAU"].interior = 1.0 / ap
-            self.context.grid_handle.sync_all(fm_list=[self.context.registry.fields["rAU"]])
+            self.context.grid_handle.sync_all(
+                fm_list=[self.context.registry.fields["rAU"]]
+            )
 
             # poisson equation
             poisson_eq = self.context.registry.equations["poisson"]
@@ -134,7 +136,9 @@ class FractionalStepEngine:
                         bcs=poisson_eq.boundary_conditions,
                     )
                     self._rhie_chow_correction.update_velocity(cube, ctx)
-            self.context.grid_handle.sync_all(fm_list=[self.context.registry.fields["U"]])
+            self.context.grid_handle.sync_all(
+                fm_list=[self.context.registry.fields["U"]]
+            )
 
             # self.context.save(f"cavity_{step:04d}_rhie_chow.vtkhdf")
 
@@ -157,9 +161,7 @@ class FractionalStepEngine:
                     self._flux_correction.update_flux(cube, ctx)
 
             if step % self._write_interval == 0:
-                self.context.save(
-                    f"{self._base_name}_{step:04d}.vtkhdf"
-                )
+                self.context.save(f"{self._base_name}_{step:04d}.vtkhdf")
             if time >= self._end_time:
                 break
 

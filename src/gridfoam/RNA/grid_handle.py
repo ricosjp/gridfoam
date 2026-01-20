@@ -152,16 +152,14 @@ class GridHandle(IGridHandle):
                     cube.field.add_field(field_meta)
                     if field_meta.initialize_func is not None:
                         cell_field = cube.field.get_field(field_meta)
-                        cell_field.raw[0] = field_meta.initialize_func(
-                            x, y, z
-                        )
+                        cell_field.raw[0] = field_meta.initialize_func(x, y, z)
                     if field_meta.name == "phi":
                         U = cube.field.get_field(registry.get_field("U"))
                         phi = cube.field.get_field(field_meta)
                         Uf = U.face_average()
-                        phi.x[0] = Uf.x[0,0] * dx[1] * dx[2]
-                        phi.y[0] = Uf.y[0,1] * dx[0] * dx[2]
-                        phi.z[0] = Uf.z[0,2] * dx[0] * dx[1]
+                        phi.x[0] = Uf.x[0, 0] * dx[1] * dx[2]
+                        phi.y[0] = Uf.y[0, 1] * dx[0] * dx[2]
+                        phi.z[0] = Uf.z[0, 2] * dx[0] * dx[1]
                 for equation_meta in registry.equations.values():
                     cube.field.add_equation(equation_meta)
         sync_list = [

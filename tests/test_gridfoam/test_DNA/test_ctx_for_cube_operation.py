@@ -11,6 +11,7 @@ from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 def test_ctx_for_cube_operation_import():
     """Test that CtxForCubeOperation can be imported."""
     from gridfoam.DNA.ctx_for_cube_operation import CtxForCubeOperation
+
     assert CtxForCubeOperation is not None
 
 
@@ -22,7 +23,7 @@ def test_ctx_for_cube_operation_init():
     dx = torch.tensor([1.0, 1.0, 1.0])
     vertices = torch.zeros((8, 3))
     bcs = []
-    
+
     ctx = CtxForCubeOperation(
         depth=depth,
         bounds=bounds,
@@ -43,13 +44,13 @@ def test_ctx_for_cube_operation_with_bcs():
     """Test CtxForCubeOperation with boundary conditions."""
     from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout, FieldRole
     from gridfoam.DNA.meta.field import FieldMeta
-    
+
     depth = 0
     bounds = np.array([0, 0, 0], dtype=np.uint64)
     dt = 0.1
     dx = torch.tensor([1.0, 1.0, 1.0])
     vertices = torch.zeros((8, 3))
-    
+
     field = FieldMeta(
         name="test",
         label="Test",
@@ -63,7 +64,7 @@ def test_ctx_for_cube_operation_with_bcs():
         value=torch.tensor([1.0]),
     )
     bcs = [bc]
-    
+
     ctx = CtxForCubeOperation(
         depth=depth,
         bounds=bounds,

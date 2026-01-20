@@ -8,6 +8,7 @@ from gridfoam.DNA._gridhandle import IGridHandle
 def test_igrid_handle_import():
     """Test that IGridHandle can be imported."""
     from gridfoam.DNA._gridhandle import IGridHandle
+
     assert IGridHandle is not None
 
 

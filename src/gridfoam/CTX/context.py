@@ -91,8 +91,11 @@ class SimulationContext:
                             continue
                         C = cell_field.C
                         data = (
-                            cell_field.interior[0].reshape(C, -1)
-                        ).permute(1, 0).cpu().numpy()  # (N^3, C)
+                            (cell_field.interior[0].reshape(C, -1))
+                            .permute(1, 0)
+                            .cpu()
+                            .numpy()
+                        )  # (N^3, C)
                         field_data_by_name[name].append(data)
                 if len(amrboxes) == 0:
                     continue

@@ -13,7 +13,7 @@ def test_fvc_grad_linear_apply():
     device = torch.device("cpu")
     dtype = torch.float32
     cell_field = CellField(T, C, N, H, dtype, device)
-    cell_field.raw[0] = torch.ones(T, C, N+2*H, N+2*H, N+2*H)
+    cell_field.raw[0] = torch.ones(T, C, N + 2 * H, N + 2 * H, N + 2 * H)
 
     dx = torch.tensor([1.0, 1.0, 1.0])
     result = FVCGradLinear.apply(cell_field, dx)
@@ -22,7 +22,9 @@ def test_fvc_grad_linear_apply():
     assert result.shape[0] == T
     assert result.shape[1] == 3  # gradient components
     # For uniform field, gradient should be zero
-    torch.testing.assert_close(result, torch.zeros(T, 3, C, N, N, N), rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(
+        result, torch.zeros(T, 3, C, N, N, N), rtol=1e-5, atol=1e-6
+    )
 
 
 def test_fvc_grad_linear_apply_shape():
@@ -51,7 +53,7 @@ def test_fvc_grad_linear_apply_linear_field_exact():
     cell_field = CellField(T, C, N, H, dtype, device)
 
     # Create linear field: psi[i] = i
-    for i in range(N+2*H):
+    for i in range(N + 2 * H):
         cell_field.raw[0, 0, :, :, i] = float(i)
 
     dx = torch.tensor([1.0, 1.0, 1.0])
@@ -87,10 +89,10 @@ def test_fvc_grad_linear_apply_3d_linear_field():
     cell_field = CellField(T, C, N, H, dtype, device)
 
     # Create 3D linear field: psi[i,j,k] = i + 2*j + 3*k
-    for k in range(N+2*H):
-        for j in range(N+2*H):
-            for i in range(N+2*H):
-                cell_field.raw[0, 0, k, j, i] = float(i + 2*j + 3*k)
+    for k in range(N + 2 * H):
+        for j in range(N + 2 * H):
+            for i in range(N + 2 * H):
+                cell_field.raw[0, 0, k, j, i] = float(i + 2 * j + 3 * k)
 
     dx = torch.tensor([1.0, 1.0, 1.0])
     result = FVCGradLinear.apply(cell_field, dx)

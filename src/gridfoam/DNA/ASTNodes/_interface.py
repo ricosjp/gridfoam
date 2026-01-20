@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class IASTNode(abc.ABC):
-
     @abc.abstractmethod
     def __add__(self, other: IASTNode | None) -> IASTNode:
         pass

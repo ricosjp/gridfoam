@@ -173,7 +173,9 @@ class CellField:
     def __rmul__(self, other: float) -> CellField:
         return self * other
 
-    def get_boundary_cell_along(self, axis: Axis, forward: bool) -> Float[torch.Tensor, "T C N N"]:
+    def get_boundary_cell_along(
+        self, axis: Axis, forward: bool
+    ) -> Float[torch.Tensor, "T C N N"]:
         """
         Get the boundary cell value along the specified axis.
         """
@@ -188,7 +190,9 @@ class CellField:
             case _:
                 raise ValueError(f"Invalid axis: {axis}")
 
-    def set_boundary_cell_along(self, axis: Axis, forward: bool, value: Float[torch.Tensor, "T C N N"]) -> None:
+    def set_boundary_cell_along(
+        self, axis: Axis, forward: bool, value: Float[torch.Tensor, "T C N N"]
+    ) -> None:
         """
         Set the boundary cell value along the specified axis.
         """
@@ -328,7 +332,7 @@ class CellField:
         slices = [slice(None)] * 2 + slices
         ret = self._raw[tuple(slices)]
         if flip:
-            return torch.flip(ret, dims=[2+axis])
+            return torch.flip(ret, dims=[2 + axis])
         else:
             return ret
 
@@ -497,7 +501,7 @@ class CellField:
         grad_field = FaceField(
             self.T, self.C, self.N, self.raw.dtype, self.raw.device
         )
-        grad_field.x = self.face_diff_along(Axis.X) / dx[Axis.X.value-1]
-        grad_field.y = self.face_diff_along(Axis.Y) / dx[Axis.Y.value-1]
-        grad_field.z = self.face_diff_along(Axis.Z) / dx[Axis.Z.value-1]
+        grad_field.x = self.face_diff_along(Axis.X) / dx[Axis.X.value - 1]
+        grad_field.y = self.face_diff_along(Axis.Y) / dx[Axis.Y.value - 1]
+        grad_field.z = self.face_diff_along(Axis.Z) / dx[Axis.Z.value - 1]
         return grad_field
