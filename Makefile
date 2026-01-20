@@ -37,14 +37,17 @@ document:
 benchmark:
 	mkdir -p ./tests/outputs/benchmark/time/
 	uv sync --refresh --reinstall --group benchmark
-	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark/time --benchmark-autosave
+	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark --benchmark-autosave
 	uv run python visualization/benchmark.py
 
-.PHONY: profile
-profile:
+.PHONY: profile-time
+profile-time:
 	mkdir -p ./tests/outputs/profile/time/
-	mkdir -p ./tests/outputs/profile/memory/
 	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m with_profile
+
+.PHONY: profile-memory
+profile-memory:
+	mkdir -p ./tests/outputs/profile/memory/
 	uv run pytest -v -m with_profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridgen
 	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_bunny_profile.bin
 	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_DrivAer_profile.bin

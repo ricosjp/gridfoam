@@ -6,7 +6,7 @@
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path("../../src").resolve()))
+sys.path.insert(0, str(pathlib.Path().resolve()))
 
 # -- pyvista configuration ---------------------------------------------------
 import pyvista
@@ -57,6 +57,7 @@ extensions = [
 sphinx_gallery_conf = {
     "examples_dirs": "../../tutorials",
     "gallery_dirs": "tutorials",
+    "ignore_pattern": r"(_dev|_wip|_draft|_slow)\.py",
     "within_subsection_order": "FileNameSortKey",
     "filename_pattern": r"/*\.py",
     "image_scrapers": (
@@ -67,93 +68,61 @@ sphinx_gallery_conf = {
 
 
 # -- Options for HTML output -------------------------------------------------
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-html_theme = "pydata_sphinx_theme"
+# https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html
 
-# Theme options are theme-specific and customize the look and feel of a theme
-# further.  For a list of options available for each theme, see the
-# documentation.
+html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    # "logo": {
-    #     "image_light": "logo.png",
-    #     "image_dark": "logo_dark.png",
-    # },
-    # https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/header-links.html#fontawesome-icons
-    # "icon_links": [
-    #     {
-    #         "name": "GitHub",
-    #         "url": "https://github.com/arviz-devs/arviz",
-    #         "icon": "fa-brands fa-github",
-    #     },
-    # ],
+    # Logo configuration
+    "logo": {
+        "image_light": "_static/logo.png",
+        "image_dark": "_static/logo.png",
+    },
+    # Navbar configuration
     "navbar_start": ["navbar-logo", "navbar-version"],
     "navbar_align": "content",
     "header_links_before_dropdown": 5,
-    "secondary_sidebar_items": ["page-toc", "sourcelink"],
-    # "use_edit_page_button": True,
-    # "analytics": {"google_analytics_id": "G-W1G68W77YV"},
-    # "external_links": [
-    #     {"name": "The ArviZ project", "url": "https://www.arviz.org"},
-    # ],
+    # Right-hand sidebar contents
+    "secondary_sidebar_items": ["page-toc"],
+    # Footer configuration (hide theme/version credits)
+    "footer_start": ["copyright"],
+    "footer_end": [],
+    "footer_center": [],
 }
 html_context = {
-    # "github_user": "arviz-devs",
-    # "github_repo": "arviz",
-    # "github_version": "main",
-    "doc_path": "doc/source/",
+    "github_version": "main",
+    "doc_path": "docs/source/",
     "default_mode": "light",
 }
 html_sidebars: dict[str, list] = {"index": []}
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-# html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
 html_static_path = ["_static"]
+html_title = "graphlow"
+html_show_search_summary = True
+html_favicon = "_static/logo.png"
+html_logo = "_static/logo.png"
+html_show_sphinx = False
 html_css_files = ["custom.css"]
 
-# use additional pages to add a 404 page
-html_additional_pages = {
-    "404": "404.html",
-}
-
-html_favicon = "_static/favicon.ico"
-html_show_sphinx = False
 
 # -- Extension configuration -------------------------------------------------
-# Generate API documentation when building
 autosummary_generate = True
-autodoc_typehints = "none"
+autodoc_typehints = "description"
+autodoc_default_options = {
+    "members": True,
+    "inherited-members": False,
+    "exclude-members": "with_traceback",
+    "show-inheritance": False,
+}
 
 # numpydoc configuration
-# numpydoc_show_class_members = False
-# numpydoc_xref_param_type = True
-# numpydoc_xref_ignore = {
-#     "of",
-#     "or",
-#     "optional",
-#     "default",
-#     "1D",
-#     "2D",
-#     "3D",
-#     "n-dimensional",
-#     "K",
-#     "M",
-#     "N",
-#     "S",
-# }
-# numpydoc_xref_aliases = {
-#     "DataArray": ":class:`~xarray.DataArray`",
-#     "Dataset": ":class:`~xarray.Dataset`",
-#     "DataTree": ":class:`~xarray.DataTree`",
-#     "Labeller": ":ref:`Labeller <labeller_api>`",
-#     "ndarray": ":class:`~numpy.ndarray`",
-#     "InferenceData": ":class:`~arviz.InferenceData`",
-#     "matplotlib_axes": ":class:`matplotlib Axes <matplotlib.axes.Axes>`",
-#     "bokeh_figure": ":class:`Bokeh Figure <bokeh.plotting.figure>`",
-# }
+numpydoc_show_class_members = True
+numpydoc_show_inherited_class_members = False
+numpydoc_class_members_toctree = False
+numpydoc_attributes_as_param_list = True
+numpydoc_use_blockquotes = True
+# Validation checks: empty set to disable, or list of check codes to enable
+# Common checks: GL01 (line too long), EX01 (examples not found), etc.
+numpydoc_validation_checks = set()  # Disable validation for now
+numpydoc_validation_exclude = set()  # Exclude specific checks if needed
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["../_templates"]

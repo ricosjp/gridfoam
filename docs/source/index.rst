@@ -1,7 +1,7 @@
-graphlow : Graph for Physics
-============================
+gridfoam : Differentiable Fluid Solver of Hierarchical Grid
+===========================================================
 
-*graphlow* provides graph processing features for physical simulation data (e.g., mesh).
+*gridfoam* provides differentiable fluid solver for hierarchical grid.
 
 
 .. toctree::

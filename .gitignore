@@ -177,6 +177,7 @@ spike
 
 outputs/
 docs/source/tutorials/
+docs/source/api/generated/
 sg_execution_times.rst
 docker-compose.yml
 reference
