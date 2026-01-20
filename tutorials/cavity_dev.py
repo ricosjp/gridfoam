@@ -3,7 +3,7 @@ import pathlib
 import torch
 from jaxtyping import Float
 
-from gridfoam.CTX.application.ico import ICOEngine
+from gridfoam.CTX.application.fractional_step import FractionalStepEngine
 from gridfoam.DNA.enum import BoundaryConditionType, FieldLayout, FieldRole
 from gridfoam.DNA.meta.boundary_condition import BoundaryConditionMeta
 from gridfoam.DNA.meta.field import FieldMeta
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     )
     registry.register_equation(poisson_equation)
 
-    simulation_engine = ICOEngine(
+    simulation_engine = FractionalStepEngine(
         registry=registry,
         configpath=configpath,
     )

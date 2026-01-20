@@ -1,6 +1,5 @@
 """Tests for ArithmeticNode."""
 
-import pytest
 
 from gridfoam.DNA.ASTNodes.arithmetic_node import ArithmeticNode, ArithmeticType
 from gridfoam.DNA.meta.field import FieldMeta
@@ -61,6 +60,6 @@ def test_arithmetic_node_key():
 
 def test_arithmetic_type_enum():
     """Test ArithmeticType enum."""
-    assert ArithmeticType.ADD == "+"
-    assert ArithmeticType.SUB == "-"
-    assert ArithmeticType.MUL == "*"
+    assert ArithmeticType.ADD.value == "+"
+    assert ArithmeticType.SUB.value == "-"
+    assert ArithmeticType.MUL.value == "*"

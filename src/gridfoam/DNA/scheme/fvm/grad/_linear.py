@@ -5,10 +5,10 @@ from gridfoam.DNA.enum import FieldLayout
 from gridfoam.DNA.fielddata import CellField, FVMatrix
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.fvc.grad._linear import FVCGradLinear
-from gridfoam.DNA.scheme.fvm._interface import IFVMOperator
+from gridfoam.DNA.scheme.fvm.grad._interface import IFVMGradOperator
 
 
-class FVMGradLinear(IFVMOperator):
+class FVMGradLinear(IFVMGradOperator):
     def __init__(
         self, psi_fm: FieldMeta
     ) -> None:

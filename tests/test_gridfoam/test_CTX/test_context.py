@@ -1,10 +1,12 @@
 """Tests for CTX/context module."""
 
-from unittest.mock import MagicMock
+import pathlib
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
 from gridfoam.CTX.context import SimulationContext
+from gridfoam.RNA.grid_handle import GridHandle
 from gridfoam.RNA.registry import SimulationMetaRegistry
 
 
@@ -17,7 +19,7 @@ def test_simulation_context_import():
 def test_simulation_context_init():
     """Test SimulationContext initialization."""
     registry = SimulationMetaRegistry()
-    mock_grid_handle = MagicMock()
+    mock_grid_handle = create_autospec(GridHandle, spec_set=True, instance=True)
     
     context = SimulationContext(registry=registry, grid_handle=mock_grid_handle)
     assert context.registry == registry
@@ -28,14 +30,16 @@ def test_simulation_context_init():
 def test_simulation_context_save():
     """Test SimulationContext save method."""
     registry = SimulationMetaRegistry()
-    mock_grid_handle = MagicMock()
+    mock_grid_handle = create_autospec(GridHandle, spec_set=True, instance=True)
     
     # Mock config
+    from gridfoam.DNA.config import CubeConfig, IoConfig
     mock_config = MagicMock()
-    mock_config.io.output_dir = MagicMock()
-    mock_config.io.output_dir.__truediv__ = lambda self, other: MagicMock()
-    mock_config.io.overwrite_file = True
-    mock_config.cube.interior_width = 8
+    mock_config.io = IoConfig(
+        output_dir=pathlib.Path("."),
+        base_name="test",
+    )
+    mock_config.cube = CubeConfig(interior_width=8, halo_width=2)
     
     # Mock grid
     mock_grid = MagicMock()

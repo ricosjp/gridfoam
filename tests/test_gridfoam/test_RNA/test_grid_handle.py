@@ -1,230 +1,229 @@
-"""Tests for RNA/grid_handle module."""
-
 import pathlib
-from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 import torch
 
-from gridfoam.DNA._grid._grid import NodeType, PyBBox, PyCubeCode, PyGrid, PyOctreeLevel, PyOctreeNode
-from gridfoam.DNA.config import CubeConfig, GridfoamConfig
 from gridfoam.DNA.enum import FieldLayout, FieldRole
+from gridfoam.DNA.meta.equation import EquationMeta
 from gridfoam.DNA.meta.field import FieldMeta
-from gridfoam.RNA.grid_handle import GridHandle
+from gridfoam.RNA.builtins.builtin_fields import builtin_T
+from gridfoam.RNA.defaults import default_registry
+from gridfoam.RNA.grid_handle import GridHandle, _generate_grid_indices
 
 
-def test_grid_handle_import():
-    """Test that GridHandle can be imported."""
-    from gridfoam.RNA.grid_handle import GridHandle
-    assert GridHandle is not None
+def test__generate_grid_indices():
+    """Test _generate_grid_indices function."""
+    divisions = torch.tensor([10, 10, 10])
+    indices = _generate_grid_indices(divisions)
+    X = indices[0]
+    Y = indices[1]
+    Z = indices[2]
+
+    # X: each value repeats 100 times (10*10=100)
+    # Pattern: [0,1,2,...,9] repeated 100 times
+    expected_X = torch.arange(10).repeat(100)
+    torch.testing.assert_close(X, expected_X)
+
+    # Y: each value repeats 10 times, and this pattern repeats 10 times
+    # Pattern: [0,0,...,0 (10 times), 1,1,...,1 (10 times), ..., 9,9,...,9 (10 times)] repeated 10 times
+    expected_Y = torch.arange(10).repeat_interleave(10).repeat(10)
+    torch.testing.assert_close(Y, expected_Y)
+
+    # Z: each value repeats 100 times
+    # Pattern: [0,0,...,0 (100 times), 1,1,...,1 (100 times), ..., 9,9,...,9 (100 times)]
+    expected_Z = torch.arange(10).repeat_interleave(100)
+    torch.testing.assert_close(Z, expected_Z)
+
+@pytest.fixture
+def grid_handle():
+    configpath = pathlib.Path("tests/data/yaml/bunny.yaml")
+    return GridHandle(configpath)
+
+def test_grid_handle_properties(grid_handle):
+    """Test GridHandle properties."""
+    assert grid_handle.grid is not None
+    assert grid_handle.mesh is not None
+    assert grid_handle.config is not None
+
+def test_grid_handle_iter_levels(grid_handle):
+    """Test GridHandle.iter_levels method."""
+    levels = list(grid_handle.iter_levels())
+    assert len(levels) == 3
+    assert levels[0].depth == 0
+    assert levels[1].depth == 1
+    assert levels[2].depth == 2
+
+def test_grid_handle_iter_leaf_on_level(grid_handle):
+    """Test GridHandle.iter_leaf_on_level method."""
+    level = list(grid_handle.iter_levels())[2]
+    leaves = list(grid_handle.iter_leaf_on_level(level))
+    assert len(leaves) == 512
+
+def test_grid_handle_iter_gfp_on_level(grid_handle):
+    """Test GridHandle.iter_gfp_on_level method."""
+    level = list(grid_handle.iter_levels())[1]
+    gfps = list(grid_handle.iter_gfp_on_level(level))
+    assert len(gfps) == 0
+
+def test_grid_handle_iter_gfc_on_level(grid_handle):
+    """Test GridHandle.iter_gfc_on_level method."""
+    level = list(grid_handle.iter_levels())[0]
+    gfcs = list(grid_handle.iter_gfc_on_level(level))
+    assert len(gfcs) == 0
+
+def test_grid_handle_iter_all_leaves(grid_handle):
+    """Test GridHandle.iter_all_leaves method."""
+    leaves = list(grid_handle.iter_all_leaves())
+    assert len(leaves) == 512
+
+@pytest.fixture
+def registry():
+    registry = default_registry()
+    registry.register_field(builtin_T())
+    return registry
+
+def test_grid_handle_allocate_by_registry(grid_handle, registry):
+    """Test GridHandle.allocate_by_registry method."""
+    grid_handle.allocate_by_registry(registry)
+    for level in grid_handle.iter_levels():
+        for cube in level.nodes.values():
+            assert cube.field.cells["T"] is not None
 
 
-def test_grid_handle_init_with_mock():
-    """Test GridHandle initialization with mocked grid generation."""
-    # Create minimal mock grid
-    mock_bbox = PyBBox()
-    mock_bbox.lower = np.array([0.0, 0.0, 0.0])
-    mock_bbox.upper = np.array([1.0, 1.0, 1.0])
-    
-    mock_level = PyOctreeLevel()
-    mock_level.depth = 0
-    mock_level.bounds = np.array([1, 1, 1], dtype=np.uint64)
-    mock_level.nodes = {}
-    mock_level.n_leaf_nodes = 0
-    
-    mock_grid = PyGrid()
-    mock_grid.domain = mock_bbox
-    mock_grid.blocksize = np.array([1, 1, 1], dtype=np.uint64)
-    mock_grid.max_depth = 0
-    mock_grid.octree_levels = [mock_level]
-    mock_grid.n_leaf_nodes = 0
-    
-    # Create minimal mock mesh
-    import pyvista as pv
-    mock_mesh = pv.PolyData()
-    
-    # Create minimal mock config
-    mock_config = MagicMock()
-    mock_config.cube.interior_width = 8
-    mock_config.cube.halo_width = 2
-    mock_config.cube.device = torch.device("cpu")
-    
-    # Patch generate_grid_from_polydata and file operations
-    with patch("gridfoam.RNA.grid_handle.generate_grid_from_polydata", return_value=mock_grid), \
-         patch("gridfoam.RNA.grid_handle.pv.read", return_value=mock_mesh), \
-         patch("gridfoam.RNA.grid_handle.YamlRoot") as mock_yaml_root:
-        
-        # Mock YAML loading
-        mock_yaml_config = MagicMock()
-        mock_yaml_config.gridfoam = mock_config
-        mock_yaml_root.model_validate.return_value = mock_yaml_config
-        
-        # Create temporary config file path
-        configpath = pathlib.Path("dummy.yaml")
-        
-        # GridHandle should initialize without file dependency
-        grid_handle = GridHandle(configpath=configpath)
-        
-        assert grid_handle.grid == mock_grid
-        assert grid_handle.mesh == mock_mesh
-        assert grid_handle.config == mock_config
-        assert hasattr(grid_handle, "iter_levels")
-        assert hasattr(grid_handle, "iter_all_leaves")
-        assert hasattr(grid_handle, "allocate_field")
-        assert hasattr(grid_handle, "sync_halo")
+def test_grid_handle_allocate_field(grid_handle, registry):
+    """Test GridHandle.allocate_field method."""
+    grid_handle.allocate_by_registry(registry)
+    field_meta = FieldMeta(
+        name="rho",
+        label="Density",
+        role=FieldRole.STATE,
+        layout=FieldLayout.CELL,
+        components=1,
+    )
+    grid_handle.allocate_field(field_meta)
+    for level in grid_handle.iter_levels():
+        for cube in level.nodes.values():
+            assert cube.field.cells["rho"] is not None
 
+def test_grid_handle_allocate_equation(grid_handle, registry):
+    """Test GridHandle.allocate_equation method."""
+    grid_handle.allocate_by_registry(registry)
+    T = registry.get_field("T")
+    equation_meta = EquationMeta(
+        name="heat_diffusion",
+        target_field=T,
+        boundary_conditions=[],
+        ast_root=T
+    )
+    grid_handle.allocate_equation(equation_meta)
+    for level in grid_handle.iter_levels():
+        for cube in level.nodes.values():
+            assert cube.field.fvmatrices["heat_diffusion"] is not None
 
-def test_grid_handle_iter_levels():
-    """Test GridHandle iter_levels method."""
-    mock_level = PyOctreeLevel()
-    mock_level.depth = 0
-    mock_level.bounds = np.array([1, 1, 1], dtype=np.uint64)
-    mock_level.nodes = {}
-    mock_level.n_leaf_nodes = 0
-    
-    mock_grid = PyGrid()
-    mock_grid.octree_levels = [mock_level]
-    
-    mock_mesh = MagicMock()
-    mock_config = MagicMock()
-    mock_config.cube.interior_width = 8
-    
-    with patch("gridfoam.RNA.grid_handle.generate_grid_from_polydata", return_value=mock_grid), \
-         patch("gridfoam.RNA.grid_handle.pv.read", return_value=mock_mesh), \
-         patch("gridfoam.RNA.grid_handle.YamlRoot") as mock_yaml_root:
-        mock_yaml_config = MagicMock()
-        mock_yaml_config.gridfoam = mock_config
-        mock_yaml_root.model_validate.return_value = mock_yaml_config
-        
-        configpath = pathlib.Path("dummy.yaml")
-        grid_handle = GridHandle(configpath=configpath)
-        
-        levels = list(grid_handle.iter_levels())
-        assert len(levels) == 1
-        assert levels[0].depth == 0
+def test_grid_handle_update_fvmatrix(grid_handle, registry):
+    """Test GridHandle.update_fvmatrix method."""
+    grid_handle.allocate_by_registry(registry)
+    T = registry.get_field("T")
+    equation_meta = EquationMeta(
+        name="heat_diffusion",
+        target_field=T,
+        boundary_conditions=[],
+        ast_root=T
+    )
+    grid_handle.update_fvmatrix(equation_meta)
 
+    for level in grid_handle.iter_levels():
+        for cube in level.nodes.values():
+            assert cube.field.fvmatrices["heat_diffusion"] is not None
 
-def test_grid_handle_iter_all_leaves():
-    """Test GridHandle iter_all_leaves method."""
-    # Create mock leaf node
-    mock_cube = PyOctreeNode()
-    mock_cube.node_type = NodeType.LEAF
-    mock_cube.cubecode = MagicMock()
-    mock_cube.field = MagicMock()
-    
-    mock_level = PyOctreeLevel()
-    mock_level.depth = 0
-    mock_level.bounds = np.array([1, 1, 1], dtype=np.uint64)
-    mock_level.nodes = {0: mock_cube}
-    mock_level.n_leaf_nodes = 1
-    
-    mock_grid = PyGrid()
-    mock_grid.octree_levels = [mock_level]
-    
-    mock_mesh = MagicMock()
-    mock_config = MagicMock()
-    mock_config.cube.interior_width = 8
-    
-    with patch("gridfoam.RNA.grid_handle.generate_grid_from_polydata", return_value=mock_grid), \
-         patch("gridfoam.RNA.grid_handle.pv.read", return_value=mock_mesh), \
-         patch("gridfoam.RNA.grid_handle.YamlRoot") as mock_yaml_root:
-        mock_yaml_config = MagicMock()
-        mock_yaml_config.gridfoam = mock_config
-        mock_yaml_root.model_validate.return_value = mock_yaml_config
-        
-        configpath = pathlib.Path("dummy.yaml")
-        grid_handle = GridHandle(configpath=configpath)
-        
-        leaves = list(grid_handle.iter_all_leaves())
-        assert len(leaves) == 1
-        depth, cube = leaves[0]
-        assert depth == 0
-        assert cube == mock_cube
+def test_grid_handle_sync_halo(grid_handle, registry):
+    """Test GridHandle.sync_halo method."""
+    from gridfoam.DNA.enum import Axis
 
+    grid_handle.allocate_by_registry(registry)
+    T = registry.get_field("T")
 
-def test_grid_handle_allocate_field():
-    """Test GridHandle allocate_field method."""
-    mock_cube = PyOctreeNode()
-    mock_cube.node_type = NodeType.LEAF
-    mock_cube.cubecode = MagicMock()
-    from gridfoam.DNA.cubefield import CubeField
-    mock_cube.field = CubeField(CubeConfig(interior_width=8, halo_width=2, device=torch.device("cpu")))
-    
-    mock_level = PyOctreeLevel()
-    mock_level.depth = 0
-    mock_level.bounds = np.array([1, 1, 1], dtype=np.uint64)
-    mock_level.nodes = {0: mock_cube}
-    mock_level.n_leaf_nodes = 1
-    
-    mock_grid = PyGrid()
-    mock_grid.octree_levels = [mock_level]
-    
-    mock_mesh = MagicMock()
-    mock_config = MagicMock()
-    mock_config.cube.interior_width = 8
-    mock_config.cube.halo_width = 2
-    mock_config.cube.device = torch.device("cpu")
-    
-    with patch("gridfoam.RNA.grid_handle.generate_grid_from_polydata", return_value=mock_grid), \
-         patch("gridfoam.RNA.grid_handle.pv.read", return_value=mock_mesh), \
-         patch("gridfoam.RNA.grid_handle.YamlRoot") as mock_yaml_root:
-        mock_yaml_config = MagicMock()
-        mock_yaml_config.gridfoam = mock_config
-        mock_yaml_root.model_validate.return_value = mock_yaml_config
-        
-        configpath = pathlib.Path("dummy.yaml")
-        grid_handle = GridHandle(configpath=configpath)
-        
-        field_meta = FieldMeta(
-            name="test_field",
-            label="Test Field",
-            layout=FieldLayout.CELL,
-            role=FieldRole.STATE,
-            components=1,
-            dtype=torch.float32,
-        )
-        
-        grid_handle.allocate_field(field_meta)
-        
-        # Verify field was allocated
-        for _, cube in grid_handle.iter_all_leaves():
-            assert field_meta.name in cube.field.cells
-            break
+    # Set some values in interior regions to test synchronization
+    for level in grid_handle.iter_levels():
+        for cube in grid_handle.iter_leaf_on_level(level):
+            T_field = cube.field.cells["T"]
+            # Set interior to a known value
+            T_field.interior[0, 0, :, :, :] = 1.0
 
+    # Synchronize halo
+    grid_handle.sync_halo([T])
 
-def test_grid_handle_get_dx_at_depth():
-    """Test GridHandle get_dx_at_depth method."""
-    mock_bbox = PyBBox()
-    mock_bbox.lower = np.array([0.0, 0.0, 0.0])
-    mock_bbox.upper = np.array([2.0, 2.0, 2.0])
-    
-    mock_level = PyOctreeLevel()
-    mock_level.depth = 0
-    mock_level.bounds = np.array([2, 2, 2], dtype=np.uint64)
-    mock_level.nodes = {}
-    mock_level.n_leaf_nodes = 0
-    
-    mock_grid = PyGrid()
-    mock_grid.domain = mock_bbox
-    mock_grid.octree_levels = [mock_level]
-    
-    mock_mesh = MagicMock()
-    mock_config = MagicMock()
-    mock_config.cube.interior_width = 8
-    
-    with patch("gridfoam.RNA.grid_handle.generate_grid_from_polydata", return_value=mock_grid), \
-         patch("gridfoam.RNA.grid_handle.pv.read", return_value=mock_mesh), \
-         patch("gridfoam.RNA.grid_handle.YamlRoot") as mock_yaml_root:
-        mock_yaml_config = MagicMock()
-        mock_yaml_config.gridfoam = mock_config
-        mock_yaml_root.model_validate.return_value = mock_yaml_config
-        
-        configpath = pathlib.Path("dummy.yaml")
-        grid_handle = GridHandle(configpath=configpath)
-        
-        dx = grid_handle.get_dx_at_depth(0)
-        assert dx.shape == (3,)
-        # Expected: (2.0 - 0.0) / (2 * 8) = 0.125 for each direction
-        expected_dx = torch.tensor([0.125, 0.125, 0.125])
-        torch.testing.assert_close(dx, expected_dx, rtol=1e-6, atol=1e-6)
+    # Check that halo regions have been synchronized from neighbors
+    # For leaf cubes with neighbors, halo should contain neighbor's interior values
+    for level in grid_handle.iter_levels():
+        for cube in grid_handle.iter_leaf_on_level(level):
+            T_field = cube.field.cells["T"]
+            # Halo should be finite (synchronized from neighbors or initialized)
+            halo_x_forward = T_field.get_halo_along(Axis.X, forward=True)
+            halo_x_backward = T_field.get_halo_along(Axis.X, forward=False)
+            assert torch.all(torch.isfinite(halo_x_forward))
+            assert torch.all(torch.isfinite(halo_x_backward))
+
+def test_grid_handle_sync_gfp(grid_handle, registry):
+    """Test GridHandle.sync_gfp method."""
+    grid_handle.allocate_by_registry(registry)
+    T = registry.get_field("T")
+
+    # Set values in parent cubes to test interpolation
+    for level in grid_handle.iter_levels():
+        if level.depth == 0:
+            # Set parent (depth 0) interior values
+            for cube in level.nodes.values():
+                T_field = cube.field.cells["T"]
+                T_field.interior[0, 0, :, :, :] = 2.0
+
+    # Synchronize ghost from parent (should interpolate parent data to children)
+    grid_handle.sync_gfp([T])
+
+    # Check that ghost cubes (children of parents) have interpolated data
+    for level in grid_handle.iter_levels():
+        if level.depth > 0:
+            for cube in grid_handle.iter_gfp_on_level(level):
+                T_field = cube.field.cells["T"]
+                # Interior should be finite (interpolated from parent)
+                assert torch.all(torch.isfinite(T_field.interior[0]))
+                # Should have some non-zero values (interpolated from parent)
+                assert not torch.allclose(T_field.interior[0, 0], torch.zeros_like(T_field.interior[0, 0]), atol=1e-6)
+
+def test_grid_handle_sync_gfc(grid_handle, registry):
+    """Test GridHandle.sync_gfc method."""
+    grid_handle.allocate_by_registry(registry)
+    T = registry.get_field("T")
+
+    # Set values in child cubes to test coarsening
+    for level in grid_handle.iter_levels():
+        if level.depth == grid_handle.grid.max_depth - 1:
+            # Set child (max depth) interior values
+            for cube in grid_handle.iter_leaf_on_level(level):
+                T_field = cube.field.cells["T"]
+                T_field.interior[0, 0, :, :, :] = 3.0
+
+    # Synchronize ghost from child (should coarsen child data to parents)
+    grid_handle.sync_gfc([T])
+
+    # Check that ghost cubes (parents of children) have coarsened data
+    for level in grid_handle.iter_levels():
+        if level.depth < grid_handle.grid.max_depth - 1:
+            for cube in grid_handle.iter_gfc_on_level(level):
+                T_field = cube.field.cells["T"]
+                # Interior should be finite (coarsened from children)
+                assert torch.all(torch.isfinite(T_field.interior[0]))
+                # Should have some non-zero values (coarsened from children)
+                # Note: coarsened values may be different from original due to averaging
+                assert not torch.allclose(T_field.interior[0, 0], torch.zeros_like(T_field.interior[0, 0]), atol=1e-6)
+
+def test_grid_handle_get_dx_at_depth(grid_handle):
+    """Test GridHandle.get_dx_at_depth method."""
+    dx = grid_handle.get_dx_at_depth(0)
+    assert dx[0] == torch.tensor(2.0/8.0)
+    assert dx[1] == torch.tensor(2.0/8.0)
+    assert dx[2] == torch.tensor(2.0/8.0)
+    dx = grid_handle.get_dx_at_depth(1)
+    assert dx[0] == torch.tensor(2.0/16.0)
+    assert dx[1] == torch.tensor(2.0/16.0)
+    assert dx[2] == torch.tensor(2.0/16.0)

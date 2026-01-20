@@ -16,7 +16,7 @@ def test_minmod_correction_term_same_sign():
     # correction = 0.25 * phi * (delta_minus + delta_plus)
     # = 0.25 * [2/3, 4/5] * [3, 5] = [0.5, 1.0]
     expected = torch.tensor([0.5, 1.0])
-    torch.testing.assert_close(result, expected, rtol=1e-5)
+    torch.testing.assert_close(result, expected, rtol=1e-5, atol=1e-6)
 
 
 def test_minmod_correction_term_opposite_sign():

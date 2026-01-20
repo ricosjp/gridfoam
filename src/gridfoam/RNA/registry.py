@@ -51,16 +51,20 @@ class SimulationMetaRegistry:
 
     # Register fv schemes
     def register_scheme(self, config: fvSchemesConfig) -> None:
-        for key, choice in config.ddtSchemes.items():
-            self.ddt_scheme_configs[key] = FVMDdtSchemeConfig(choice=choice)
-        for key, choice in config.divSchemes.items():
-            self.div_scheme_configs[key] = FVMDivSchemeConfig(choice=choice)
-        for key, choice in config.laplacianSchemes.items():
-            self.laplacian_scheme_configs[key] = FVMLaplacianSchemeConfig(
-                choice=choice
-            )
-        for key, choice in config.gradSchemes.items():
-            self.grad_scheme_configs[key] = FVMGradSchemeConfig(choice=choice)
+        if config.ddtSchemes is not None:
+            for key, choice in config.ddtSchemes.items():
+                self.ddt_scheme_configs[key] = FVMDdtSchemeConfig(choice=choice)
+        if config.divSchemes is not None:
+            for key, choice in config.divSchemes.items():
+                self.div_scheme_configs[key] = FVMDivSchemeConfig(choice=choice)
+        if config.laplacianSchemes is not None:
+            for key, choice in config.laplacianSchemes.items():
+                self.laplacian_scheme_configs[key] = FVMLaplacianSchemeConfig(
+                    choice=choice
+                )
+        if config.gradSchemes is not None:
+            for key, choice in config.gradSchemes.items():
+                self.grad_scheme_configs[key] = FVMGradSchemeConfig(choice=choice)
 
     # Register linear solver
     def register_solver(self, config: fvSolutionConfig) -> None:

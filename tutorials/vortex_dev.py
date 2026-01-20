@@ -1,3 +1,10 @@
+"""
+Compute vortex flow
+==========================================
+:mod:`gridfoam` can solve the vortex flow problem.
+
+This tutorial shows how to compute the vortex flow problem.
+"""
 import pathlib
 
 import torch

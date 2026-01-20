@@ -1,8 +1,8 @@
 """Tests for CellField."""
 
-import numpy as np
 import pytest
 import torch
+from beartype.roar import BeartypeCallHintParamViolation
 
 from gridfoam.DNA.enum import Axis
 from gridfoam.DNA.fielddata._cell import CellField
@@ -87,7 +87,7 @@ def test_cell_field_imul_scalar():
 def test_cell_field_imul_unsupported():
     """Test CellField in-place multiplication with unsupported type."""
     field = CellField(T=1, C=1, N=4, H=1, dtype=torch.float32, device=torch.device("cpu"))
-    with pytest.raises(ValueError, match="Unsupported operand type"):
+    with pytest.raises(BeartypeCallHintParamViolation):
         field *= "invalid"
 
 

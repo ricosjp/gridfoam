@@ -1,5 +1,7 @@
 """Tests for TVD scheme choice and factory."""
 
+from unittest.mock import Mock
+
 import pytest
 import torch
 
@@ -76,12 +78,10 @@ def test_tvd_factory_create_upwind():
 
 def test_tvd_factory_create_unknown():
     """Test TVDFactory raises error for unknown scheme."""
+    mock_choice = Mock(spec=TVDSchemeChoice)
+    mock_choice.name = "UNKNOWN"
     with pytest.raises(ValueError, match="Unknown TVD scheme choice"):
-        # Create a mock enum value that's not in registry
-        class MockChoice:
-            name = "UNKNOWN"
-
-        TVDFactory.create(MockChoice())
+        TVDFactory.create(mock_choice)
 
 
 def test_tvd_factory_register(monkeypatch):
@@ -96,9 +96,9 @@ def test_tvd_factory_register(monkeypatch):
     original_registry = TVDFactory.registry.copy()
     mock_choice = TVDSchemeChoice.UPWIND
     mock_scheme = MockScheme()
-    
+
     monkeypatch.setitem(TVDFactory.registry, mock_choice, mock_scheme)
     created = TVDFactory.create(mock_choice)
     assert isinstance(created, MockScheme)
-    
+
     # Registry is automatically restored by monkeypatch

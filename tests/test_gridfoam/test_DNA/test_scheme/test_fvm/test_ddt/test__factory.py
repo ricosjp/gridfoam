@@ -1,9 +1,10 @@
 """Tests for FVM ddt scheme factory."""
 
-import pytest
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 
-from gridfoam.DNA.enum import FieldLayout
+import pytest
+
+from gridfoam.DNA.enum import FieldLayout, FieldRole
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.fvm.ddt._choice import FVMDdtSchemeChoice
 from gridfoam.DNA.scheme.fvm.ddt._factory import FVMDdtSchemeConfig
@@ -15,9 +16,10 @@ def test_fvm_ddt_scheme_config_create_euler():
     config = FVMDdtSchemeConfig(choice=FVMDdtSchemeChoice.EULER)
     psi_fm = FieldMeta(
         name="test",
+        label="Test",
+        role=FieldRole.STATE,
         layout=FieldLayout.CELL,
-        role=None,
-        precision=None,
+        components=1,
     )
     operator = config.create_operator(psi_fm)
     assert isinstance(operator, IFVMDdtOperator)
@@ -25,16 +27,16 @@ def test_fvm_ddt_scheme_config_create_euler():
 
 def test_fvm_ddt_scheme_config_unknown_choice():
     """Test FVMDdtSchemeConfig raises error for unknown choice."""
-    # Create a mock enum value
-    class MockChoice:
-        name = "UNKNOWN"
+    mock_choice = Mock(spec=FVMDdtSchemeChoice)
+    mock_choice.name = "UNKNOWN"
 
-    config = FVMDdtSchemeConfig(choice=MockChoice())
+    config = FVMDdtSchemeConfig(choice=mock_choice)
     psi_fm = FieldMeta(
         name="test",
+        label="Test",
+        role=FieldRole.STATE,
         layout=FieldLayout.CELL,
-        role=None,
-        precision=None,
+        components=1,
     )
     with pytest.raises(ValueError, match="Unknown ddt scheme choice"):
         config.create_operator(psi_fm)

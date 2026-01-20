@@ -1,3 +1,10 @@
+"""
+Compute solver
+==========================================
+:mod:`gridfoam` can solve basic equations.
+
+This tutorial shows how to compute basic equations.
+"""
 import pathlib
 
 import torch

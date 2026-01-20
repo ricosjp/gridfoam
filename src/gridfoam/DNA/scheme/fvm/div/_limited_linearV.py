@@ -120,7 +120,7 @@ class FVMDivLimitedLinearV(IFVMDivOperator):
                             sign = 1.0 if forward else -1.0
                             dx = ctx.dx[axis.value - 1]
                             value = bc.value[axis.value - 1]
-                            source -= sign * a_boundary * dx * value
+                            source -= sign * a_boundary * 0.5 * dx * value
                             a_p_boundary = fvmatrix.a_P.get_boundary_cell_along(
                                 axis, forward
                             )

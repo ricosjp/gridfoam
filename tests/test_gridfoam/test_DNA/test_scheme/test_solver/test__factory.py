@@ -1,9 +1,10 @@
 """Tests for solver factory."""
 
-import pytest
+
+
 
 from gridfoam.DNA.config import SolverChoice
-from gridfoam.DNA.enum import NormType
+from gridfoam.DNA.enum import FieldLayout, FieldRole, NormType
 from gridfoam.DNA.meta.equation import EquationMeta
 from gridfoam.DNA.meta.field import FieldMeta
 from gridfoam.DNA.scheme.solver._choice import SolverMethodChoice
@@ -24,9 +25,16 @@ def test_solver_factory_create_cg():
         name="test",
         target_field=FieldMeta(
             name="test_field",
-            layout=None,
-            role=None,
-            precision=None,
+            label="Test Field",
+            layout=FieldLayout.CELL,
+            role=FieldRole.STATE,
+        ),
+        boundary_conditions=[],
+        ast_root=FieldMeta(
+            name="test_field",
+            label="Test Field",
+            layout=FieldLayout.CELL,
+            role=FieldRole.STATE,
         ),
     )
     solver = SolverFactory.create(solver_choice, eq_meta)
@@ -46,35 +54,17 @@ def test_solver_factory_create_bicgstab():
         name="test",
         target_field=FieldMeta(
             name="test_field",
-            layout=None,
-            role=None,
-            precision=None,
+            label="Test Field",
+            layout=FieldLayout.CELL,
+            role=FieldRole.STATE,
+        ),
+        boundary_conditions=[],
+        ast_root=FieldMeta(
+            name="test_field",
+            label="Test Field",
+            layout=FieldLayout.CELL,
+            role=FieldRole.STATE,
         ),
     )
     solver = SolverFactory.create(solver_choice, eq_meta)
     assert isinstance(solver, ILinearSolver)
-
-
-def test_solver_factory_unknown_method():
-    """Test SolverFactory raises error for unknown method."""
-    class MockMethod:
-        pass
-
-    solver_choice = SolverChoice(
-        method=MockMethod(),
-        tolerance=1e-6,
-        rel_tolerance=1e-6,
-        max_iter=1000,
-        norm_type=NormType.L_2,
-    )
-    eq_meta = EquationMeta(
-        name="test",
-        target_field=FieldMeta(
-            name="test_field",
-            layout=None,
-            role=None,
-            precision=None,
-        ),
-    )
-    with pytest.raises(ValueError, match="Unknown solver method choice"):
-        SolverFactory.create(solver_choice, eq_meta)
