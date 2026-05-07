@@ -30,7 +30,7 @@ lint:
 cpu-pytest:
   stage: test
   script:
-    - uv sync --group test
+    - uv sync --group test --extra cpu
     - make cpu-test
     - mv .coverage .coverage.cpu
   artifacts:
