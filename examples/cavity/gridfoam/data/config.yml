@@ -1,0 +1,60 @@
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [0.1, 0.1, 0.01]
+  root_resolution: [20, 20, 1]
+  target_level: 0
+  n_leaf_refinement: 0
+  mesh_path: null
+  ibm_type: axis_projected
+simulator:
+  control:
+    deltaT: 0.005
+    endTime: 0.5
+    writeInterval: 20
+    output:
+      output_dir: "examples/cavity/gridfoam/outputs"
+      base_name: "cavity_flow"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: linear
+  fvSolution:
+    solvers:
+      momentum:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-5
+        rel_tolerance: 0.0
+        max_iter: 500
+        norm_type: l_2
+      pressure_poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-6
+        rel_tolerance: 0.0
+        max_iter: 1000
+        norm_type: l_2
+  boundaryConditions:
+    U:
+      - name: wall
+        type: dirichlet
+        patches: [x_minus, x_plus, y_minus]
+        value: [0.0, 0.0, 0.0]
+      - name: lid
+        type: dirichlet
+        patches: [y_plus]
+        value: [1.0, 0.0, 0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+    p:
+      - name: wall
+        type: neumann
+        patches: [x_minus, x_plus, y_minus, y_plus]
+        value: [0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+  device: cpu

@@ -1,0 +1,34 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      topoSetDict;
+}
+
+actions
+(
+    {
+        name    internalWall;
+        type    faceSet;
+        action  new;
+        source  boxToFace;
+
+        sourceInfo
+        {
+            box (0.049 0 0) (0.051 0.05 0.01);
+        }
+    }
+
+    {
+        name    internalWall;
+        type    faceZoneSet;
+        action  new;
+        source  setToFaceZone;
+
+        sourceInfo
+        {
+            faceSet internalWall;
+        }
+    }
+);

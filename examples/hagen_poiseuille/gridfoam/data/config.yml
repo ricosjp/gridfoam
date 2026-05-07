@@ -1,0 +1,68 @@
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [20.0, 8.0, 1.0]
+  root_resolution: [20, 8, 1]
+  target_level: 0
+  n_leaf_refinement: 0
+  mesh_path: null
+  ibm_type: axis_projected
+simulator:
+  control:
+    deltaT: 0.1
+    endTime: 500
+    writeInterval: 100
+    output:
+      output_dir: "examples/hagen_poiseuille/gridfoam/outputs"
+      base_name: "hagen_poiseuille"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    solvers:
+      momentum:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 1000
+        norm_type: l_2
+      pressure_poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 2000
+        norm_type: l_2
+  boundaryConditions:
+    U:
+      - name: flow
+        type: neumann
+        patches: [x_minus, x_plus]
+        value: [0.0, 0.0, 0.0]
+      - name: wall
+        type: dirichlet
+        patches: [y_minus, y_plus]
+        value: [0.0, 0.0, 0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+    p:
+      - name: inflow
+        type: dirichlet
+        patches: [x_minus]
+        value: [2.0]
+      - name: outflow
+        type: neumann
+        patches: [x_plus]
+        value: [0.0]
+      - name: wall
+        type: neumann
+        patches: [y_minus, y_plus]
+        value: [0.0, 0.0, 0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+  device: cpu

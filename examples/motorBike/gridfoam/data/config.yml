@@ -1,0 +1,68 @@
+fluxel:
+  domain:
+    lower: [-5.0, -4.0, 0.0]
+    upper: [15.0, 4.0, 8.0]
+  root_resolution: [10, 4, 4]
+  target_level: 4
+  n_leaf_refinement: 3
+  mesh_path: "examples/motorBike/gridfoam/data/motorBike_drop_shadow_no_group.obj"
+  ibm_type: axis_projected
+simulator:
+  control:
+    deltaT: 0.0001
+    endTime: 0.1
+    writeInterval: 100
+    output:
+      output_dir: "examples/motorBike/gridfoam/outputs"
+      base_name: "motorBike"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    solvers:
+      momentum:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 2000
+        norm_type: l_2
+      pressure_poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 5000
+        norm_type: l_2
+  boundaryConditions:
+    U:
+      - name: wall
+        type: dirichlet
+        patches: [x_minus, x_plus, y_minus]
+        value: [0.0, 0.0, 0.0]
+      - name: lid
+        type: dirichlet
+        patches: [y_plus]
+        value: [1.0, 0.0, 0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+      - name: baffle
+        type: dirichlet
+        patches: [_default]
+        value: [0.0, 0.0, 0.0]
+    p:
+      - name: wall
+        type: neumann
+        patches: [x_minus, x_plus, y_minus, y_plus]
+        value: [0.0]
+      - name: empty
+        type: empty
+        patches: [z_minus, z_plus]
+      - name: baffle
+        type: neumann
+        patches: [_default]
+        value: [0.0]
+  device: cpu
