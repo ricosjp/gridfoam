@@ -74,8 +74,8 @@ def to_unstructured_grid(grid: IGridBase) -> pv.UnstructuredGrid:
 
     cell_types = np.full(n_cells, pv.CellType.HEXAHEDRON, dtype=np.uint8)
 
-    grid = pv.UnstructuredGrid(cells.ravel(), cell_types, points)
-    return grid
+    ugrid = pv.UnstructuredGrid(cells.ravel(), cell_types, points)
+    return ugrid
 
 
 def update_export_cell_data(

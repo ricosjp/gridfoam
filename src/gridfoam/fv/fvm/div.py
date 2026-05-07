@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 def _search_div_scheme(
     sim_config: SimulatorConfig, phi: FaceField, field: CellField
 ) -> DivScheme:
+    if sim_config.fvSchemes.divSchemes is None:
+        return DivScheme.UPWIND
     key = f"div({phi.name}, {field.name})"
     div_scheme = sim_config.fvSchemes.divSchemes.get(key)
     if div_scheme is None:

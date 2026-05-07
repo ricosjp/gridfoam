@@ -39,6 +39,7 @@ def grad(field: CellField) -> CellField:
                 dimension=field.dimension,  # TODO: fix L: -1
                 export=field.export,
             )
+        assert isinstance(grad_field, CellField)
         grad_field.data = grad_data
         return grad_field
 
@@ -55,6 +56,7 @@ def grad(field: CellField) -> CellField:
                 dimension=field.dimension,
                 export=False,
             )
+        assert isinstance(field_c, CellField)
         field_c.data = field.data[:, c : c + 1]
 
         # Decompose vector BCs per component and apply them
@@ -79,6 +81,7 @@ def grad(field: CellField) -> CellField:
             dimension=field.dimension,  # TODO: fix L: -1
             export=field.export,
         )
+    assert isinstance(grad_field, CellField)
     grad_field.data = grad_data
     return grad_field
 

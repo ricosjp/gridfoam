@@ -27,6 +27,7 @@ def div(phi: FaceField) -> CellField:
             dimension=phi.dimension,
             export=phi.export,
         )
+    assert isinstance(div_phi, CellField)
 
     # Clear previous values (index_add_ is cumulative)
     div_phi.data.zero_()

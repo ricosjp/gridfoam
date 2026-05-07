@@ -37,6 +37,7 @@ def sn_grad(field: CellField) -> FaceField:
             dimension=field.dimension,  # TODO: fix L: -1
             export=False,
         )
+    assert isinstance(sn_grad_field, FaceField)
     owner_single = grid.owner[sn_grad_field.single_mask]
     neighbour_single = grid.neighbour[sn_grad_field.single_mask]
 

@@ -16,7 +16,7 @@ from gridfoam.fv.boundary_ops import (
 
 def _interpolate_gamma(
     grid: IGridBase, gamma: Float[torch.Tensor, " C 1"] | float
-) -> Float[torch.Tensor, " F 1"]:
+) -> Float[torch.Tensor, " F 1"] | float:
     c_own = grid.cell_centers[grid.owner]
     c_nei = grid.cell_centers[grid.neighbour]
     axis_idx = grid.axis[:, None]

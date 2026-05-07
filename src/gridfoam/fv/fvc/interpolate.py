@@ -38,6 +38,7 @@ def interpolate(field: CellField) -> FaceField:
             dimension=field.dimension,
             export=False,
         )
+    assert isinstance(psi_f, FaceField)
     owner_single = grid.owner[psi_f.single_mask]
     neighbour_single = grid.neighbour[psi_f.single_mask]
 
