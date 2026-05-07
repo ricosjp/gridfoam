@@ -14,16 +14,15 @@ stages:
 default:
   image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
   before_script:
-    - apt update
-    - apt install -y build-essential libhdf5-dev curl
+    - apt-get update -qq && apt-get install -y -qq build-essential curl
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     - source ~/.cargo/env
-    - cargo install cargo-nextest
-    - make install
+    - cargo install cargo-llvm-cov --locked
 
 lint:
   stage: test
   script:
+    - uv sync --group lint
     - make lint
   tags:
     - no-gpu
@@ -31,6 +30,7 @@ lint:
 cpu-pytest:
   stage: test
   script:
+    - uv sync --group test
     - make cpu-test
     - mv .coverage .coverage.cpu
   artifacts:
@@ -73,7 +73,7 @@ coverage:
     - uv run coverage combine .coverage.cpu
     - uv run coverage html -d coverage
     - uv run coverage xml
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  coverage: "/(?i)total.*? (100(?:\\.0+)?\\%|[1-9]?\\d(?:\\.\\d+)?\\%)$/"
   artifacts:
     expose_as: coverage
     paths:
@@ -85,24 +85,21 @@ coverage:
   tags:
     - no-gpu
     - GenuineIntel
-    - avx2
-    - cpu-ge-8
-    - mem-ge-32gb
 
-pages:
-  stage: deploy
-  script:
-    - apt install -y xvfb libgl1-mesa-glx
-    - make document
-    - mkdir public
-    - mv docs/build/* public/
-  artifacts:
-    paths:
-      - public
-  only:
-    - main
-    - develop
-    - docs/sphinx-update
+# pages:
+#   stage: deploy
+#   script:
+#     - apt install -y xvfb libgl1-mesa-glx
+#     - make document
+#     - mkdir public
+#     - mv docs/build/* public/
+#   artifacts:
+#     paths:
+#       - public
+#   only:
+#     - main
+#     - develop
+#     - docs/sphinx-update
 
 
 # .deploy:wheel:
