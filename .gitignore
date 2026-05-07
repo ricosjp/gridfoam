@@ -165,9 +165,24 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# Editor Setting
+.vscode
+
 # data
-/data
 tests/outputs
+
+# docs
+docs/source/example_gallery/
+docs/source/api_reference/generated/
+sg_execution_times.rst
+
+# example
+examples/**/*.gif
+examples/**/*.png
+
+# MLflow experiments(local tracking / SQLite default)
+mlruns/
+mlflow.db
 
 # Misc
 *~
@@ -175,13 +190,6 @@ tests/outputs
 tmp
 spike
 
-outputs/
-docs/source/tutorials/
-docs/source/api/generated/
-sg_execution_times.rst
-docker-compose.yml
-reference
-qexe
-
-# Rust
-Cargo.lock
+outputs
+reference/
+examples/**/plots/*

@@ -4,29 +4,37 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "src/gridfoam",
-  "pyproject.toml",
-  "README.md",
-  "LICENSE",
+    "src/gridfoam",
+    "pyproject.toml",
+    "README.md",
+    "LICENSE",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project]
 name = "gridfoam"
-version = "0.1.0"
+version = "0.2.0"
 description = "Differentiable Fluid Solver of Hierarchical Grid"
 readme = "README.md"
-authors = [{ name = "Daichi Ishida", email = "ishida@ricos.co.jp" }]
-requires-python = ">=3.12"
+authors = [{name = "RICOS Co. Ltd."}]
+maintainers = [
+    { name = "Daichi Ishida", email = "ishida@ricos.co.jp" },
+]
+requires-python = ">=3.12,<3.13"
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Rust",
 ]
 dependencies = [
-  "pyvista>=0.44.2",
-  "pydantic>=2.11.7",
-  "pyyaml>=6.0.2",
-  "cubion",
-  "marimo>=0.19.0",
+    "pyvista>=0.44.2",
+    "pydantic>=2.11.7",
+    "pyyaml>=6.0.2",
+    "scipy>=1.17.1",
+    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
+    "fluxel",
+    "pyamg>=5.3.0",
 ]
 
 [project.optional-dependencies]
@@ -36,77 +44,52 @@ cu124 = ["torch>=2.5.1", "torchvision>=0.20.1"]
 
 [dependency-groups]
 dev = [
-  { include-group = "test" },
-  { include-group = "visualize" },
-  { include-group = "lint" },
-  { include-group = "docs" },
-  { include-group = "note" },
-]
-ci = [
-  { include-group = "test" },
-  { include-group = "visualize" },
-  { include-group = "lint" },
-  { include-group = "docs" },
-]
-benchmark = [
-  { include-group = "test" },
-  { include-group = "visualize" },
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    { include-group = "experiments" },
 ]
 test = [
-  "pytest",
-  "pytest-cov",
-  "pytest-benchmark",
-  "pytest-memray",
-  "pyinstrument",
-]
-visualize = [
-  "polars",
-  "plotly",
-  "kaleido"
+    "pytest",
+    "pytest-cov",
+    "pytest-benchmark",
+    "pytest-memray",
+    "pyinstrument",
 ]
 lint = [
-  "ruff",
-  "jaxtyping",
-  "beartype"
+    "ruff",
+    "jaxtyping",
+    "beartype"
 ]
 docs = [
-  "sphinx",
-  "numpydoc",
-  "pydata-sphinx-theme",
-  "sphinxcontrib-mermaid",
-  "sphinx-fontawesome",
-  "sphinx-gallery",
-  "sphinx-design",
-  "sphinx-copybutton",
-  "trame",
-  "trame-vtk",
-  "trame-vuetify",
-  "ipykernel",
-  "imageio",
+    "sphinx",
+    "pydata-sphinx-theme",
+    "sphinx-gallery",
+    "sphinx-copybutton",
+    "numpydoc",
+    "sphinxcontrib-mermaid",
+    "sphinx-codeautolink",
+    "imageio",                            # gif animation
 ]
-note = [
-  "esbonio",
-  "ipywidgets",
-  "marimo>=0.18.4",
-  "nbstripout>=0.8.1",
+experiments = [
+    "mlflow",
 ]
 
 [tool.uv]
-default-groups = ["ci"]
 conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
-cubion = {path = "lib/cubion"}
 torch = [
-  { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu118", extra = "cu118" },
-  { index = "pytorch-cu124", extra = "cu124" },
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu118", extra = "cu118" },
+    { index = "pytorch-cu124", extra = "cu124" },
 ]
 torchvision = [
-  { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu118", extra = "cu118" },
-  { index = "pytorch-cu124", extra = "cu124" },
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu118", extra = "cu118" },
+    { index = "pytorch-cu124", extra = "cu124" },
 ]
+fluxel = { path = "lib/fluxel" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -126,14 +109,14 @@ explicit = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-  "with_benchmark: Run test with pytest-benchmark",
-  "with_profile: Run test with memray / pyinstrument",
-  "with_device: Run test on cuda device",
+    "benchmark: Run test with the --benchmark-autosave option",
+    "profile: Run test with memray / pyinstrument",
+    "slow: Run slow test (10s+)",
 ]
 addopts = [
-  "--import-mode=importlib",
-  "-m",
-  "not with_benchmark and not with_profile and not with_device",
+    "--import-mode=importlib",
+    "-m",
+    "not benchmark and not profile and not slow",
 ]
 
 [tool.coverage.report]
@@ -141,6 +124,6 @@ ignore_errors = false
 show_missing = true
 # Regexes for lines to exclude from consideration
 exclude_also = [
-  # Don't complain about abstract methods, they aren't run:
-  "@(abc\\.)?abstractmethod",
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
 ]

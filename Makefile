@@ -26,32 +26,40 @@ cpu-test:
 gpu-test:
 	uv run pytest tests -m with_device --cov=src --cov-report term-missing --durations 5
 
+# For headless CI: install xvfb and run ``xvfb-run make document``.
 .PHONY: document
 document:
 	rm -rf docs/build || true
-	rm -rf docs/source/tutorials || true
+	rm -rf docs/source/api_reference/generated/ || true
+	rm -rf docs/source/example_gallery/auto_examples || true
 	rm docs/source/sg_execution_times.rst || true
 	uv run sphinx-build docs/source docs/build -b html
 
 .PHONY: benchmark
 benchmark:
-	mkdir -p ./tests/outputs/benchmark/time/
-	uv sync --refresh --reinstall --group benchmark
-	uv run pytest -v -m with_benchmark --benchmark-min-rounds=3 --benchmark-save-data --benchmark-time-unit='ms' --benchmark-storage=./tests/outputs/benchmark --benchmark-autosave
-	uv run python visualization/benchmark.py
+	mkdir -p ./tests/outputs/benchmark
+	uv run pytest -v -m benchmark \
+		--benchmark-min-rounds=3 \
+		--benchmark-save-data \
+		--benchmark-time-unit=ms \
+		--benchmark-json=./tests/outputs/benchmark/latest.json \
+		--benchmark-storage=./tests/outputs/benchmark \
+		--benchmark-autosave
 
 .PHONY: profile-time
 profile-time:
 	mkdir -p ./tests/outputs/profile/time/
-	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m with_profile
+	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m profile
 
 .PHONY: profile-memory
 profile-memory:
 	mkdir -p ./tests/outputs/profile/memory/
-	uv run pytest -v -m with_profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridgen
-	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_bunny_profile.bin
-	uv run memray flamegraph -f ./tests/outputs/profile/memory/gridgen-tests-test_gridfoam-test_profile.py-test_gridgen_DrivAer_profile.bin
+	uv run pytest -v -m profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridfoam
+	# uv run memray flamegraph -f {bin_path}
+
+.PHONY: experiment
+experiment:
+	uv run python -m experiments.run --config experiments/config.yml
 
 .PHONY: performance_check
-performance_check: benchmark profile
-
+performance_check: benchmark profile-time profile-memory

@@ -28,10 +28,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
-    ".txt",
-    ".cpp",
-    ".h",
-    "note"
+    "docs"
 ]
 
 # Same as Black.
@@ -56,7 +53,6 @@ select = [
     "ANN", # flake8-annotations
 ]
 ignore = [
-    "ANN201", # Missing return type annotation for public (test) function 
     "ANN204", # Missing return type annotation for special method
     "F722", # Forward annotation error (ignore for jaxtyping)
 ]
@@ -68,9 +64,12 @@ unfixable = []
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
+[lint.flake8-annotations]
+suppress-none-returning = true
+
 [lint.per-file-ignores]
-"__init__.py" = ["F401"]
-"docs/source/conf.py" = ["E402"]
+"__init__.py" = ["F401"] # Unused import
+"docs/source/conf.py" = ["E402"] # Module level import not at top of file
 
 [format]
 # Like Black, use double quotes for strings.
