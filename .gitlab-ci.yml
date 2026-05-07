@@ -14,7 +14,7 @@ stages:
 default:
   image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
   before_script:
-    - apt-get update -qq && apt-get install -y -qq build-essential curl
+    - apt-get update -qq && apt-get install -y -qq build-essential curl git
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     - source ~/.cargo/env
     - cargo install cargo-llvm-cov --locked
