@@ -22,7 +22,10 @@ from gridfoam.meta.config import (
 from gridfoam.meta.enums import DeviceType, IbmType, PrecisionType, SolverType
 
 
-def small_gridfoam_config(*, output_dir: pathlib.Path | None = None) -> GridfoamConfig:
+def small_gridfoam_config(
+    *,
+    output_dir: pathlib.Path | None = None,
+) -> GridfoamConfig:
     """
     Build a tiny axis-projected configuration for fast tests.
 
@@ -71,7 +74,9 @@ def small_gridfoam_config(*, output_dir: pathlib.Path | None = None) -> Gridfoam
 @pytest.fixture(scope="session")
 def small_axis_projected_grid() -> AxisProjectedGrid:
     """
-    Session-scoped minimal axis-projected grid (fluxel mesh build once per session).
+    Session-scoped minimal axis-projected grid.
+
+    Fluxel mesh build runs once per session.
     """
     config = small_gridfoam_config()
     return create_grid(config)

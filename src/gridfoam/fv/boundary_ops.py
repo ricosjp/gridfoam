@@ -86,6 +86,7 @@ def iter_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
                 )
             continue
 
+
 def evaluate_boundary_state(
     field: CellField, batch: BoundaryBatch
 ) -> tuple[

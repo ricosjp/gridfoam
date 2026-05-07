@@ -84,9 +84,9 @@ def main() -> None:
     sw_n = grid.ap_neighbour_weights
     print(f"min ap_dist_owner    = {ad_o.min().item():.3e}")
     print(f"min ap_dist_neighbour= {ad_n.min().item():.3e}")
-    print(f"max |w_b| owner      = {sw_o[:,0].abs().max().item():.3e}")
-    print(f"max |w_o| owner      = {sw_o[:,1].abs().max().item():.3e}")
-    print(f"max |w_b| neighbour  = {sw_n[:,0].abs().max().item():.3e}")
+    print(f"max |w_b| owner      = {sw_o[:, 0].abs().max().item():.3e}")
+    print(f"max |w_o| owner      = {sw_o[:, 1].abs().max().item():.3e}")
+    print(f"max |w_b| neighbour  = {sw_n[:, 0].abs().max().item():.3e}")
 
     output_dir = Path(grid.sim_config.control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

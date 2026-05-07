@@ -20,7 +20,9 @@ def create_grid(config: GridfoamConfig) -> IGridBase:
         n_leaf_refinement=fluxel_config.n_leaf_refinement,
     )
     path = (
-        str(fluxel_config.mesh_path) if fluxel_config.mesh_path is not None else None
+        str(fluxel_config.mesh_path)
+        if fluxel_config.mesh_path is not None
+        else None
     )
     match fluxel_config.ibm_type:
         case IbmType.AXIS_PROJECTED:

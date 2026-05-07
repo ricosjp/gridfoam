@@ -39,14 +39,14 @@ class FixedFluxPressure(BoundaryCondition):
         HbyA_builtin_key: str | None = None,
         rAU_builtin_key: str | None = None,
     ):
-        self.phi_builtin_key = (
-            phi_builtin_key or make_builtin_key("phi", scope="global")
+        self.phi_builtin_key = phi_builtin_key or make_builtin_key(
+            "phi", scope="global"
         )
-        self.HbyA_builtin_key = (
-            HbyA_builtin_key or make_builtin_key("HbyA", scope="global")
+        self.HbyA_builtin_key = HbyA_builtin_key or make_builtin_key(
+            "HbyA", scope="global"
         )
-        self.rAU_builtin_key = (
-            rAU_builtin_key or make_builtin_key("rAU", scope="global")
+        self.rAU_builtin_key = rAU_builtin_key or make_builtin_key(
+            "rAU", scope="global"
         )
 
     @property

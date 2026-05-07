@@ -70,7 +70,9 @@ class SIMPLE(AlgorithmBase):
             )
         self.solvers = {
             eq_name: create_solver(config)
-            for eq_name, config in self.grid.sim_config.fvSolution.solvers.items()
+            for eq_name, config in (
+                self.grid.sim_config.fvSolution.solvers.items()
+            )
         }
         self.turbulence = turbulence
         self.alpha_U = alpha_U
@@ -159,7 +161,8 @@ class SIMPLE(AlgorithmBase):
         # Interpolate HbyA to faces and compute initial flux phi_HbyA
         HbyA_f = fvc.interpolate(self.HbyA_field)
 
-        # only update the internal faces (other faces are constrained by the boundary conditions)
+        # only update the internal faces
+        # (other faces are constrained by boundary conditions)
         self.phi.single_data = torch.sum(
             HbyA_f.single_data * grid.Sf[HbyA_f.single_mask],
             dim=1,

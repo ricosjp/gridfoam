@@ -14,6 +14,7 @@ from gridfoam.meta.enums import DomainBoundaryPatch
 if TYPE_CHECKING:
     from gridfoam.core.field import GeometricField
 
+
 class IGridBase(ABC):
     @abstractmethod
     def __init__(

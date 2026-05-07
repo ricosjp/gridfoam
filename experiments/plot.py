@@ -27,6 +27,7 @@ def _paraview_preset_to_cmap() -> mcolors.LinearSegmentedColormap:
 
 fast_cmap = _paraview_preset_to_cmap()
 
+
 def set_view_mode(pl: pv.Plotter, mode: Literal["xy", "yz", "xz"]) -> None:
     match mode:
         case "xy":

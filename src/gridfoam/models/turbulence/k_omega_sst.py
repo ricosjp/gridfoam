@@ -95,5 +95,9 @@ class KOmegaSST(TurbulenceModel):
         nu_eff_value = self.nu + self.nu_t.data
         nu_eff_min = torch.min(nu_eff_value).item()
         nu_eff_max = torch.max(nu_eff_value).item()
-        logger.debug("KOmegaSST nu_eff range=[%.3e, %.3e]", nu_eff_min, nu_eff_max)
+        logger.debug(
+            "KOmegaSST nu_eff range=[%.3e, %.3e]",
+            nu_eff_min,
+            nu_eff_max,
+        )
         return nu_eff_value

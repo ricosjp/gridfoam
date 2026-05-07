@@ -24,7 +24,9 @@ def get_mask(
         patch_id = grid.patch_name_to_id.get(patch_name, None)
         if patch_id is None:
             logger.warning(
-                f"patch name: {patch_name} is not found. skipping boundary condition evaluation."
+                "patch name: %s is not found. "
+                "skipping boundary condition evaluation.",
+                patch_name,
             )
             return torch.zeros(
                 grid.num_immersed_faces, dtype=grid.dtype, device=grid.device

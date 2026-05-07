@@ -5,9 +5,7 @@ from gridfoam.core.field import CellField
 from gridfoam.core.grid.base import IGridBase
 
 
-def to_unstructured_grid(
-    grid: IGridBase
-) -> pv.UnstructuredGrid:
+def to_unstructured_grid(grid: IGridBase) -> pv.UnstructuredGrid:
     """
     Converts a IGridBase into a UnstructuredGrid of Hexahedrons.
 

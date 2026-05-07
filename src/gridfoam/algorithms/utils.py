@@ -26,8 +26,6 @@ def set_reference_value(mat: FvMatrix):
     mat.source[ref_cell] += ref_diag * mat.field.ref_value
 
 
-
-
 def apply_pressure_flux_correction(
     phi: FaceField, rAU_f: FaceField, sn_grad_p: FaceField
 ) -> None:
@@ -59,4 +57,3 @@ def apply_pressure_flux_correction(
             phi.immersed_lower
             - rAU_f.immersed_lower * mag_Sf_immersed * sn_grad_p.immersed_lower
         )
-

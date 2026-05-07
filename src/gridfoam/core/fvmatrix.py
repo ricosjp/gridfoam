@@ -32,7 +32,6 @@ class FvMatrix:
         self._lower = torch.zeros((n_faces, 1), dtype=dtype, device=device)
         self._source = torch.zeros((n_cells, k), dtype=dtype, device=device)
 
-
     @property
     def field(self) -> CellField:
         return self._field

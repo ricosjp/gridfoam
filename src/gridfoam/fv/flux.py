@@ -25,7 +25,8 @@ def correct_flux(
     U : CellField
         Velocity field used to reconstruct fluxes.
     update_internal : bool, optional
-        If ``True``, internal-face fluxes are recomputed from interpolated ``U``.
+        If ``True``, internal-face fluxes are recomputed
+        from interpolated ``U``.
         If ``False``, only boundary-face fluxes are synchronized from BC states.
     """
     grid = U.grid
