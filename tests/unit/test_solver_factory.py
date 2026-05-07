@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from beartype.roar import BeartypeCallHintParamViolation
 
 from gridfoam.meta.config import SolverConfig
 from gridfoam.meta.enums import SolverType
@@ -32,5 +33,5 @@ def test_create_solver_returns_pyamg():
 def test_create_solver_unknown_method_raises():
     cfg = MagicMock()
     cfg.method = "not_a_solver"
-    with pytest.raises(ValueError, match="Unknown solver method"):
+    with pytest.raises(BeartypeCallHintParamViolation):
         create_solver(cfg)

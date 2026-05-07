@@ -54,11 +54,11 @@ class _PyamgSolveFunction(torch.autograd.Function):
     @staticmethod
     def _solve_system(
         A_csr: csr_array,
-        rhs: Float[np.ndarray, " C 1"],
-        x0: Float[np.ndarray, " C 1"],
+        rhs: Float[np.ndarray, " C"],
+        x0: Float[np.ndarray, " C"],
         tol: float,
         max_iter: int,
-    ) -> Float[np.ndarray, " C 1"]:
+    ) -> Float[np.ndarray, " C"]:
         ml = pyamg.smoothed_aggregation_solver(A_csr)
         x = np.asarray(x0, dtype=rhs.dtype).copy()
         x = ml.solve(rhs, x0=x, tol=tol, maxiter=max_iter)

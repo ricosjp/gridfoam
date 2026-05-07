@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 import torch
+from beartype.roar import BeartypeCallHintParamViolation
 
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
@@ -80,5 +81,5 @@ def test_create_preconditioner_rejects_unknown_type(
     grid = small_axis_projected_grid
     p = CellField(grid, "p_bad", role=FieldRole.LOCAL, num_components=1)
     mat = FvMatrix(p)
-    with pytest.raises(ValueError, match="Invalid preconditioner type"):
-        create_preconditioner("not-a-precon", mat)  # type: ignore[arg-type]
+    with pytest.raises(BeartypeCallHintParamViolation):
+        create_preconditioner("not-a-precon", mat)
