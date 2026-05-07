@@ -1,0 +1,13 @@
+experiment_name: hagen_poiseuille
+case_dir: "examples/hagen_poiseuille"
+field_name: U
+field_kind: vector
+plot:
+  slice_mode: "xy"
+  slice_origin: [0.0, 0.0, 0.5]
+openfoam:
+  enabled: false
+  allrun_cmd: "./Allrun"
+gridfoam:
+  enabled: false
+  script: "run.py"
