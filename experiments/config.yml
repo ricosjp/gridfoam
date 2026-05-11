@@ -1,10 +1,10 @@
-experiment_name: hagen_poiseuille
-case_dir: "examples/hagen_poiseuille"
-field_name: U
-field_kind: vector
+experiment_name: motorBike
+case_dir: "examples/motorBike"
+field_name: p
+field_kind: scalar
 plot:
-  slice_mode: "xy"
-  slice_origin: [0.0, 0.0, 0.5]
+  slice_mode: "xz"
+  slice_origin: [0.0, 0.0, 0.0]
 openfoam:
   enabled: false
   allrun_cmd: "./Allrun"

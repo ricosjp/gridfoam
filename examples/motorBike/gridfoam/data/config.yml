@@ -3,14 +3,14 @@ fluxel:
     lower: [-5.0, -4.0, 0.0]
     upper: [15.0, 4.0, 8.0]
   root_resolution: [10, 4, 4]
-  target_level: 4
+  target_level: 3
   n_leaf_refinement: 3
   mesh_path: "examples/motorBike/gridfoam/data/motorBike_drop_shadow_no_group.obj"
   ibm_type: axis_projected
 simulator:
   control:
-    deltaT: 0.0001
-    endTime: 0.1
+    deltaT: 0.001
+    endTime: 1.0
     writeInterval: 100
     output:
       output_dir: "examples/motorBike/gridfoam/outputs"

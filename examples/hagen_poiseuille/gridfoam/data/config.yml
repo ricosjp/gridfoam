@@ -2,7 +2,7 @@ fluxel:
   domain:
     lower: [0.0, 0.0, 0.0]
     upper: [20.0, 8.0, 1.0]
-  root_resolution: [20, 8, 1]
+  root_resolution: [40, 16, 1]
   target_level: 0
   n_leaf_refinement: 0
   mesh_path: null

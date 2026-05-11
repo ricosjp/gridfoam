@@ -26,6 +26,9 @@ def _paraview_preset_to_cmap() -> mcolors.LinearSegmentedColormap:
 
 
 fast_cmap = _paraview_preset_to_cmap()
+EDGE_COLOR = "black"
+EDGE_LINE_WIDTH = 0.1
+EDGE_OPACITY = 0.08
 
 
 def set_view_mode(pl: pv.Plotter, mode: Literal["xy", "yz", "xz"]) -> None:
@@ -49,7 +52,7 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
     gf_min, gf_max = slc.get_data_range("gridfoam")
     clim_common = [min(of_min, gf_min), max(of_max, gf_max)]
 
-    pl = pv.Plotter(shape=(1, 3), off_screen=True, window_size=(1800, 650))
+    pl = pv.Plotter(shape=(1, 3), off_screen=True, window_size=(2400, 800))
     pl.enable_parallel_projection()
     pl.add_axes()
     set_view_mode(pl, cfg.plot.slice_mode)
@@ -63,6 +66,9 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
         cmap=fast_cmap,
         clim=clim_common,
         show_edges=True,
+        edge_color=EDGE_COLOR,
+        line_width=EDGE_LINE_WIDTH,
+        edge_opacity=EDGE_OPACITY,
         scalar_bar_args={
             "title": f"{scalar_name} (openfoam)",
         },
@@ -77,6 +83,9 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
         cmap=fast_cmap,
         clim=clim_common,
         show_edges=True,
+        edge_color=EDGE_COLOR,
+        line_width=EDGE_LINE_WIDTH,
+        edge_opacity=EDGE_OPACITY,
         scalar_bar_args={
             "title": f"{scalar_name} (gridfoam)",
         },
@@ -90,6 +99,9 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
         scalars="error_abs",
         cmap="magma",
         show_edges=True,
+        edge_color=EDGE_COLOR,
+        line_width=EDGE_LINE_WIDTH,
+        edge_opacity=EDGE_OPACITY,
         scalar_bar_args={"title": "error_abs"},
     )
     pl.add_text("error_abs", font_size=11)

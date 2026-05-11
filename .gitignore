@@ -193,3 +193,4 @@ spike
 outputs
 reference/
 examples/**/plots/*
+examples/**/of/*
