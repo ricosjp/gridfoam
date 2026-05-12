@@ -10,7 +10,7 @@ fluxel:
 simulator:
   control:
     deltaT: 0.1
-    endTime: 500
+    endTime: 100
     writeInterval: 100
     output:
       output_dir: "examples/hagen_poiseuille/gridfoam/outputs"
@@ -55,13 +55,13 @@ simulator:
         patches: [x_minus]
         value: [2.0]
       - name: outflow
-        type: neumann
+        type: dirichlet
         patches: [x_plus]
         value: [0.0]
       - name: wall
         type: neumann
         patches: [y_minus, y_plus]
-        value: [0.0, 0.0, 0.0]
+        value: [0.0]
       - name: empty
         type: empty
         patches: [z_minus, z_plus]

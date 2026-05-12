@@ -4,9 +4,7 @@ import torch
 import yaml
 
 from gridfoam.algorithms.piso import PISO
-from gridfoam.boundaries.basic.dirichlet import DirichletBC
-from gridfoam.boundaries.basic.empty import EmptyBC
-from gridfoam.boundaries.basic.neumann import NeumannBC
+from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
@@ -15,7 +13,6 @@ from gridfoam.meta.config import (
     GridfoamConfig,
 )
 from gridfoam.meta.enums import (
-    DomainBoundaryPatch,
     FieldRole,
 )
 from gridfoam.models.turbulence.laminar import Laminar
@@ -36,33 +33,11 @@ def main() -> None:
     p = CellField(
         grid, "p", role=FieldRole.LOCAL, num_components=1, ref_value=0.0
     )
-    turbulence = Laminar(grid=grid, nu=0.1)
 
-    zero_u = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
-    zero_grad_u = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
-    zero_grad_p = torch.zeros((1,), dtype=grid.dtype, device=grid.device)
-    p_in = torch.tensor((2.0,), dtype=grid.dtype, device=grid.device)
-    p_out = torch.tensor((0.0,), dtype=grid.dtype, device=grid.device)
-    U.add_boundary_conditions(
-        {
-            DomainBoundaryPatch.X_MINUS: NeumannBC(zero_grad_u),
-            DomainBoundaryPatch.X_PLUS: NeumannBC(zero_grad_u),
-            DomainBoundaryPatch.Y_MINUS: DirichletBC(zero_u),
-            DomainBoundaryPatch.Y_PLUS: DirichletBC(zero_u),
-            DomainBoundaryPatch.Z_MINUS: EmptyBC(),
-            DomainBoundaryPatch.Z_PLUS: EmptyBC(),
-        }
-    )
-    p.add_boundary_conditions(
-        {
-            DomainBoundaryPatch.X_MINUS: DirichletBC(p_in),
-            DomainBoundaryPatch.X_PLUS: DirichletBC(p_out),
-            DomainBoundaryPatch.Y_MINUS: NeumannBC(zero_grad_p),
-            DomainBoundaryPatch.Y_PLUS: NeumannBC(zero_grad_p),
-            DomainBoundaryPatch.Z_MINUS: EmptyBC(),
-            DomainBoundaryPatch.Z_PLUS: EmptyBC(),
-        }
-    )
+    apply_boundary_condition_configs(U, grid.sim_config.boundaryConditions["U"])
+    apply_boundary_condition_configs(p, grid.sim_config.boundaryConditions["p"])
+
+    turbulence = Laminar(grid=grid, nu=0.1)
 
     algo = PISO(
         grid=grid,

@@ -38,30 +38,43 @@ simulator:
         norm_type: l_2
   boundaryConditions:
     U:
-      - name: wall
+      - name: inlet
         type: dirichlet
-        patches: [x_minus, x_plus, y_minus]
+        patches: [x_minus]
+        value: [20.0, 0.0, 0.0]
+      - name: outlet
+        type: inlet_outlet
+        patches: [x_plus]
         value: [0.0, 0.0, 0.0]
-      - name: lid
+      - name: slip_wall
+        type: slip
+        patches: [y_minus, y_plus, z_plus]
+      - name: floor
         type: dirichlet
-        patches: [y_plus]
-        value: [1.0, 0.0, 0.0]
-      - name: empty
-        type: empty
-        patches: [z_minus, z_plus]
-      - name: baffle
+        patches: [z_minus]
+        value: [20.0, 0.0, 0.0]
+      - name: bike
         type: dirichlet
         patches: [_default]
         value: [0.0, 0.0, 0.0]
     p:
-      - name: wall
+      - name: inlet
         type: neumann
-        patches: [x_minus, x_plus, y_minus, y_plus]
+        patches: [x_minus]
         value: [0.0]
-      - name: empty
-        type: empty
-        patches: [z_minus, z_plus]
-      - name: baffle
+      - name: outlet
+        type: dirichlet
+        patches: [x_plus]
+        value: [0.0]
+      - name: slip_wall
+        type: neumann
+        patches: [y_minus, y_plus, z_plus]
+        value: [0.0]
+      - name: floor
+        type: neumann
+        patches: [z_minus]
+        value: [0.0]
+      - name: bike
         type: neumann
         patches: [_default]
         value: [0.0]

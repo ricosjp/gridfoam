@@ -251,6 +251,20 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
     HbyA_builtin_key: str | None = None
     rAU_builtin_key: str | None = None
 
+    @field_validator("patches", mode="before")
+    @classmethod
+    def regularize_patches(
+        cls, patches: object
+    ) -> list[str | DomainBoundaryPatch]:
+        _DOMAIN_BOUNDARY_PATCH_BY_VALUE: dict[str, DomainBoundaryPatch] = {
+            m.value: m for m in DomainBoundaryPatch
+        }
+        out: list[str | DomainBoundaryPatch] = []
+        for p in patches:
+            reserved = _DOMAIN_BOUNDARY_PATCH_BY_VALUE.get(p)
+            out.append(reserved if reserved is not None else p)
+        return out
+
 
 class SimulatorConfig(BaseModel, frozen=True):
     control: ControlConfig
