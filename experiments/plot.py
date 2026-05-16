@@ -34,11 +34,11 @@ EDGE_OPACITY = 0.08
 def set_view_mode(pl: pv.Plotter, mode: Literal["xy", "yz", "xz"]) -> None:
     match mode:
         case "xy":
-            pl.view_xy()
+            pl.renderer.view_xy()
         case "yz":
-            pl.view_yz()
+            pl.renderer.view_yz()
         case "xz":
-            pl.view_xz()
+            pl.renderer.view_xz()
         case _:
             raise ValueError(f"Invalid view mode: {mode}")
 
@@ -52,9 +52,9 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
     gf_min, gf_max = slc.get_data_range("gridfoam")
     clim_common = [min(of_min, gf_min), max(of_max, gf_max)]
 
-    pl = pv.Plotter(shape=(1, 3), off_screen=True, window_size=(2400, 800))
-    pl.enable_parallel_projection()
-    pl.add_axes()
+    pl = pv.Plotter(shape=(1, 3), off_screen=True, window_size=[2400, 800])
+    pl.renderer.enable_parallel_projection()
+    pl.renderer.add_axes()
     set_view_mode(pl, cfg.plot.slice_mode)
     pl.link_views()
 
@@ -106,7 +106,7 @@ def plot(slc: pv.DataSet, cfg: CompareConfig) -> pathlib.Path:
     )
     pl.add_text("error_abs", font_size=11)
 
-    pl.reset_camera()
+    pl.renderer.reset_camera()
     pl.screenshot(str(output_png))
     pl.close()
     return output_png

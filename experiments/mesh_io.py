@@ -9,7 +9,9 @@ def load_openfoam_mesh(cfg: CompareConfig) -> pv.DataSet:
     if vtu is None:
         msg = f"No internal.vtu found in {vtk_dir}"
         raise FileNotFoundError(msg)
-    return pv.read(vtu)
+    pvmesh = pv.read(vtu)
+    assert isinstance(pvmesh, pv.DataSet)
+    return pvmesh
 
 
 def load_gridfoam_mesh(cfg: CompareConfig) -> pv.DataSet:
@@ -19,4 +21,6 @@ def load_gridfoam_mesh(cfg: CompareConfig) -> pv.DataSet:
         msg = f"No .vtu files found in {vtu_dir}"
         raise FileNotFoundError(msg)
     vtu = sorted(vtus)[-1]
-    return pv.read(vtu)
+    pvmesh = pv.read(vtu)
+    assert isinstance(pvmesh, pv.DataSet)
+    return pvmesh

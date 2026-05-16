@@ -78,9 +78,9 @@ if __name__ == "__main__":
         )
         mlflow.log_metrics(
             {
-                "Linf": slc.field_data["Linf"],
-                "L2": slc.field_data["L2"],
-                "L1": slc.field_data["L1"],
+                "Linf": slc.field_data["Linf"].item(),
+                "L2": slc.field_data["L2"].item(),
+                "L1": slc.field_data["L1"].item(),
             }
         )
         mlflow.log_artifact(str(output_png))

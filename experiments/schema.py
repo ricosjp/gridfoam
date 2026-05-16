@@ -10,9 +10,9 @@ class PlotConfig(BaseModel, frozen=True):
     """Rendering options for PyVista slice-error visualization."""
 
     slice_mode: Literal["xy", "yz", "xz"]
-    slice_origin: list[float, float, float]
+    slice_origin: list[float]
 
-    def get_slice_normal(self) -> list[float, float, float]:
+    def get_slice_normal(self) -> list[float]:
         match self.slice_mode:
             case "xy":
                 return [0.0, 0.0, 1.0]
@@ -35,7 +35,7 @@ class GridfoamRunConfig(BaseModel, frozen=True):
     """Optional ``uv run python <script>`` for a gridfoam driver script."""
 
     enabled: bool = False
-    script: str | None = None
+    script: str = "run.py"
 
 
 class CompareConfig(BaseModel, frozen=True):

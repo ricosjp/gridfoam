@@ -10,12 +10,13 @@ def compare_on_slice(
     cfg: CompareConfig,
 ) -> pv.DataSet:
     # use gridfoam slice as base for comparison
-    slc = gf_mesh.slice(
+    slc = of_mesh.slice(
         normal=cfg.plot.get_slice_normal(),
         origin=cfg.plot.slice_origin,
         generate_triangles=False,
     )
     slc.clear_data()
+    assert isinstance(slc, pv.DataSet)
 
     of_sampled = slc.cell_centers().sample(
         of_mesh, pass_cell_data=True, snap_to_closest_point=True
