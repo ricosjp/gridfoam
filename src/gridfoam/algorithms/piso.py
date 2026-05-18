@@ -157,13 +157,13 @@ class PISO(AlgorithmBase):
             )
 
             # Pressure Poisson equation
-            pEqn_mat = fvm.laplacian(self.rAU_field.data, self.p)
+            pEqn_mat = -fvm.laplacian(self.rAU_field.data, self.p)
             div_phi = fvc.div(self.phi)
             logger.debug(
                 "PISO continuity residual L2=%.3e",
                 torch.linalg.vector_norm(div_phi.data, ord=2).item(),
             )
-            pEqn_mat.source = pEqn_mat.source + div_phi.data
+            pEqn_mat.source = pEqn_mat.source - div_phi.data
 
             if self.p_needs_ref:
                 set_reference_value(pEqn_mat)
