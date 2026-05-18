@@ -172,11 +172,11 @@ class SIMPLE(AlgorithmBase):
         # =========================================================
         # Pressure Poisson equation
         # =========================================================
-        # ∇・(rAU ∇p) = ∇・U*
+        # -∇・(rAU ∇p) = -∇・U*
 
         # rAU is cell-centered and will be interpolated to faces
         # inside the laplacian operator.
-        pEqn_mat = fvm.laplacian(self.rAU_field.data, self.p)
+        pEqn_mat = -fvm.laplacian(self.rAU_field.data, self.p)
 
         # Add continuity residual (div(phi)) to source
         div_phi = fvc.div(self.phi)
@@ -184,7 +184,7 @@ class SIMPLE(AlgorithmBase):
             "SIMPLE continuity residual L2=%.3e",
             torch.linalg.vector_norm(div_phi.data, ord=2).item(),
         )
-        pEqn_mat.source = pEqn_mat.source + div_phi.data
+        pEqn_mat.source = pEqn_mat.source - div_phi.data
 
         if self.p_needs_ref:
             set_reference_value(pEqn_mat)
@@ -194,21 +194,13 @@ class SIMPLE(AlgorithmBase):
 
         # Store old pressure for pressure under-relaxation
         p_old = self.p.data.clone()
-        self.p.data = self.solvers[pressure_eq.name].solve(pressure_eq)
+        p_solved = self.solvers[pressure_eq.name].solve(pressure_eq)
 
-        self.p.data = p_old + self.alpha_p * (self.p.data - p_old)
-
-        # =========================================================
-        # Velocity and flux correction
-        # =========================================================
-        grad_p = fvc.grad(self.p)
+        # flux correction with the unrelaxed pressure-equation solution.
+        self.p.data = p_solved
         sn_grad_p = fvc.sn_grad(self.p)
         rAU_f = fvc.interpolate(self.rAU_field)
 
-        # Velocity correction: U = HbyA - rAU * grad(p)
-        self.U.data = self.HbyA_field.data - self.rAU_field.data * grad_p.data
-
-        # Face-flux correction:
         # phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)
         mag_Sf = torch.linalg.vector_norm(
             grid.Sf[self.phi.single_mask], dim=1, keepdim=True
@@ -217,6 +209,17 @@ class SIMPLE(AlgorithmBase):
             self.phi.single_data
             - rAU_f.single_data * mag_Sf * sn_grad_p.single_data
         )
+
+        # apply pressure relaxation
+        self.p.data = p_old + self.alpha_p * (p_solved - p_old)
+
+        # =========================================================
+        # Velocity and flux correction
+        # =========================================================
+        grad_p = fvc.grad(self.p)
+
+        # Velocity correction: U = HbyA - rAU * grad(p)
+        self.U.data = self.HbyA_field.data - self.rAU_field.data * grad_p.data
 
         correct_flux(self.phi, self.U)
         logger.debug(
