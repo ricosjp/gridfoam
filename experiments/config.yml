@@ -3,11 +3,11 @@ case_dir: "examples/motorBike"
 field_name: U
 field_kind: vector
 plot:
-    slice_mode: "xz"
-    slice_origin: [0.0, 0.0, 0.0]
+  slice_mode: "xz"
+  slice_origin: [0.0, 0.0, 0.0]
 openfoam:
-    enabled: false
-    allrun_cmd: "./Allrun"
+  enabled: true
+  allrun_cmd: "./Allrun"
 gridfoam:
-    enabled: false
-    script: "run.py"
+  enabled: true
+  script: "run.py"

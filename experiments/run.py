@@ -55,8 +55,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cfg = load_config(args.config)
 
-    run_openfoam(cfg)
-    run_gridfoam(cfg)
+    openfoam_timing = run_openfoam(cfg)
+    gridfoam_timing = run_gridfoam(cfg)
 
     of_mesh = load_openfoam_mesh(cfg)
     gf_mesh = load_gridfoam_mesh(cfg)
@@ -76,13 +76,30 @@ if __name__ == "__main__":
                 "slice_origin": cfg.plot.slice_origin,
             }
         )
-        mlflow.log_metrics(
-            {
-                "Linf": slc.field_data["Linf"].item(),
-                "L2": slc.field_data["L2"].item(),
-                "L1": slc.field_data["L1"].item(),
-            }
-        )
+        metrics = {
+            "Linf": slc.field_data["Linf"].item(),
+            "L2": slc.field_data["L2"].item(),
+            "L1": slc.field_data["L1"].item(),
+        }
+        if openfoam_timing is not None:
+            metrics.update(
+                {
+                    "openfoam_wall_time_s": openfoam_timing.wall_time_s,
+                    "openfoam_cpu_user_s": openfoam_timing.cpu_user_s,
+                    "openfoam_cpu_system_s": openfoam_timing.cpu_system_s,
+                    "openfoam_cpu_total_s": openfoam_timing.cpu_total_s,
+                }
+            )
+        if gridfoam_timing is not None:
+            metrics.update(
+                {
+                    "gridfoam_wall_time_s": gridfoam_timing.wall_time_s,
+                    "gridfoam_cpu_user_s": gridfoam_timing.cpu_user_s,
+                    "gridfoam_cpu_system_s": gridfoam_timing.cpu_system_s,
+                    "gridfoam_cpu_total_s": gridfoam_timing.cpu_total_s,
+                }
+            )
+        mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(output_png))
 
     del of_mesh, gf_mesh, slc

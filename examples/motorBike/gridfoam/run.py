@@ -3,12 +3,13 @@ from pathlib import Path
 import torch
 import yaml
 
-from gridfoam.algorithms.piso import PISO
+from gridfoam.algorithms.simple import SIMPLE
 from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
+from gridfoam.logging import configure_logging
 from gridfoam.meta.config import (
     GridfoamConfig,
 )
@@ -28,9 +29,9 @@ def create_grid(config_path: Path | None = None) -> AxisProjectedGrid:
 
 
 def main() -> None:
-    # configure_logging()
+    configure_logging()
     grid = create_grid()
-    U = CellField(grid, "U", role=FieldRole.TRANSIENT, num_components=3)
+    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
     p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
 
     apply_boundary_condition_configs(U, grid.sim_config.boundaryConditions["U"])
@@ -38,12 +39,11 @@ def main() -> None:
 
     turbulence = Laminar(grid=grid, nu=0.1)
 
-    algo = PISO(
+    algo = SIMPLE(
         grid=grid,
         U=U,
         p=p,
         turbulence=turbulence,
-        n_correctors=2,
     )
 
     ad_o = grid.ap_dist_owner_to_bnd
@@ -67,7 +67,6 @@ def main() -> None:
 
     for step in range(1, n_steps + 1):
         algo.step()
-        U.update_history()
         if step % write_interval == 0 or step == n_steps:
             save_export_fields_as_vtu(
                 grid,
