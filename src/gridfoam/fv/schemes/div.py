@@ -7,6 +7,21 @@ from gridfoam.core.field import CellField, FaceField
 from gridfoam.fv import fvc
 from gridfoam.meta.enums import DivScheme
 
+DivSchemeFunc = Callable[
+    [FaceField, CellField],
+    tuple[
+        Float[torch.Tensor, " F_single 1"],
+        Float[torch.Tensor, " F_single 1"],
+        Float[torch.Tensor, " F_single 1"],
+        Float[torch.Tensor, " F_single 1"],
+        Float[torch.Tensor, " F_single k"],
+    ],
+]
+LimiterFunc = Callable[
+    [Float[torch.Tensor, " F_single 1"]],
+    Float[torch.Tensor, " F_single 1"],
+]
+
 
 def upwind(
     phi: FaceField, field: CellField
@@ -219,7 +234,7 @@ def _r_for_vector_field(
 def _apply_tvd_scheme(
     phi: FaceField,
     field: CellField,
-    limiter_func: Callable,
+    limiter_func: LimiterFunc,
 ) -> tuple[
     Float[torch.Tensor, " F_single 1"],
     Float[torch.Tensor, " F_single 1"],
@@ -321,13 +336,13 @@ def _apply_tvd_scheme(
         r = _r_for_vector_field(gradf_v, d_ON_vec, grad_t_u)  # [F_single 1]
 
     # 4. Apply limiter.
-    phi = limiter_func(r)  # [F_single 1]
+    limiter = limiter_func(r)  # [F_single 1]
 
     # 5. Compute deferred-correction source:
-    # added flux = flux * phi * (psi_linear - psi_upwind)
+    # added flux = flux * limiter * (psi_linear - psi_upwind)
     # moved from LHS to RHS with negative sign.
     source_face = (
-        -phi.single_data * phi * (psi_linear - psi_upwind)
+        -phi.single_data * limiter * (psi_linear - psi_upwind)
     )  # [F_single k]
 
     return upper, lower, diag_O, diag_N, source_face
@@ -426,7 +441,7 @@ def koren(
 
 
 # Scheme dispatch table
-DIV_SCHEMES: dict[DivScheme, Callable] = {
+DIV_SCHEMES: dict[DivScheme, DivSchemeFunc] = {
     DivScheme.UPWIND: upwind,
     DivScheme.LINEAR: linear,
     DivScheme.VANLEER: vanleer,
@@ -438,6 +453,6 @@ DIV_SCHEMES: dict[DivScheme, Callable] = {
 }
 
 
-def get_div_scheme(scheme: DivScheme) -> Callable:
+def get_div_scheme(scheme: DivScheme) -> DivSchemeFunc:
     """Return the divergence-scheme function for the given enum."""
     return DIV_SCHEMES[scheme]

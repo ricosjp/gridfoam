@@ -3,7 +3,7 @@ from jaxtyping import Float
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.fv import fvc
+from gridfoam.fv.fvc.interpolate import interpolate
 
 
 def grad(field: CellField) -> CellField:
@@ -102,7 +102,7 @@ def _grad_scalar(field: CellField) -> Float[torch.Tensor, " C 3"]:
     """
     grid = field.grid
     assert field.num_components == 1
-    psi_f = fvc.interpolate(field)
+    psi_f = interpolate(field)
 
     grad_data = torch.zeros(
         (grid.num_cells, 3), dtype=grid.dtype, device=grid.device

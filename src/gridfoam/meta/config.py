@@ -1,5 +1,6 @@
 import pathlib
 import re
+from collections.abc import Iterable
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -21,12 +22,12 @@ from gridfoam.meta.enums import (
 
 
 class DomainConfig(BaseModel, frozen=True):
-    lower: list[float, float, float]
+    lower: list[float]
     """
     lower : list[float, float, float]
         Lower bound of the domain.
     """
-    upper: list[float, float, float]
+    upper: list[float]
     """
     upper : list[float, float, float]
         Upper bound of the domain.
@@ -39,7 +40,7 @@ class FluxelConfig(BaseModel, frozen=True):
     domain : DomainConfig
         Domain configuration.
     """
-    root_resolution: list[int, int, int]
+    root_resolution: list[int]
     """
     root_resolution : list[int, int, int]
         Resolution configuration.
@@ -256,11 +257,15 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
     def regularize_patches(
         cls, patches: object
     ) -> list[str | DomainBoundaryPatch]:
+        if not isinstance(patches, Iterable):
+            raise TypeError("patches must be an iterable of patch names")
         _DOMAIN_BOUNDARY_PATCH_BY_VALUE: dict[str, DomainBoundaryPatch] = {
             m.value: m for m in DomainBoundaryPatch
         }
         out: list[str | DomainBoundaryPatch] = []
         for p in patches:
+            if not isinstance(p, str):
+                raise TypeError("patch names must be strings")
             reserved = _DOMAIN_BOUNDARY_PATCH_BY_VALUE.get(p)
             out.append(reserved if reserved is not None else p)
         return out

@@ -41,7 +41,7 @@ class GeometricField(ABC):
 
     @property
     @abstractmethod
-    def dimension(self) -> dict[str, int]:
+    def dimension(self) -> dict[str, int] | None:
         pass
 
     @property

@@ -12,6 +12,7 @@ def test_fvschemes_regularizes_div_scheme_keys():
             "default  ,  linear": DivScheme.LINEAR,
         },
     )
+    assert cfg.divSchemes is not None
     assert "default, linear" in cfg.divSchemes
     assert cfg.divSchemes["default, linear"] is DivScheme.LINEAR
 

@@ -74,7 +74,7 @@ class FixedFluxPressure(BoundaryCondition):
         rAU = grid.get_builtin_field(self.rAU_builtin_key)
 
         mask = get_mask(grid, patch_name, side)
-        n_faces = mask.sum().item()
+        n_faces = int(mask.sum().item())
 
         # This boundary behaves as Neumann, so fraction is always zero.
         fraction = torch.zeros(
@@ -111,6 +111,8 @@ class FixedFluxPressure(BoundaryCondition):
                     raise ValueError(f"Invalid side: {side}")
                 Sf_bnd = grid.Sf[immersed_mask][mask]
                 mag_Sf = torch.linalg.vector_norm(Sf_bnd, dim=1, keepdim=True)
+            else:
+                return fraction, ref_v, ref_g
 
             HbyA_O = HbyA.data[target_cells]
             rAU_O = rAU.data[target_cells]

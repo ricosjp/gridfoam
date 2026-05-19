@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 import torch
 from beartype.roar import BeartypeCallHintParamViolation
@@ -82,4 +84,7 @@ def test_create_preconditioner_rejects_unknown_type(
     p = CellField(grid, "p_bad", role=FieldRole.LOCAL, num_components=1)
     mat = FvMatrix(p)
     with pytest.raises(BeartypeCallHintParamViolation):
-        create_preconditioner("not-a-precon", mat)
+        create_preconditioner(
+            cast(PreconditionerType, cast(object, "not-a-precon")),
+            mat,
+        )

@@ -69,7 +69,7 @@ class InletOutletBC(BoundaryCondition):
             )
 
         mask = get_mask(grid, patch_name, side)
-        n_faces = mask.sum().item()
+        n_faces = int(mask.sum().item())
 
         # Default behavior is Neumann (outflow).
         fraction = torch.zeros(
@@ -97,6 +97,10 @@ class InletOutletBC(BoundaryCondition):
                 phi_bnd = phi.immersed_lower[mask]
             else:
                 raise ValueError(f"Invalid side: {side}")
+        else:
+            raise NotImplementedError(
+                "IBM for this grid type is not supported yet."
+            )
 
         # Detect inflow region (phi < 0).
         is_inflow = phi_bnd[:, 0] < 0.0

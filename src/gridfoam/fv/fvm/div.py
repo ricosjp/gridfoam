@@ -70,9 +70,9 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
         f, ref_v, ref_g, _ = evaluate_boundary_state(field, batch)
         # Domain boundaries
         if batch.face_kind == BoundaryFaceKind.DOMAIN:
-            F = phi.domain_bnd_data[batch.face_mask]
-            F_out = torch.clamp(F, min=0.0)
-            F_in = torch.clamp(F, max=0.0)
+            flux = phi.domain_bnd_data[batch.face_mask]
+            F_out = torch.clamp(flux, min=0.0)
+            F_in = torch.clamp(flux, max=0.0)
             diag = F_out + F_in * (1.0 - f)
             src = F_in * (f * ref_v + (1.0 - f) * ref_g * batch.mag_d)
             mat.diag.index_add_(0, batch.target_cells, diag)
@@ -82,9 +82,9 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
         # Immersed boundaries
         if isinstance(grid, AxisProjectedGrid):
             if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-                F = phi.immersed_upper[batch.face_mask]
-                F_out = torch.clamp(F, min=0.0)
-                F_in = torch.clamp(F, max=0.0)
+                flux = phi.immersed_upper[batch.face_mask]
+                F_out = torch.clamp(flux, min=0.0)
+                F_in = torch.clamp(flux, max=0.0)
 
                 wb = grid.ap_owner_weights[batch.face_mask, 0:1]
                 w = grid.ap_owner_weights[batch.face_mask, 1:2]
@@ -95,9 +95,9 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
                 mat.source.index_add_(0, batch.target_cells, -src)
                 continue
             elif batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
-                F = phi.immersed_lower[batch.face_mask]
-                F_out = torch.clamp(F, min=0.0)
-                F_in = torch.clamp(F, max=0.0)
+                flux = phi.immersed_lower[batch.face_mask]
+                F_out = torch.clamp(flux, min=0.0)
+                F_in = torch.clamp(flux, max=0.0)
 
                 wb = grid.ap_neighbour_weights[batch.face_mask, 0:1]
                 w = grid.ap_neighbour_weights[batch.face_mask, 1:2]

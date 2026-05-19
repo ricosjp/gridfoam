@@ -37,7 +37,7 @@ class EmptyBC(BoundaryCondition):
     ]:
         grid = field.grid
         mask = get_mask(grid, patch_name, side)
-        n_faces = mask.sum().item()
+        n_faces = int(mask.sum().item())
         fraction = torch.zeros(
             (n_faces, 1), dtype=grid.dtype, device=grid.device
         )

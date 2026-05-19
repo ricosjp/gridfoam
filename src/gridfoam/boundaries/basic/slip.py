@@ -47,7 +47,7 @@ class SlipBC(BoundaryCondition):
         grid = field.grid
 
         mask = get_mask(grid, patch_name, side)
-        n_faces = mask.sum().item()
+        n_faces = int(mask.sum().item())
 
         fraction = torch.ones(
             (n_faces, 1), dtype=grid.dtype, device=grid.device
@@ -80,6 +80,10 @@ class SlipBC(BoundaryCondition):
                 Sf_bnd = -grid.Sf[immersed_mask][mask]
             else:
                 raise ValueError(f"Invalid side: {side}")
+        else:
+            raise NotImplementedError(
+                "IBM for this grid type is not supported yet."
+            )
 
         n_vec = torch.sign(Sf_bnd)
 

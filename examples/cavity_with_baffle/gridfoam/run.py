@@ -6,8 +6,8 @@ import yaml
 from gridfoam.algorithms.piso import PISO
 from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField
-from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
+from gridfoam.fv.fvm.laplacian import IGridBase
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import (
     GridfoamConfig,
@@ -18,7 +18,7 @@ from gridfoam.meta.enums import (
 from gridfoam.models.turbulence.laminar import Laminar
 
 
-def create_grid(config_path: Path | None = None) -> AxisProjectedGrid:
+def create_grid(config_path: Path | None = None) -> IGridBase:
     if config_path is None:
         config_path = Path(__file__).resolve().parent / "data" / "config.yml"
     with open(config_path) as f:
@@ -34,8 +34,11 @@ def main() -> None:
         grid, "p", role=FieldRole.LOCAL, num_components=1, ref_value=0.0
     )
 
-    apply_boundary_condition_configs(U, grid.sim_config.boundaryConditions["U"])
-    apply_boundary_condition_configs(p, grid.sim_config.boundaryConditions["p"])
+    boundary_conditions = grid.sim_config.boundaryConditions
+    if boundary_conditions is None:
+        raise ValueError("boundaryConditions is required for this example.")
+    apply_boundary_condition_configs(U, boundary_conditions["U"])
+    apply_boundary_condition_configs(p, boundary_conditions["p"])
 
     turbulence = Laminar(grid=grid, nu=0.01)
 

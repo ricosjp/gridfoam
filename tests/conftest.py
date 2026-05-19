@@ -79,4 +79,6 @@ def small_axis_projected_grid() -> AxisProjectedGrid:
     Fluxel mesh build runs once per session.
     """
     config = small_gridfoam_config()
-    return create_grid(config)
+    grid = create_grid(config)
+    assert isinstance(grid, AxisProjectedGrid)
+    return grid

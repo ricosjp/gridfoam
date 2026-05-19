@@ -15,6 +15,7 @@ dev-install:
 
 .PHONY: lint
 lint:
+	uv run basedpyright
 	uv run ruff check --output-format=full
 	uv run ruff format --diff
 

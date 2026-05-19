@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 import pyamg
 import torch
@@ -62,11 +64,11 @@ class _PyamgSolveFunction(torch.autograd.Function):
         ml = pyamg.smoothed_aggregation_solver(A_csr)
         x = np.asarray(x0, dtype=rhs.dtype).copy()
         x = ml.solve(rhs, x0=x, tol=tol, maxiter=max_iter)
-        return x
+        return np.asarray(x)
 
     @staticmethod
     def forward(
-        ctx: torch.autograd.function.FunctionCtx,
+        ctx: Any,  # noqa: ANN401
         diag: Float[torch.Tensor, " C 1"],
         upper: Float[torch.Tensor, " F 1"],
         lower: Float[torch.Tensor, " F 1"],
@@ -117,9 +119,10 @@ class _PyamgSolveFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(
-        ctx: torch.autograd.function.FunctionCtx,
-        grad_output: Float[torch.Tensor, " C k"],
+        ctx: Any,  # noqa: ANN401
+        *grad_outputs: Float[torch.Tensor, " C k"],
     ) -> tuple[torch.Tensor | None, ...]:
+        grad_output = grad_outputs[0]
         (
             diag,
             upper,
@@ -196,14 +199,17 @@ class PyamgBridgeSolver(LinearSolver):
         owner = A.grid.owner
         neighbour = A.grid.neighbour
 
-        return _PyamgSolveFunction.apply(
-            A.diag,
-            A.upper,
-            A.lower,
-            A.source,
-            x,
-            owner,
-            neighbour,
-            self.rtol,
-            self.max_iter,
+        return cast(
+            torch.Tensor,
+            _PyamgSolveFunction.apply(
+                A.diag,
+                A.upper,
+                A.lower,
+                A.source,
+                x,
+                owner,
+                neighbour,
+                self.rtol,
+                self.max_iter,
+            ),
         )

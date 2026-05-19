@@ -58,6 +58,7 @@ test = [
 ]
 lint = [
     "ruff",
+    "basedpyright",
     "jaxtyping",
     "beartype"
 ]
@@ -127,3 +128,22 @@ exclude_also = [
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.basedpyright]
+include = ["src", "tests", "examples"]
+exclude = ["lib", "reference", "experiments", "docs"]
+reportAny = false
+reportExplicitAny = false
+reportImportCycles = false
+reportImplicitOverride = false
+reportImplicitStringConcatenation = false
+reportMissingTypeStubs = false
+reportPrivateLocalImportUsage = false
+reportPrivateImportUsage = false
+reportUnnecessaryComparison = false
+reportUnannotatedClassAttribute = false
+reportUnreachable = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnusedCallResult = false
