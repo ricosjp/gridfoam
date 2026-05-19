@@ -22,7 +22,7 @@ default:
 lint:
   stage: test
   script:
-    - uv sync --group lint
+    - uv sync --group lint --extra cpu
     - make lint
   tags:
     - no-gpu
