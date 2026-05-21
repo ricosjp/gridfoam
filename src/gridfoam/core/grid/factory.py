@@ -24,11 +24,16 @@ def create_grid(config: GridfoamConfig) -> IGridBase:
         if fluxel_config.mesh_path is not None
         else None
     )
+    refinement_regions = [
+        (region.min, region.max, region.level)
+        for region in fluxel_config.refinement_regions
+    ]
     match fluxel_config.ibm_type:
         case IbmType.AXIS_PROJECTED:
             fluxel_mesh = fluxel_mng.build_axis_projected_mesh(
                 mesh_path=path,
                 target_level=fluxel_config.target_level,
+                refinement_regions=refinement_regions,
             )
             return AxisProjectedGrid(config.simulator, fluxel_mesh)
         case _:

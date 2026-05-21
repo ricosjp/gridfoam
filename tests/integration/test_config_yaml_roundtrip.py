@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
-from gridfoam.meta.config import GridfoamConfig
+from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
 
 
 def test_example_cavity_config_loads():
@@ -20,3 +21,28 @@ def test_example_cavity_config_loads():
     cfg = GridfoamConfig.model_validate(raw)
     assert cfg.simulator.device.value in ("cpu", "cuda")
     assert cfg.fluxel.ibm_type.value == "axis_projected"
+
+
+def test_refinement_region_config_validates_box():
+    region = RefinementRegionConfig(
+        name="wake",
+        min=[0.0, -0.1, -0.1],
+        max=[1.0, 0.1, 0.1],
+        level=2,
+    )
+
+    assert region.name == "wake"
+    assert region.level == 2
+
+
+def test_refinement_region_config_rejects_invalid_box():
+    try:
+        RefinementRegionConfig(
+            min=[0.0, 0.0, 0.0],
+            max=[0.0, 1.0, 1.0],
+            level=1,
+        )
+    except ValidationError:
+        return
+
+    raise AssertionError("invalid refinement region should fail validation")

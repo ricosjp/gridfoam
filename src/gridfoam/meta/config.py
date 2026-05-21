@@ -3,7 +3,7 @@ import re
 from collections.abc import Iterable
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from gridfoam.meta.enums import (
     BoundaryConditionType,
@@ -34,6 +34,49 @@ class DomainConfig(BaseModel, frozen=True):
     """
 
 
+class RefinementRegionConfig(BaseModel, frozen=True):
+    name: str | None = None
+    """
+    name : str | None
+        Optional label for this local refinement region.
+    """
+    min: list[float]
+    """
+    min : list[float, float, float]
+        Lower corner of the axis-aligned refinement box.
+    """
+    max: list[float]
+    """
+    max : list[float, float, float]
+        Upper corner of the axis-aligned refinement box.
+    """
+    level: int
+    """
+    level : int
+        Target octree refinement level for cells intersecting this box.
+    """
+
+    @field_validator("min", "max")
+    @classmethod
+    def validate_corner(cls, value: list[float]) -> list[float]:
+        if len(value) != 3:
+            raise ValueError("refinement region corners must have 3 values")
+        return value
+
+    @field_validator("level")
+    @classmethod
+    def validate_level(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("refinement region level must be non-negative")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "RefinementRegionConfig":
+        if any(lo >= hi for lo, hi in zip(self.min, self.max, strict=True)):
+            raise ValueError("refinement region min must be less than max")
+        return self
+
+
 class FluxelConfig(BaseModel, frozen=True):
     domain: DomainConfig
     """
@@ -57,6 +100,14 @@ class FluxelConfig(BaseModel, frozen=True):
         The number of times that the uniform refinement is applied
         to the final mesh.
         n_leaf_refinement=3 will generate 8x8x8 micro-cells per octree leaf.
+    """
+    refinement_regions: list[RefinementRegionConfig] = Field(
+        default_factory=list
+    )
+    """
+    refinement_regions : list[RefinementRegionConfig]
+        Additional axis-aligned boxes to refine after surface-based AMR and
+        before 2:1 balancing and final uniform leaf refinement.
     """
     mesh_path: pathlib.Path | None = None
     """
