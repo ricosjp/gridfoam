@@ -21,12 +21,15 @@ def to_unstructured_grid(grid: IGridBase) -> pv.UnstructuredGrid:
     """
     n_cells = grid.num_cells
 
-    hx = grid.cell_sizes[:, 0] / 2.0
-    hy = grid.cell_sizes[:, 1] / 2.0
-    hz = grid.cell_sizes[:, 2] / 2.0
-    cx = grid.cell_centers[:, 0]
-    cy = grid.cell_centers[:, 1]
-    cz = grid.cell_centers[:, 2]
+    cell_sizes = grid.cell_sizes.cpu().numpy()
+    cell_centers = grid.cell_centers.cpu().numpy()
+
+    hx = cell_sizes[:, 0] / 2.0
+    hy = cell_sizes[:, 1] / 2.0
+    hz = cell_sizes[:, 2] / 2.0
+    cx = cell_centers[:, 0]
+    cy = cell_centers[:, 1]
+    cz = cell_centers[:, 2]
 
     # VTK Hexahedron node ordering
     # 0: -x, -y, -z

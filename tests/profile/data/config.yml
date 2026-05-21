@@ -78,4 +78,4 @@ simulator:
         type: neumann
         patches: [_default]
         value: [0.0]
-  device: cpu
+  device: cuda

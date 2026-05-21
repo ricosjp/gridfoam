@@ -60,7 +60,7 @@ profile-memory:
 
 .PHONY: experiment
 experiment:
-	uv run python -m experiments.run --config experiments/config.yml
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m experiments.run --config experiments/config.yml
 
 .PHONY: performance_check
 performance_check: benchmark profile-time profile-memory
