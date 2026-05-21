@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum, auto
+from weakref import WeakKeyDictionary
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -33,7 +34,36 @@ class BoundaryBatch:
     mag_d: Float[torch.Tensor, " F_any 1"]
 
 
+BoundaryBatchCacheKey = tuple[
+    tuple[PatchName, int, BoundaryConditionType],
+    ...,
+]
+
+_boundary_batch_cache: WeakKeyDictionary[
+    CellField,
+    tuple[BoundaryBatchCacheKey, tuple[BoundaryBatch, ...]],
+] = WeakKeyDictionary()
+
+
+def _boundary_batch_cache_key(field: CellField) -> BoundaryBatchCacheKey:
+    return tuple((patch, id(bc), bc.type) for patch, bc in field.bcs.items())
+
+
 def iter_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
+    cache_key = _boundary_batch_cache_key(field)
+    cached = _boundary_batch_cache.get(field)
+    if cached is not None:
+        cached_key, cached_batches = cached
+        if cached_key == cache_key:
+            yield from cached_batches
+            return
+
+    batches = tuple(_build_boundary_batches(field))
+    _boundary_batch_cache[field] = (cache_key, batches)
+    yield from batches
+
+
+def _build_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
     grid = field.grid
     for patch, bc in field.bcs.items():
         if bc.type == BoundaryConditionType.EMPTY:

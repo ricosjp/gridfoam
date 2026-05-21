@@ -111,6 +111,10 @@ class SIMPLE(AlgorithmBase):
 
         self.p_needs_ref = needs_reference_value(self.p)
         correct_flux(self.phi, self.U, update_internal=True)
+        self._single_Sf = self.grid.Sf[self.phi.single_mask]
+        self._single_mag_Sf = torch.linalg.vector_norm(
+            self._single_Sf, dim=1, keepdim=True
+        )
 
     def step(self):
         grid = self.grid
@@ -164,7 +168,7 @@ class SIMPLE(AlgorithmBase):
         # only update the internal faces
         # (other faces are constrained by boundary conditions)
         self.phi.single_data = torch.sum(
-            HbyA_f.single_data * grid.Sf[HbyA_f.single_mask],
+            HbyA_f.single_data * self._single_Sf,
             dim=1,
             keepdim=True,
         )
@@ -202,12 +206,9 @@ class SIMPLE(AlgorithmBase):
         rAU_f = fvc.interpolate(self.rAU_field)
 
         # phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)
-        mag_Sf = torch.linalg.vector_norm(
-            grid.Sf[self.phi.single_mask], dim=1, keepdim=True
-        )
         self.phi.single_data = (
             self.phi.single_data
-            - rAU_f.single_data * mag_Sf * sn_grad_p.single_data
+            - rAU_f.single_data * self._single_mag_Sf * sn_grad_p.single_data
         )
 
         # apply pressure relaxation
