@@ -1,5 +1,10 @@
+"""Profiling motorBike simulation"""
+
+import logging
+import pathlib
 from pathlib import Path
 
+import pytest
 import torch
 import yaml
 
@@ -17,6 +22,8 @@ from gridfoam.meta.enums import (
 )
 from gridfoam.models.turbulence.laminar import Laminar
 
+logger = logging.getLogger(__name__)
+
 
 def create_grid(config_path: Path | None = None) -> IGridBase:
     if config_path is None:
@@ -27,9 +34,9 @@ def create_grid(config_path: Path | None = None) -> IGridBase:
     return create_grid_from_config(config)
 
 
-def main() -> None:
-    # configure_logging()
-    torch.set_num_threads(6)
+@pytest.mark.profile
+def test_motorBike_profile():
+    """Profile motorBike."""
     grid = create_grid()
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
     p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
@@ -68,7 +75,3 @@ def main() -> None:
             )
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             print(f"step={step:4d} max|U|={max_u:.4e}")
-
-
-if __name__ == "__main__":
-    main()

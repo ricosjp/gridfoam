@@ -49,13 +49,13 @@ benchmark:
 
 .PHONY: profile-time
 profile-time:
-	mkdir -p ./tests/outputs/profile/time/
-	uv run pyinstrument -r html -o ./tests/outputs/profile/time/profile.html -m pytest -v -m profile
+	mkdir -p ./tests/profile/outputs/time/
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run pyinstrument -r html -o ./tests/profile/outputs/time/profile.html -m pytest -v -m profile
 
 .PHONY: profile-memory
 profile-memory:
-	mkdir -p ./tests/outputs/profile/memory/
-	uv run pytest -v -m profile --memray --memray-bin-path=./tests/outputs/profile/memory --memray-bin-prefix=gridfoam
+	mkdir -p ./tests/profile/outputs/memory/
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run pytest -v -m profile --memray --memray-bin-path=./tests/profile/outputs/memory --memray-bin-prefix=gridfoam
 	# uv run memray flamegraph -f {bin_path}
 
 .PHONY: experiment
