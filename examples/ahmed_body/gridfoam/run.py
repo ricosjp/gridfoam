@@ -18,8 +18,8 @@ from gridfoam.meta.enums import (
 from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import compute_force_coefficients
 
-REFERENCE_VELOCITY = 20.0
-REFERENCE_AREA = 0.75
+REFERENCE_VELOCITY = 40.0
+REFERENCE_AREA = 0.112
 DRAG_DIRECTION = (1.0, 0.0, 0.0)
 BODY_PATCHES = ("_default",)
 
@@ -69,7 +69,7 @@ def main() -> None:
         if step % write_interval == 0 or step == n_steps:
             save_export_fields_as_vtu(
                 grid,
-                str(output_dir / f"motorBike_{step:04d}.vtu"),
+                str(output_dir / f"ahmed_{step:04d}.vtu"),
                 ugrid=ugrid,
             )
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()

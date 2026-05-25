@@ -1,0 +1,81 @@
+fluxel:
+  domain:
+    lower: [-3.0, -3.0, 0.0]
+    upper: [8.0, 3.0, 5.0]
+  root_resolution: [11, 6, 5]
+  target_level: 3
+  n_leaf_refinement: 3
+  mesh_path: "examples/ahmed_body/gridfoam/data/ahmed_25deg_m.stl"
+  ibm_type: axis_projected
+simulator:
+  control:
+    deltaT: 1
+    endTime: 500
+    writeInterval: 100
+    output:
+      output_dir: "examples/ahmed_body/gridfoam/outputs"
+      base_name: "ahmed_body"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    solvers:
+      momentum:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-8
+        rel_tolerance: 0.1
+        max_iter: 2000
+        norm_type: l_2
+      pressure_poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-7
+        rel_tolerance: 0.01
+        max_iter: 1000
+        norm_type: l_2
+  boundaryConditions:
+    U:
+      - name: inlet
+        type: dirichlet
+        patches: [x_minus]
+        value: [40.0, 0.0, 0.0]
+      - name: outlet
+        type: inlet_outlet
+        patches: [x_plus]
+        value: [0.0, 0.0, 0.0]
+      - name: slip_wall
+        type: slip
+        patches: [y_minus, y_plus, z_plus]
+      - name: floor
+        type: dirichlet
+        patches: [z_minus]
+        value: [0.0, 0.0, 0.0]
+      - name: body
+        type: dirichlet
+        patches: [_default]
+        value: [0.0, 0.0, 0.0]
+    p:
+      - name: inlet
+        type: neumann
+        patches: [x_minus]
+        value: [0.0]
+      - name: outlet
+        type: dirichlet
+        patches: [x_plus]
+        value: [0.0]
+      - name: slip_wall
+        type: neumann
+        patches: [y_minus, y_plus, z_plus]
+        value: [0.0]
+      - name: floor
+        type: neumann
+        patches: [z_minus]
+        value: [0.0]
+      - name: body
+        type: neumann
+        patches: [_default]
+        value: [0.0]
+  device: cuda
