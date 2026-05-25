@@ -1,7 +1,6 @@
 """Profiling motorBike simulation"""
 
 import logging
-import pathlib
 from pathlib import Path
 
 import pytest
