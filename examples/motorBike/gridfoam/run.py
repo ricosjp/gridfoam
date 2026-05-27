@@ -21,7 +21,6 @@ from gridfoam.post.forces import compute_force_coefficients
 REFERENCE_VELOCITY = 20.0
 REFERENCE_AREA = 0.75
 DRAG_DIRECTION = (1.0, 0.0, 0.0)
-BODY_PATCHES = ("_default",)
 
 
 def create_grid(config_path: Path | None = None) -> IGridBase:
@@ -80,7 +79,6 @@ def main() -> None:
         U,
         p,
         turbulence,
-        patches=BODY_PATCHES,
         drag_direction=DRAG_DIRECTION,
         reference_velocity=REFERENCE_VELOCITY,
         reference_area=REFERENCE_AREA,

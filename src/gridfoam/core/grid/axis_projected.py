@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import pathlib
 from collections.abc import Iterator
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 from weakref import WeakValueDictionary
 
+import graphlow as gl
 import torch
 from fluxel import CfdAxisProjectedMesh
 from jaxtyping import Bool, Float, Int
@@ -27,10 +29,13 @@ class AxisProjectedGrid(IGridBase):
         self,
         simulator_config: SimulatorConfig,
         fluxel_mesh: CfdAxisProjectedMesh,
+        mesh_path: pathlib.Path | None = None,
     ):
         self._sim_config = simulator_config
         self._fields = WeakValueDictionary[str, GeometricField]()
         self._builtin_fields = WeakValueDictionary[str, GeometricField]()
+        self._mesh_path = mesh_path
+        self._surface_mesh_cache: gl.TensorMesh[Any] | None = None
 
         mesh = fluxel_mesh
         self._num_cells = mesh.n_cells
@@ -193,6 +198,23 @@ class AxisProjectedGrid(IGridBase):
     @property
     def sim_config(self) -> SimulatorConfig:
         return self._sim_config
+
+    @property
+    def surface_mesh(self) -> gl.TensorMesh[Any]:
+        if self._mesh_path is None:
+            raise ValueError(
+                "surface_mesh requires an immersed-body mesh_path. "
+                "Pass mesh_path to AxisProjectedGrid (or set "
+                "fluxel.mesh_path in the configuration)."
+            )
+        if self._surface_mesh_cache is None:
+            self._surface_mesh_cache = gl.read(
+                str(self._mesh_path),
+                backend="torch",
+                dtype=self.dtype,
+                device=self.device,
+            )
+        return self._surface_mesh_cache
 
     @property
     def dt(self) -> float:

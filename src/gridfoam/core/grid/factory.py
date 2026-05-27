@@ -35,6 +35,10 @@ def create_grid(config: GridfoamConfig) -> IGridBase:
                 target_level=fluxel_config.target_level,
                 refinement_regions=refinement_regions,
             )
-            return AxisProjectedGrid(config.simulator, fluxel_mesh)
+            return AxisProjectedGrid(
+                simulator_config=config.simulator,
+                fluxel_mesh=fluxel_mesh,
+                mesh_path=fluxel_config.mesh_path,
+            )
         case _:
             raise ValueError(f"Unsupported IBM type: {config.fluxel.ibm_type}")

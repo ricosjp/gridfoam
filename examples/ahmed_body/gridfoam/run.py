@@ -1,3 +1,5 @@
+import logging
+import sys
 from pathlib import Path
 
 import torch
@@ -21,7 +23,9 @@ from gridfoam.post.forces import compute_force_coefficients
 REFERENCE_VELOCITY = 40.0
 REFERENCE_AREA = 0.112
 DRAG_DIRECTION = (1.0, 0.0, 0.0)
-BODY_PATCHES = ("_default",)
+LOG_FILE_NAME = "ahmed_body.log"
+
+logger = logging.getLogger("gridfoam.examples.ahmed_body")
 
 
 def create_grid(config_path: Path | None = None) -> IGridBase:
@@ -33,8 +37,24 @@ def create_grid(config_path: Path | None = None) -> IGridBase:
     return create_grid_from_config(config)
 
 
+def configure_run_logger(log_file: Path) -> None:
+    formatter = logging.Formatter("%(message)s")
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    file_handler = logging.FileHandler(log_file, mode="w")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+
 def main() -> None:
-    # configure_logging()
     torch.set_num_threads(6)
     grid = create_grid()
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
@@ -57,6 +77,7 @@ def main() -> None:
 
     output_dir = Path(grid.sim_config.control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    configure_run_logger(output_dir / LOG_FILE_NAME)
     write_interval = grid.sim_config.control.writeInterval
     ugrid = to_unstructured_grid(grid)
 
@@ -73,23 +94,22 @@ def main() -> None:
                 ugrid=ugrid,
             )
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
-            print(f"step={step:4d} max|U|={max_u:.4e}")
+            logger.info("step=%4d max|U|=%.4e", step, max_u)
 
     force_coefficients = compute_force_coefficients(
         grid,
         U,
         p,
         turbulence,
-        patches=BODY_PATCHES,
         drag_direction=DRAG_DIRECTION,
         reference_velocity=REFERENCE_VELOCITY,
         reference_area=REFERENCE_AREA,
     )
-    print(
-        "final Cd="
-        f"{force_coefficients.cd.item():.6e} "
-        f"(pressure={force_coefficients.pressure_cd.item():.6e}, "
-        f"viscous={force_coefficients.viscous_cd.item():.6e})"
+    logger.info(
+        "final Cd=%.6e (pressure=%.6e, viscous=%.6e)",
+        force_coefficients.cd.item(),
+        force_coefficients.pressure_cd.item(),
+        force_coefficients.viscous_cd.item(),
     )
 
 
