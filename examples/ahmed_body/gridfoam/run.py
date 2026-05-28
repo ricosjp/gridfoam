@@ -18,11 +18,8 @@ from gridfoam.meta.enums import (
     FieldRole,
 )
 from gridfoam.models.turbulence.laminar import Laminar
-from gridfoam.post.forces import compute_force_coefficients
+from gridfoam.post.forces import ForceEvaluator
 
-REFERENCE_VELOCITY = 40.0
-REFERENCE_AREA = 0.112
-DRAG_DIRECTION = (1.0, 0.0, 0.0)
 LOG_FILE_NAME = "ahmed_body.log"
 
 logger = logging.getLogger("gridfoam.examples.ahmed_body")
@@ -68,6 +65,11 @@ def main() -> None:
 
     turbulence = Laminar(grid=grid, nu=0.1)
 
+    force_config = grid.sim_config.forceCoeff
+    if force_config is None:
+        raise ValueError("forceCoeff is required for this example.")
+    force_evaluator = ForceEvaluator(force_config)
+
     algo = SIMPLE(
         grid=grid,
         U=U,
@@ -84,7 +86,6 @@ def main() -> None:
     n_steps = int(
         grid.sim_config.control.endTime / grid.sim_config.control.deltaT
     )
-
     for step in range(1, n_steps + 1):
         algo.step()
         if step % write_interval == 0 or step == n_steps:
@@ -96,21 +97,29 @@ def main() -> None:
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             logger.info("step=%4d max|U|=%.4e", step, max_u)
 
-    force_coefficients = compute_force_coefficients(
+    force_evaluator.evaluate(
         grid,
-        U,
-        p,
-        turbulence,
-        drag_direction=DRAG_DIRECTION,
-        reference_velocity=REFERENCE_VELOCITY,
-        reference_area=REFERENCE_AREA,
+        time=float(n_steps),
+        p=p,
+        U=U,
+        turbulence=turbulence,
     )
     logger.info(
-        "final Cd=%.6e (pressure=%.6e, viscous=%.6e)",
-        force_coefficients.cd.item(),
-        force_coefficients.pressure_cd.item(),
-        force_coefficients.viscous_cd.item(),
+        "final Cd=%.6e Cd(f)=%.6e Cd(r)=%.6e Cl=%.6e Cl(f)=%.6e Cl(r)=%.6e CmPitch=%.6e CmRoll=%.6e CmYaw=%.6e Cs=%.6e Cs(f)=%.6e Cs(r)=%.6e",
+        force_evaluator.history[-1].Cd.item(),
+        force_evaluator.history[-1].Cd_f.item(),
+        force_evaluator.history[-1].Cd_r.item(),
+        force_evaluator.history[-1].Cl.item(),
+        force_evaluator.history[-1].Cl_f.item(),
+        force_evaluator.history[-1].Cl_r.item(),
+        force_evaluator.history[-1].CmPitch.item(),
+        force_evaluator.history[-1].CmRoll.item(),
+        force_evaluator.history[-1].CmYaw.item(),
+        force_evaluator.history[-1].Cs.item(),
+        force_evaluator.history[-1].Cs_f.item(),
+        force_evaluator.history[-1].Cs_r.item(),
     )
+    grid.surface_mesh.save(output_dir / "surface_mesh.vtu", overwrite_features=True, overwrite_file=True)
 
 
 if __name__ == "__main__":

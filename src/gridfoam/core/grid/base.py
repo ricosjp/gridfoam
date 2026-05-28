@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import fluxel
+import graphlow as gl
 import torch
 from jaxtyping import Bool, Float, Int
 
@@ -52,6 +53,11 @@ class IGridBase(ABC):
     def get_domain_bnd_mask(
         self, patch_name: DomainBoundaryPatch
     ) -> Bool[torch.Tensor, " F"]:
+        pass
+
+    @property
+    @abstractmethod
+    def surface_mesh(self) -> gl.TensorMesh[Any]:
         pass
 
     @property

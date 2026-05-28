@@ -2,6 +2,7 @@ import pathlib
 import re
 from collections.abc import Iterable
 from enum import Enum
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -11,6 +12,7 @@ from gridfoam.meta.enums import (
     DeviceType,
     DivScheme,
     DomainBoundaryPatch,
+    ForceCoordMode,
     GradScheme,
     IbmType,
     LaplacianScheme,
@@ -322,6 +324,122 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
         return out
 
 
+class DragLiftCoord(BaseModel, frozen=True, extra="forbid"):
+    mode: Literal[ForceCoordMode.DRAG_LIFT]
+    drag_dir: list[float]
+    lift_dir: list[float]
+    center_of_rotation: list[float]
+
+    @field_validator("drag_dir", "lift_dir", "center_of_rotation", mode="after")
+    @classmethod
+    def validate_dirs(cls, value: list[float]) -> list[float]:
+        if len(value) != 3:
+            raise ValueError(
+                "drag_dir, lift_dir and center_of_rotation must have 3 values"
+            )
+        return value
+
+
+class DragPitchCoord(BaseModel, frozen=True, extra="forbid"):
+    mode: Literal[ForceCoordMode.DRAG_PITCH]
+    drag_dir: list[float]
+    pitch_axis: list[float]
+    center_of_rotation: list[float]
+
+    @field_validator(
+        "drag_dir", "pitch_axis", "center_of_rotation", mode="after"
+    )
+    @classmethod
+    def validate_dirs(cls, value: list[float]) -> list[float]:
+        if len(value) != 3:
+            raise ValueError(
+                "drag_dir, pitch_axis and center_of_rotation must have 3 values"
+            )
+        return value
+
+
+ForceCoord = Annotated[
+    DragLiftCoord | DragPitchCoord,
+    Field(discriminator="mode"),
+]
+
+
+class ForceCoeffConfig(BaseModel, frozen=True):
+    local_coord: ForceCoord
+    """
+    local_coord : ForceCoord
+        Defines the local coordinate system used to decompose aerodynamic forces and moments.
+
+        The local coordinate system is specified by the drag direction, one additional direction and the center of rotation.
+        Two input modes are supported:
+
+        - drag_lift mode:
+            Defined by ``drag_dir``, ``lift_dir`` and ``center_of_rotation``.
+            The side direction is computed as ``lift_dir x drag_dir``.
+
+        - drag_pitch mode:
+            Defined by ``drag_dir``, ``pitch_axis`` and ``center_of_rotation``.
+            The lift direction is computed as ``drag_dir x pitch_axis``.
+    """
+
+    patches: list[str]
+    """
+    patches : list[str]
+        Patch names of surfaces to be integrated for the force coefficients.
+    """
+
+    rho: float
+    """
+    rho : float
+        Density for the force coefficients.
+    """
+
+    magU_ref: float
+    """
+    magU_ref : float
+        Reference velocity for the force coefficients.
+    """
+    A_ref: float
+    """
+    A_ref : float
+        Reference area for the force coefficients.
+    """
+    L_ref: float
+    """
+    L_ref : float
+        Reference length for the force coefficients.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def infer_force_coord_mode(cls, data: dict[str, Any]) -> dict[str, Any]:
+        local_coord = data.get("local_coord")
+        if not isinstance(local_coord, dict):
+            raise ValueError("local_coord must be a dictionary")
+
+        if "mode" in local_coord:
+            return data
+
+        has_lift = "lift_dir" in local_coord
+        has_pitch = "pitch_axis" in local_coord
+
+        if has_lift and not has_pitch:
+            local_coord["mode"] = ForceCoordMode.DRAG_LIFT
+        elif has_pitch and not has_lift:
+            local_coord["mode"] = ForceCoordMode.DRAG_PITCH
+        elif has_lift and has_pitch:
+            raise ValueError(
+                "local_coord is ambiguous: provide either lift_dir or pitch_axis, not both. "
+            )
+        else:
+            raise ValueError(
+                "local_coord requires either lift_dir for drag_lift mode "
+                "or pitch_axis for drag_pitch mode."
+            )
+
+        return data
+
+
 class SimulatorConfig(BaseModel, frozen=True):
     control: ControlConfig
     """
@@ -341,6 +459,11 @@ class SimulatorConfig(BaseModel, frozen=True):
     boundaryConditions: dict[str, list[BoundaryConditionConfig]] | None = None
     """
     Boundary condition configuration grouped by field name.
+    """
+    forceCoeff: ForceCoeffConfig | None = None
+    """
+    forceCoeffConfig : ForceCoeffConfig
+        Force coefficients configuration.
     """
     device: DeviceType
     """

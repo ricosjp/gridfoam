@@ -81,6 +81,16 @@ class AxisProjectedGrid(IGridBase):
             mesh.ap_neighbour_bnd_patch_id
         ).to(device=self.device, dtype=torch.long)
 
+        # Immersed Boundary Owner Face Anchor IDs [F_immersed]
+        self._ap_owner_bnd_anchor_id = torch.from_numpy(
+            mesh.ap_owner_bnd_anchor_id
+        ).to(device=self.device, dtype=torch.long)
+
+        # Immersed Boundary Neighbour Face Anchor IDs [F_immersed]
+        self._ap_neighbour_bnd_anchor_id = torch.from_numpy(
+            mesh.ap_neighbour_bnd_anchor_id
+        ).to(device=self.device, dtype=torch.long)
+
         # ================================
         # Geometry
         # ================================
@@ -202,11 +212,7 @@ class AxisProjectedGrid(IGridBase):
     @property
     def surface_mesh(self) -> gl.TensorMesh[Any]:
         if self._mesh_path is None:
-            raise ValueError(
-                "surface_mesh requires an immersed-body mesh_path. "
-                "Pass mesh_path to AxisProjectedGrid (or set "
-                "fluxel.mesh_path in the configuration)."
-            )
+            raise ValueError("surface_mesh requires a mesh_path. ")
         if self._surface_mesh_cache is None:
             self._surface_mesh_cache = gl.read(
                 str(self._mesh_path),
@@ -323,6 +329,14 @@ class AxisProjectedGrid(IGridBase):
     @property
     def ap_neighbour_weights(self) -> Float[torch.Tensor, " F_immersed 2"]:
         return self._ap_neighbour_weights
+
+    @property
+    def ap_owner_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
+        return self._ap_owner_bnd_anchor_id
+
+    @property
+    def ap_neighbour_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
+        return self._ap_neighbour_bnd_anchor_id
 
 
 def _compute_face_centers(

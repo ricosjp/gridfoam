@@ -230,3 +230,14 @@ class BoundaryConditionType(StrEnum):
     SLIP = auto()
     INLET_OUTLET = auto()
     FIXED_FLUX_PRESSURE = auto()
+
+
+class ForceCoordMode(StrEnum):
+    """
+    Mode of the force coordinate system.
+    - DRAG_LIFT: Drag-lift coordinate system.
+    - DRAG_PITCH: Drag-pitch coordinate system.
+    """
+
+    DRAG_LIFT = auto()
+    DRAG_PITCH = auto()

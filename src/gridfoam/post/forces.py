@@ -1,415 +1,502 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from weakref import WeakKeyDictionary
 
-import numpy as np
 import torch
 from jaxtyping import Float, Int
-from scipy.spatial import KDTree
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.meta.config import (
+    DragLiftCoord,
+    DragPitchCoord,
+    ForceCoeffConfig,
+    ForceCoord,
+)
+from gridfoam.meta.enums import FaceSide, ForceCoordMode
 from gridfoam.models.turbulence.base import TurbulenceModel
 
 
-@dataclass(frozen=True)
-class ForceCoefficients:
-    force: Float[torch.Tensor, " 3"]
-    pressure_force: Float[torch.Tensor, " 3"]
-    viscous_force: Float[torch.Tensor, " 3"]
-    coefficient: Float[torch.Tensor, " 3"]
-    pressure_coefficient: Float[torch.Tensor, " 3"]
-    viscous_coefficient: Float[torch.Tensor, " 3"]
-    cd: Float[torch.Tensor, ""]
-    pressure_cd: Float[torch.Tensor, ""]
-    viscous_cd: Float[torch.Tensor, ""]
+def _normalize_vector(
+    arr: Float[torch.Tensor, " 3"],
+) -> Float[torch.Tensor, " 3"]:
+    norm = torch.linalg.vector_norm(arr)
+    if norm == 0:
+        raise ValueError("vector is zero vector")
+    return arr / norm
 
 
 @dataclass(frozen=True)
-class SurfaceGeometry:
-    centroids: Float[torch.Tensor, " F_surf 3"]
-    area_vectors: Float[torch.Tensor, " F_surf 3"]
-    normals: Float[torch.Tensor, " F_surf 3"]
-    areas: Float[torch.Tensor, " F_surf 1"]
-
-
-@dataclass(frozen=True)
-class ProbeState:
-    distance: Float[torch.Tensor, " F_surf 1"]
-    pressure: Float[torch.Tensor, " F_surf 1"]
-    velocity: Float[torch.Tensor, " F_surf 3"]
-    nu_eff: Float[torch.Tensor, " F_surf 1"]
-
-
-@dataclass(frozen=True)
-class ForceInputs:
-    drag_direction: Float[torch.Tensor, " 3"]
-    coefficient_denominator: Float[torch.Tensor, ""]
-    wall_velocity: Float[torch.Tensor, " 3"]
-
-
-_LOCATOR_CACHE: WeakKeyDictionary[AxisProjectedGrid, KDTree] = (
-    WeakKeyDictionary()
-)
-
-
-def compute_force_coefficients(
-    grid: IGridBase,
-    U: CellField,
-    p: CellField,
-    turbulence: TurbulenceModel,
-    *,
-    drag_direction: Sequence[float] = (1.0, 0.0, 0.0),
-    reference_velocity: float,
-    reference_area: float,
-    probe_offset_factor: float = 1.0,
-    wall_velocity: Sequence[float] | None = None,
-) -> ForceCoefficients:
+class OrthonormalCoord:
     """
-    Compute force coefficients by surface-mesh integration.
+    Orthonormal basis used for force and moment coefficients.
 
-    For each polygon face of ``grid.surface_mesh`` the wall traction
-
-    .. math::
-
-        \\mathbf{t} = -p\\,\\mathbf{n}
-        + \\nu_{\\mathrm{eff}}\\,(\\partial_n \\mathbf{U})_t
-
-    is evaluated by sampling the Eulerian fields at a fluid-side probe
-    point ``x_p = c + h\\,\\mathbf{n}`` placed along the outward unit normal
-    of each face, where ``h`` is the local background cell size scaled by
-    ``probe_offset_factor``. The wall-normal velocity gradient is
-    reconstructed via a one-sided difference between the probe and the
-    wall (no-slip by default), and the tangential component of that
-    gradient drives the viscous traction. Pressure is sampled at the same
-    probe point under the boundary-layer assumption that
-    ``\\partial p/\\partial n \\approx 0``. Total force on the body is
-    obtained by summing ``\\mathbf{t}\\,dA`` over every polygon face.
-
-    Parameters
+    Attributes
     ----------
-    grid : IGridBase
-        Computational grid. Must be an :class:`AxisProjectedGrid` whose
-        ``surface_mesh`` is available.
-    U : CellField
-        Cell-centred velocity field (3 components).
-    p : CellField
-        Cell-centred kinematic pressure field (1 component).
-    turbulence : TurbulenceModel
-        Turbulence model providing the effective kinematic viscosity.
-    drag_direction : sequence of float, optional
-        Vector defining the drag direction. Internally normalized.
-        Defaults to the +x axis.
-    reference_velocity : float
-        Free-stream reference velocity ``U_inf`` (must be positive).
-    reference_area : float
-        Reference area ``A_ref`` (must be positive).
-    probe_offset_factor : float, default=1.0
-        Probe distance in units of the local background cell size. Must
-        be strictly positive; values smaller than 1 may land inside a
-        cut cell.
-    wall_velocity : sequence of float or None, optional
-        Wall velocity used as the Dirichlet value for the velocity
-        gradient reconstruction (e.g. for moving bodies). ``None`` (the
-        default) is treated as a no-slip wall.
-
-    Returns
-    -------
-    ForceCoefficients
-        Decomposition of the body force together with the normalized
-        coefficients and drag-direction projections.
-
-    Notes
-    -----
-    Pressure is assumed to be the kinematic pressure ``p/rho`` and the
-    effective viscosity is kinematic, consistent with the rest of the
-    incompressible pressure convention used by the solver.
+    e1 : torch.Tensor
+        Drag and roll axis.
+    e2 : torch.Tensor
+        Side-force and pitch axis.
+    e3 : torch.Tensor
+        Lift and yaw axis.
     """
-    _validate_inputs(grid, U, p, reference_velocity, reference_area)
-    assert isinstance(grid, AxisProjectedGrid)
 
-    inputs = _build_force_inputs(
-        grid,
-        drag_direction=drag_direction,
-        reference_velocity=reference_velocity,
-        reference_area=reference_area,
-        wall_velocity=wall_velocity,
-    )
-    surface = _surface_geometry(grid)
-    probe = _sample_probe_state(
-        grid,
-        U,
-        p,
-        turbulence,
-        surface,
-        probe_offset_factor=probe_offset_factor,
-    )
-    pressure_force, viscous_force = _integrate_surface_forces(
-        surface, probe, inputs.wall_velocity
-    )
+    e1: Float[torch.Tensor, " 3"]  # drag / roll
+    e2: Float[torch.Tensor, " 3"]  # side / pitch
+    e3: Float[torch.Tensor, " 3"]  # lift / yaw
 
-    return _force_coefficients(
-        pressure_force,
-        viscous_force,
-        coefficient_denominator=inputs.coefficient_denominator,
-        drag_direction=inputs.drag_direction,
-    )
+    @classmethod
+    def from_local_coord(cls, local_coord: ForceCoord) -> OrthonormalCoord:
+        match local_coord.mode:
+            case ForceCoordMode.DRAG_LIFT:
+                assert isinstance(local_coord, DragLiftCoord)
+                e1 = _normalize_vector(torch.tensor(local_coord.drag_dir))
+                lift = torch.tensor(local_coord.lift_dir)
+                e3_raw = lift - e1 * (lift @ e1)
+                e3 = _normalize_vector(e3_raw)
+                e2 = torch.linalg.cross(e3, e1)
 
-
-def _validate_inputs(
-    grid: IGridBase,
-    U: CellField,
-    p: CellField,
-    reference_velocity: float,
-    reference_area: float,
-) -> None:
-    if not isinstance(grid, AxisProjectedGrid):
-        raise TypeError("force coefficients require an AxisProjectedGrid.")
-    if U.grid is not grid or p.grid is not grid:
-        raise ValueError("U and p must belong to the supplied grid.")
-    if U.num_components != 3:
-        raise ValueError("U must be a 3-component vector field.")
-    if p.num_components != 1:
-        raise ValueError("p must be a scalar field.")
-    if reference_velocity <= 0.0:
-        raise ValueError("reference_velocity must be positive.")
-    if reference_area <= 0.0:
-        raise ValueError("reference_area must be positive.")
+            case ForceCoordMode.DRAG_PITCH:
+                assert isinstance(local_coord, DragPitchCoord)
+                e1 = _normalize_vector(torch.tensor(local_coord.drag_dir))
+                pitch = torch.tensor(local_coord.pitch_axis)
+                e2_raw = pitch - e1 * (pitch @ e1)
+                e2 = _normalize_vector(e2_raw)
+                e3 = torch.linalg.cross(e1, e2)
+        return cls(
+            e1=e1,
+            e2=e2,
+            e3=e3,
+        )
 
 
-def _build_force_inputs(
-    grid: AxisProjectedGrid,
-    *,
-    drag_direction: Sequence[float],
-    reference_velocity: float,
-    reference_area: float,
-    wall_velocity: Sequence[float] | None,
-) -> ForceInputs:
-    dtype = grid.dtype
-    device = grid.device
-    return ForceInputs(
-        drag_direction=_unit_vector(drag_direction, dtype=dtype, device=device),
-        coefficient_denominator=torch.tensor(
-            0.5 * reference_velocity**2 * reference_area,
-            dtype=dtype,
-            device=device,
-        ),
-        wall_velocity=_wall_velocity_tensor(
-            wall_velocity, dtype=dtype, device=device
-        ),
-    )
-
-
-def _unit_vector(
-    values: Sequence[float], *, dtype: torch.dtype, device: torch.device
-) -> Float[torch.Tensor, " 3"]:
-    direction = torch.tensor(values, dtype=dtype, device=device)
-    if direction.shape != (3,):
-        raise ValueError("drag_direction must contain exactly 3 values.")
-    norm = torch.linalg.vector_norm(direction)
-    if norm <= 0.0:
-        raise ValueError("drag_direction must be non-zero.")
-    return direction / norm
-
-
-def _wall_velocity_tensor(
-    wall_velocity: Sequence[float] | None,
-    *,
-    dtype: torch.dtype,
-    device: torch.device,
-) -> Float[torch.Tensor, " 3"]:
-    if wall_velocity is None:
-        return torch.zeros(3, dtype=dtype, device=device)
-    tensor = torch.tensor(wall_velocity, dtype=dtype, device=device)
-    if tensor.shape != (3,):
-        raise ValueError("wall_velocity must contain exactly 3 values.")
-    return tensor
-
-
-def _surface_geometry(
-    grid: AxisProjectedGrid,
-) -> SurfaceGeometry:
+@dataclass(frozen=True)
+class ForceCoeffs:
     """
-    Return per-polygon centroids, area vectors, unit normals, and areas.
+    Aerodynamic force and moment coefficients at one time.
 
-    Each row corresponds to one (general polygonal) face of the immersed
-    surface mesh. The face area vector ``S = n |A|`` is computed by
-    graphlow's polygon-aware geometry helpers. The vectors are then
-    oriented so that the signed enclosed volume is positive, matching
-    the convention "normal points from the body into the fluid".
+    Attributes
+    ----------
+    time : float
+        Simulation time.
+    Cd, Cs, Cl : torch.Tensor
+        Drag, side-force and lift coefficients.
+    CmRoll, CmPitch, CmYaw : torch.Tensor
+        Moment coefficients about the local roll, pitch and yaw axes.
+    Cd_f, Cd_r, Cs_f, Cs_r, Cl_f, Cl_r : torch.Tensor
+        OpenFOAM-style front and rear axle constituents.
     """
-    surface = grid.surface_mesh
-    centroids = surface.geometry.face_centroids().to(
-        dtype=grid.dtype, device=grid.device
-    )
-    area_vectors = surface.geometry.face_area_vectors().to(
-        dtype=grid.dtype, device=grid.device
-    )
-    area_vectors = _orient_area_vectors_outward(centroids, area_vectors)
-    areas = torch.linalg.vector_norm(area_vectors, dim=1, keepdim=True)
-    safe_areas = torch.clamp_min(areas, torch.finfo(grid.dtype).tiny)
-    normals = area_vectors / safe_areas
-    return SurfaceGeometry(
-        centroids=centroids,
-        area_vectors=area_vectors,
-        normals=normals,
-        areas=areas,
-    )
+
+    time: float
+    Cd: Float[torch.Tensor, " 1"]
+    Cd_f: Float[torch.Tensor, " 1"]
+    Cd_r: Float[torch.Tensor, " 1"]
+    Cl: Float[torch.Tensor, " 1"]
+    Cl_f: Float[torch.Tensor, " 1"]
+    Cl_r: Float[torch.Tensor, " 1"]
+    CmPitch: Float[torch.Tensor, " 1"]
+    CmRoll: Float[torch.Tensor, " 1"]
+    CmYaw: Float[torch.Tensor, " 1"]
+    Cs: Float[torch.Tensor, " 1"]
+    Cs_f: Float[torch.Tensor, " 1"]
+    Cs_r: Float[torch.Tensor, " 1"]
 
 
-def _orient_area_vectors_outward(
-    centroids: Float[torch.Tensor, " F_surf 3"],
-    area_vectors: Float[torch.Tensor, " F_surf 3"],
-) -> Float[torch.Tensor, " F_surf 3"]:
+class ForceEvaluator:
     """
-    Orient surface area vectors to point out of the immersed body.
-
-    The surface traction integral uses ``F = ∫ (-p n + tau n) dA`` with
-    ``n`` pointing from the body into the fluid. For a closed surface
-    this corresponds to a positive signed volume
-    ``V = 1/3 ∫ x · n dA``.
+    Evaluate aerodynamic force and moment coefficients on immersed surfaces.
     """
-    signed_volume = torch.sum(centroids * area_vectors) / 3.0
-    if signed_volume < 0.0:
-        return -area_vectors
-    return area_vectors
 
+    def __init__(self, config: ForceCoeffConfig):
+        self.patches = config.patches
+        self.rho = config.rho
+        self.magU_ref = config.magU_ref
+        self.A_ref = config.A_ref
+        self.L_ref = config.L_ref
+        self.local_coord = OrthonormalCoord.from_local_coord(config.local_coord)
+        self.CofR = torch.tensor(config.local_coord.center_of_rotation)
 
-def _sample_probe_state(
-    grid: AxisProjectedGrid,
-    U: CellField,
-    p: CellField,
-    turbulence: TurbulenceModel,
-    surface: SurfaceGeometry,
-    *,
-    probe_offset_factor: float,
-) -> ProbeState:
-    if probe_offset_factor <= 0.0:
-        raise ValueError("probe_offset_factor must be positive.")
+        self.history: list[ForceCoeffs] = []
 
-    distance = _probe_distance(grid, surface.centroids, probe_offset_factor)
-    probe_points = surface.centroids + distance * surface.normals
-    probe_cells = _locate_cells(grid, probe_points)
+    def evaluate(
+        self,
+        grid: IGridBase,
+        time: float,
+        p: CellField,
+        U: CellField,
+        turbulence: TurbulenceModel,
+    ) -> ForceCoeffs:
+        """
+        Integrate surface forces and return nondimensional coefficients.
 
-    return ProbeState(
-        distance=distance,
-        pressure=p.data[probe_cells],
-        velocity=U.data[probe_cells],
-        nu_eff=turbulence.nu_eff()[probe_cells],
-    )
+        Parameters
+        ----------
+        grid : IGridBase
+            Axis-projected grid containing immersed-boundary metadata.
+        time : float
+            Simulation time.
+        p : CellField
+            Kinematic pressure field.
+        U : CellField
+            Velocity field.
+        turbulence : TurbulenceModel
+            Turbulence model that provides the effective kinematic viscosity.
 
+        Returns
+        -------
+        ForceCoeffs
+            Force and moment coefficients at ``time``.
+        """
+        assert isinstance(grid, AxisProjectedGrid)
+        surface_mesh = grid.surface_mesh
+        surface_normals = surface_mesh.geometry.face_normals().to(
+            dtype=grid.dtype, device=grid.device
+        )
+        self._reset_surface_force_data(grid)
 
-def _probe_distance(
-    grid: AxisProjectedGrid,
-    centroids: Float[torch.Tensor, " F_surf 3"],
-    probe_offset_factor: float,
-) -> Float[torch.Tensor, " F_surf 1"]:
-    surface_cells = _locate_cells(grid, centroids)
-    local_cell_sizes = grid.cell_sizes[surface_cells]
-    return probe_offset_factor * local_cell_sizes.amax(dim=1, keepdim=True)
+        q_inf = 0.5 * self.rho * self.magU_ref**2
+        force_scale = q_inf * self.A_ref
+        moment_scale = force_scale * self.L_ref
+        if force_scale == 0.0 or moment_scale == 0.0:
+            raise ValueError("force coefficient reference scale is zero")
 
+        force = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
+        moment = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
+        nu_eff = turbulence.nu_eff()
 
-def _integrate_surface_forces(
-    surface: SurfaceGeometry,
-    probe: ProbeState,
-    wall_velocity: Float[torch.Tensor, " 3"],
-) -> tuple[Float[torch.Tensor, " 3"], Float[torch.Tensor, " 3"]]:
-    dUdn = (probe.velocity - wall_velocity) / probe.distance
-    dUdn_tangential = _tangential_part(dUdn, surface.normals)
+        immersed_owner = grid.owner[grid.ap_is_immersed_faces]
+        immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
+        immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
 
-    # Force on the body from the fluid: F = ∮ (-p n + ν_eff (∂U/∂n)_t) dA.
-    pressure_force = -(probe.pressure * surface.area_vectors).sum(dim=0)
-    viscous_force = (probe.nu_eff * surface.areas * dUdn_tangential).sum(dim=0)
-    return pressure_force, viscous_force
+        for patch_name in self.patches:
+            upper_mask, lower_mask = grid.ap_get_patch_mask(patch_name)
 
+            if torch.any(upper_mask):
+                # Upper faces use the owner-side AP face normal.
+                Sf = immersed_Sf[upper_mask]
+                surface_Sf, axis_n_hat = self._surface_Sf(
+                    surface_normals=surface_normals,
+                    anchor_id=grid.ap_owner_bnd_anchor_id[upper_mask],
+                    Sf=Sf,
+                )
+                f_patch, m_patch = self._integrate_side(
+                    grid=grid,
+                    p=p,
+                    U=U,
+                    nu_eff=nu_eff,
+                    patch_name=patch_name,
+                    side=FaceSide.UPPER,
+                    target_cells=immersed_owner[upper_mask],
+                    surface_Sf=surface_Sf,
+                    axis_n_hat=axis_n_hat,
+                    mag_d=grid.ap_dist_owner_to_bnd[upper_mask],
+                )
+                force = force + f_patch
+                moment = moment + m_patch
 
-def _tangential_part(
-    vector: Float[torch.Tensor, " F_surf 3"],
-    normals: Float[torch.Tensor, " F_surf 3"],
-) -> Float[torch.Tensor, " F_surf 3"]:
-    normal_part = torch.sum(vector * normals, dim=1, keepdim=True) * normals
-    return vector - normal_part
+            if torch.any(lower_mask):
+                # Lower faces use the opposite AP face normal.
+                Sf = -immersed_Sf[lower_mask]
+                surface_Sf, axis_n_hat = self._surface_Sf(
+                    surface_normals=surface_normals,
+                    anchor_id=grid.ap_neighbour_bnd_anchor_id[lower_mask],
+                    Sf=Sf,
+                )
+                f_patch, m_patch = self._integrate_side(
+                    grid=grid,
+                    p=p,
+                    U=U,
+                    nu_eff=nu_eff,
+                    patch_name=patch_name,
+                    side=FaceSide.LOWER,
+                    target_cells=immersed_neighbour[lower_mask],
+                    surface_Sf=surface_Sf,
+                    axis_n_hat=axis_n_hat,
+                    mag_d=grid.ap_dist_neighbour_to_bnd[lower_mask],
+                )
+                force = force + f_patch
+                moment = moment + m_patch
 
+        e1 = self.local_coord.e1.to(dtype=grid.dtype, device=grid.device)
+        e2 = self.local_coord.e2.to(dtype=grid.dtype, device=grid.device)
+        e3 = self.local_coord.e3.to(dtype=grid.dtype, device=grid.device)
 
-def _force_coefficients(
-    pressure_force: Float[torch.Tensor, " 3"],
-    viscous_force: Float[torch.Tensor, " 3"],
-    *,
-    coefficient_denominator: Float[torch.Tensor, ""],
-    drag_direction: Float[torch.Tensor, " 3"],
-) -> ForceCoefficients:
-    force = pressure_force + viscous_force
-    coefficient = force / coefficient_denominator
-    pressure_coefficient = pressure_force / coefficient_denominator
-    viscous_coefficient = viscous_force / coefficient_denominator
+        Cd = torch.sum(force * e1, dim=0, keepdim=True) / force_scale
+        Cs = torch.sum(force * e2, dim=0, keepdim=True) / force_scale
+        Cl = torch.sum(force * e3, dim=0, keepdim=True) / force_scale
+        CmRoll = torch.sum(moment * e1, dim=0, keepdim=True) / moment_scale
+        CmPitch = torch.sum(moment * e2, dim=0, keepdim=True) / moment_scale
+        CmYaw = torch.sum(moment * e3, dim=0, keepdim=True) / moment_scale
 
-    return ForceCoefficients(
-        force=force,
-        pressure_force=pressure_force,
-        viscous_force=viscous_force,
-        coefficient=coefficient,
-        pressure_coefficient=pressure_coefficient,
-        viscous_coefficient=viscous_coefficient,
-        cd=torch.dot(coefficient, drag_direction),
-        pressure_cd=torch.dot(pressure_coefficient, drag_direction),
-        viscous_cd=torch.dot(viscous_coefficient, drag_direction),
-    )
+        coeffs = ForceCoeffs(
+            time=time,
+            Cd=Cd,
+            Cd_f=0.5 * Cd + CmRoll,
+            Cd_r=0.5 * Cd - CmRoll,
+            Cl=Cl,
+            Cl_f=0.5 * Cl + CmPitch,
+            Cl_r=0.5 * Cl - CmPitch,
+            CmPitch=CmPitch,
+            CmRoll=CmRoll,
+            CmYaw=CmYaw,
+            Cs=Cs,
+            Cs_f=0.5 * Cs + CmYaw,
+            Cs_r=0.5 * Cs - CmYaw,
+        )
 
+        self.history.append(coeffs)
 
-def _locate_cells(
-    grid: AxisProjectedGrid,
-    points: Float[torch.Tensor, " N 3"],
-    *,
-    num_candidates: int = 1,
-    atol: float = 1e-9,
-) -> Int[torch.Tensor, " N"]:
-    """
-    Locate the background cell that owns each query point.
+        return coeffs
 
-    Uses a cell-center KD-tree to fetch nearby cell candidates, then
-    picks the first candidate whose axis-aligned bounding box contains
-    the point. The default uses only the nearest cell center because the
-    immersed-boundary neighbourhood is expected to be locally refined.
-    Larger ``num_candidates`` values can be used when ownership near a
-    strong AMR transition must be recovered more conservatively. If no
-    candidate contains the point, the nearest center is returned as a
-    fallback.
-    """
-    tree = _get_cell_locator(grid)
-    points_np = points.detach().cpu().numpy()
-    centers_np = grid.cell_centers.detach().cpu().numpy()
-    sizes_np = grid.cell_sizes.detach().cpu().numpy()
+    def get_history(self) -> list[ForceCoeffs]:
+        return self.history
 
-    k_eff = min(num_candidates, centers_np.shape[0])
-    _, raw_idxs = tree.query(points_np, k=k_eff)
-    # scipy returns squeezed shapes when k=1 or when there is a single
-    # query point; normalize to (n_queries, k_eff) for indexing.
-    idxs = np.atleast_1d(np.asarray(raw_idxs, dtype=np.intp))
-    if idxs.ndim == 1:
-        idxs = idxs[:, np.newaxis]
+    def _surface_Sf(
+        self,
+        surface_normals: Float[torch.Tensor, " S 3"],
+        anchor_id: Int[torch.Tensor, " F_patch"],
+        Sf: Float[torch.Tensor, " F_patch 3"],
+    ) -> tuple[
+        Float[torch.Tensor, " F_patch 3"],
+        Float[torch.Tensor, " F_patch 3"],
+    ]:
+        """
+        Reconstruct true surface area vectors from AP-projected face areas.
 
-    cand_centers = centers_np[idxs]
-    cand_sizes = sizes_np[idxs]
-    half = cand_sizes / 2.0
-    diff = np.abs(points_np[:, None, :] - cand_centers)
-    inside = np.all(diff <= half + atol, axis=-1)
+        Parameters
+        ----------
+        surface_normals : torch.Tensor
+            Unit normals of the original surface mesh faces.
+        anchor_id : torch.Tensor
+            Surface face ids associated with each projected immersed face.
+        Sf : torch.Tensor
+            AP-projected area vectors. The sign is already selected so that
+            each vector points from the fluid cell toward the immersed body.
 
-    has_inside = np.any(inside, axis=1)
-    first_inside = inside.argmax(axis=1)
-    row = np.arange(int(idxs.shape[0]), dtype=np.intp)
-    chosen = np.where(has_inside, idxs[row, first_inside], idxs[:, 0])
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Surface area vectors and AP-axis unit normals.
+        """
+        area = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
+        axis_n_hat = Sf / area
 
-    return torch.from_numpy(chosen).to(device=points.device, dtype=torch.long)
+        surface_n_hat = surface_normals[anchor_id]
+        cos_theta = torch.sum(surface_n_hat * axis_n_hat, dim=1, keepdim=True)
+        # Keep the reconstructed surface area vector in the same half-space as
+        # the AP face normal. This fixes the pressure and viscous force signs.
+        surface_n_hat = torch.where(
+            cos_theta < 0.0,
+            -surface_n_hat,
+            surface_n_hat,
+        )
 
+        cos_theta = torch.clamp(torch.abs(cos_theta), min=1e-12)
+        surface_area = area / cos_theta
+        surface_Sf = surface_n_hat * surface_area
 
-def _get_cell_locator(grid: AxisProjectedGrid) -> KDTree:
-    cached = _LOCATOR_CACHE.get(grid)
-    if cached is not None:
-        return cached
-    centers_np = grid.cell_centers.detach().cpu().numpy()
-    tree = KDTree(centers_np)
-    _LOCATOR_CACHE[grid] = tree
-    return tree
+        return surface_Sf, axis_n_hat
+
+    def _integrate_side(
+        self,
+        grid: AxisProjectedGrid,
+        p: CellField,
+        U: CellField,
+        nu_eff: Float[torch.Tensor, " C 1"],
+        patch_name: str,
+        side: FaceSide,
+        target_cells: Int[torch.Tensor, " F_patch"],
+        surface_Sf: Float[torch.Tensor, " F_patch 3"],
+        axis_n_hat: Float[torch.Tensor, " F_patch 3"],
+        mag_d: Float[torch.Tensor, " F_patch 1"],
+    ) -> tuple[Float[torch.Tensor, " 3"], Float[torch.Tensor, " 3"]]:
+        """
+        Integrate force and moment on one side of an AP immersed patch.
+
+        Parameters
+        ----------
+        grid : AxisProjectedGrid
+            Grid containing geometry and surface mesh references.
+        p : CellField
+            Kinematic pressure field.
+        U : CellField
+            Velocity field.
+        nu_eff : torch.Tensor
+            Effective kinematic viscosity per cell.
+        patch_name : str
+            Immersed patch name.
+        side : FaceSide
+            Owner-side or neighbour-side boundary.
+        target_cells : torch.Tensor
+            Fluid cells adjacent to the immersed boundary faces.
+        surface_Sf : torch.Tensor
+            Surface area vectors oriented from the fluid cell to the body.
+        axis_n_hat : torch.Tensor
+            AP-axis unit normals used to reconstruct boundary point locations.
+        mag_d : torch.Tensor
+            AP-axis distance from cell center to boundary.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Integrated force and moment vectors.
+        """
+        p_b = self._boundary_value(p, patch_name, side, target_cells, mag_d)
+        U_b = self._boundary_value(U, patch_name, side, target_cells, mag_d)
+
+        mag_Sf = torch.linalg.vector_norm(surface_Sf, dim=1, keepdim=True)
+        n_hat = surface_Sf / mag_Sf
+
+        # ``surface_Sf`` points outward from the fluid cell into the body.
+        # With kinematic pressure, the force on the body is +rho*p*Sf.
+        pressure_force = self.rho * p_b * surface_Sf
+
+        # ``tau@Sf`` is the traction exerted by the body on the fluid. The
+        # force on the body has the opposite sign.
+        dUdn = (U_b - U.data[target_cells]) / mag_d  # [F_patch 3]
+        grad_U = dUdn[:, :, None] * n_hat[:, None, :]  # [F_patch 3 3]
+        viscous_stress = (
+            self.rho
+            * nu_eff[target_cells, :, None]
+            * (grad_U + torch.transpose(grad_U, 1, 2))
+        )
+        viscous_force = -torch.matmul(
+            viscous_stress, surface_Sf[:, :, None]
+        ).squeeze(-1)  # fij, fj -> fi
+
+        # just for visualizing the force
+        self._map_force_to_surface_mesh(
+            grid=grid,
+            patch_name=patch_name,
+            side=side,
+            pressure_force=pressure_force,
+            viscous_force=viscous_force,
+        )
+
+        face_force = pressure_force + viscous_force
+        force = torch.sum(face_force, dim=0)
+
+        CofR = self.CofR.to(dtype=grid.dtype, device=grid.device)
+        face_centers = grid.cell_centers[target_cells] + axis_n_hat * mag_d
+        moment_arm = face_centers - CofR
+        moment = torch.sum(torch.cross(moment_arm, face_force, dim=1), dim=0)
+
+        return force, moment
+
+    def _boundary_value(
+        self,
+        field: CellField,
+        patch_name: str,
+        side: FaceSide,
+        target_cells: Int[torch.Tensor, " F_patch"],
+        mag_d: Float[torch.Tensor, " F_patch 1"],
+    ) -> Float[torch.Tensor, " F_patch k"]:
+        """
+        Evaluate a boundary value using the field's value-fraction form.
+
+        Parameters
+        ----------
+        field : CellField
+            Field whose boundary state is requested.
+        patch_name : str
+            Patch name.
+        side : FaceSide
+            AP-IBM face side.
+        target_cells : torch.Tensor
+            Adjacent fluid-cell ids.
+        mag_d : torch.Tensor
+            Distance from cell center to boundary along the AP axis.
+
+        Returns
+        -------
+        torch.Tensor
+            Boundary values on the requested patch side.
+        """
+        if patch_name not in field.bcs:
+            return field.data[target_cells]
+
+        fraction, ref_v, ref_g = field.bcs[patch_name].evaluate(
+            field, patch_name, side=side
+        )
+        psi_O = field.data[target_cells]
+        return fraction * ref_v + (1.0 - fraction) * (psi_O + ref_g * mag_d)
+
+    def _reset_surface_force_data(self, grid: AxisProjectedGrid) -> None:
+        """
+        Initialize per-surface-face force fields for the current evaluation.
+
+        Parameters
+        ----------
+        grid : AxisProjectedGrid
+            Grid owning the surface mesh.
+        """
+        surface_mesh = grid.surface_mesh
+        surface_mesh.cell_data["pressure_force"] = torch.zeros(
+            (surface_mesh.n_cells, 3),
+            dtype=grid.dtype,
+            device=grid.device,
+        )
+        surface_mesh.cell_data["viscous_force"] = torch.zeros(
+            (surface_mesh.n_cells, 3),
+            dtype=grid.dtype,
+            device=grid.device,
+        )
+
+    def _map_force_to_surface_mesh(
+        self,
+        grid: AxisProjectedGrid,
+        patch_name: str,
+        side: FaceSide,
+        pressure_force: Float[torch.Tensor, " F_patch 3"],
+        viscous_force: Float[torch.Tensor, " F_patch 3"],
+    ) -> None:
+        """
+        Accumulate projected-face forces onto their anchor surface faces.
+
+        Multiple AP-projected faces may map to the same surface face. The
+        mapped value is therefore a resultant force per surface face.
+
+        Parameters
+        ----------
+        grid : AxisProjectedGrid
+            Grid owning the surface mesh and anchor-id arrays.
+        patch_name : str
+            Immersed patch name.
+        side : FaceSide
+            Owner-side or neighbour-side boundary.
+        pressure_force : torch.Tensor
+            Pressure-force contribution on AP-projected faces.
+        viscous_force : torch.Tensor
+            Viscous-force contribution on AP-projected faces.
+        """
+        surface_mesh = grid.surface_mesh
+        upper_mask, lower_mask = grid.ap_get_patch_mask(patch_name)
+        match side:
+            case FaceSide.UPPER:
+                anchor_id = grid.ap_owner_bnd_anchor_id[upper_mask]
+            case FaceSide.LOWER:
+                anchor_id = grid.ap_neighbour_bnd_anchor_id[lower_mask]
+            case _:
+                raise ValueError(f"Invalid side: {side}")
+
+        pressure_data = surface_mesh.cell_data.get("pressure_force")
+        if pressure_data is None:
+            pressure_data = torch.zeros(
+                (surface_mesh.n_cells, 3),
+                dtype=grid.dtype,
+                device=grid.device,
+            )
+            surface_mesh.cell_data["pressure_force"] = pressure_data
+
+        viscous_data = surface_mesh.cell_data.get("viscous_force")
+        if viscous_data is None:
+            viscous_data = torch.zeros(
+                (surface_mesh.n_cells, 3),
+                dtype=grid.dtype,
+                device=grid.device,
+            )
+            surface_mesh.cell_data["viscous_force"] = viscous_data
+
+        pressure_data.index_add_(0, anchor_id, pressure_force)
+        viscous_data.index_add_(0, anchor_id, viscous_force)
