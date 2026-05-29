@@ -149,10 +149,6 @@ class ForceEvaluator:
             Force and moment coefficients at ``time``.
         """
         assert isinstance(grid, AxisProjectedGrid)
-        surface_mesh = grid.surface_mesh
-        surface_normals = surface_mesh.geometry.face_normals().to(
-            dtype=grid.dtype, device=grid.device
-        )
         self._reset_surface_force_data(grid)
 
         q_inf = 0.5 * self.rho * self.magU_ref**2
@@ -175,11 +171,6 @@ class ForceEvaluator:
             if torch.any(upper_mask):
                 # Upper faces use the owner-side AP face normal.
                 Sf = immersed_Sf[upper_mask]
-                surface_Sf, axis_n_hat = self._surface_Sf(
-                    surface_normals=surface_normals,
-                    anchor_id=grid.ap_owner_bnd_anchor_id[upper_mask],
-                    Sf=Sf,
-                )
                 f_patch, m_patch = self._integrate_side(
                     grid=grid,
                     p=p,
@@ -188,8 +179,7 @@ class ForceEvaluator:
                     patch_name=patch_name,
                     side=FaceSide.UPPER,
                     target_cells=immersed_owner[upper_mask],
-                    surface_Sf=surface_Sf,
-                    axis_n_hat=axis_n_hat,
+                    Sf=Sf,
                     mag_d=grid.ap_dist_owner_to_bnd[upper_mask],
                 )
                 force = force + f_patch
@@ -198,11 +188,6 @@ class ForceEvaluator:
             if torch.any(lower_mask):
                 # Lower faces use the opposite AP face normal.
                 Sf = -immersed_Sf[lower_mask]
-                surface_Sf, axis_n_hat = self._surface_Sf(
-                    surface_normals=surface_normals,
-                    anchor_id=grid.ap_neighbour_bnd_anchor_id[lower_mask],
-                    Sf=Sf,
-                )
                 f_patch, m_patch = self._integrate_side(
                     grid=grid,
                     p=p,
@@ -211,8 +196,7 @@ class ForceEvaluator:
                     patch_name=patch_name,
                     side=FaceSide.LOWER,
                     target_cells=immersed_neighbour[lower_mask],
-                    surface_Sf=surface_Sf,
-                    axis_n_hat=axis_n_hat,
+                    Sf=Sf,
                     mag_d=grid.ap_dist_neighbour_to_bnd[lower_mask],
                 )
                 force = force + f_patch
@@ -252,52 +236,6 @@ class ForceEvaluator:
     def get_history(self) -> list[ForceCoeffs]:
         return self.history
 
-    def _surface_Sf(
-        self,
-        surface_normals: Float[torch.Tensor, " S 3"],
-        anchor_id: Int[torch.Tensor, " F_patch"],
-        Sf: Float[torch.Tensor, " F_patch 3"],
-    ) -> tuple[
-        Float[torch.Tensor, " F_patch 3"],
-        Float[torch.Tensor, " F_patch 3"],
-    ]:
-        """
-        Reconstruct true surface area vectors from AP-projected face areas.
-
-        Parameters
-        ----------
-        surface_normals : torch.Tensor
-            Unit normals of the original surface mesh faces.
-        anchor_id : torch.Tensor
-            Surface face ids associated with each projected immersed face.
-        Sf : torch.Tensor
-            AP-projected area vectors. The sign is already selected so that
-            each vector points from the fluid cell toward the immersed body.
-
-        Returns
-        -------
-        tuple[torch.Tensor, torch.Tensor]
-            Surface area vectors and AP-axis unit normals.
-        """
-        area = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
-        axis_n_hat = Sf / area
-
-        surface_n_hat = surface_normals[anchor_id]
-        cos_theta = torch.sum(surface_n_hat * axis_n_hat, dim=1, keepdim=True)
-        # Keep the reconstructed surface area vector in the same half-space as
-        # the AP face normal. This fixes the pressure and viscous force signs.
-        surface_n_hat = torch.where(
-            cos_theta < 0.0,
-            -surface_n_hat,
-            surface_n_hat,
-        )
-
-        cos_theta = torch.clamp(torch.abs(cos_theta), min=1e-12)
-        surface_area = area / cos_theta
-        surface_Sf = surface_n_hat * surface_area
-
-        return surface_Sf, axis_n_hat
-
     def _integrate_side(
         self,
         grid: AxisProjectedGrid,
@@ -307,8 +245,7 @@ class ForceEvaluator:
         patch_name: str,
         side: FaceSide,
         target_cells: Int[torch.Tensor, " F_patch"],
-        surface_Sf: Float[torch.Tensor, " F_patch 3"],
-        axis_n_hat: Float[torch.Tensor, " F_patch 3"],
+        Sf: Float[torch.Tensor, " F_patch 3"],
         mag_d: Float[torch.Tensor, " F_patch 1"],
     ) -> tuple[Float[torch.Tensor, " 3"], Float[torch.Tensor, " 3"]]:
         """
@@ -330,10 +267,8 @@ class ForceEvaluator:
             Owner-side or neighbour-side boundary.
         target_cells : torch.Tensor
             Fluid cells adjacent to the immersed boundary faces.
-        surface_Sf : torch.Tensor
-            Surface area vectors oriented from the fluid cell to the body.
-        axis_n_hat : torch.Tensor
-            AP-axis unit normals used to reconstruct boundary point locations.
+        Sf : torch.Tensor
+            AP-projected face area vectors.
         mag_d : torch.Tensor
             AP-axis distance from cell center to boundary.
 
@@ -345,12 +280,12 @@ class ForceEvaluator:
         p_b = self._boundary_value(p, patch_name, side, target_cells, mag_d)
         U_b = self._boundary_value(U, patch_name, side, target_cells, mag_d)
 
-        mag_Sf = torch.linalg.vector_norm(surface_Sf, dim=1, keepdim=True)
-        n_hat = surface_Sf / mag_Sf
+        mag_Sf = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
+        n_hat = Sf / mag_Sf
 
-        # ``surface_Sf`` points outward from the fluid cell into the body.
+        # ``Sf`` points outward from the fluid cell into the body.
         # With kinematic pressure, the force on the body is +rho*p*Sf.
-        pressure_force = self.rho * p_b * surface_Sf
+        pressure_force = self.rho * p_b * Sf
 
         # ``tau@Sf`` is the traction exerted by the body on the fluid. The
         # force on the body has the opposite sign.
@@ -361,9 +296,9 @@ class ForceEvaluator:
             * nu_eff[target_cells, :, None]
             * (grad_U + torch.transpose(grad_U, 1, 2))
         )
-        viscous_force = -torch.matmul(
-            viscous_stress, surface_Sf[:, :, None]
-        ).squeeze(-1)  # fij, fj -> fi
+        viscous_force = -torch.matmul(viscous_stress, Sf[:, :, None]).squeeze(
+            -1
+        )  # fij, fj -> fi
 
         # just for visualizing the force
         self._map_force_to_surface_mesh(
@@ -378,7 +313,7 @@ class ForceEvaluator:
         force = torch.sum(face_force, dim=0)
 
         CofR = self.CofR.to(dtype=grid.dtype, device=grid.device)
-        face_centers = grid.cell_centers[target_cells] + axis_n_hat * mag_d
+        face_centers = grid.cell_centers[target_cells] + n_hat * mag_d
         moment_arm = face_centers - CofR
         moment = torch.sum(torch.cross(moment_arm, face_force, dim=1), dim=0)
 

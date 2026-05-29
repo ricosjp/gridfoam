@@ -78,4 +78,14 @@ simulator:
         type: neumann
         patches: [_default]
         value: [0.0]
+  forceCoeff:
+    patches: [_default]
+    rho: 1.0
+    magU_ref: 20.0
+    A_ref: 0.75
+    L_ref: 1.42
+    local_coord:
+      drag_dir: [1.0, 0.0, 0.0]
+      lift_dir: [0.0, 0.0, 1.0]
+      center_of_rotation: [0.72, 0.0, 0.0]
   device: cuda

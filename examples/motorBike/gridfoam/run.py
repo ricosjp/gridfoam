@@ -1,3 +1,5 @@
+import logging
+import sys
 from pathlib import Path
 
 import torch
@@ -16,11 +18,11 @@ from gridfoam.meta.enums import (
     FieldRole,
 )
 from gridfoam.models.turbulence.laminar import Laminar
-from gridfoam.post.forces import compute_force_coefficients
+from gridfoam.post.forces import ForceEvaluator
 
-REFERENCE_VELOCITY = 20.0
-REFERENCE_AREA = 0.75
-DRAG_DIRECTION = (1.0, 0.0, 0.0)
+LOG_FILE_NAME = "motorBike.log"
+
+logger = logging.getLogger("gridfoam.examples.motorBike")
 
 
 def create_grid(config_path: Path | None = None) -> IGridBase:
@@ -32,8 +34,24 @@ def create_grid(config_path: Path | None = None) -> IGridBase:
     return create_grid_from_config(config)
 
 
+def configure_run_logger(log_file: Path) -> None:
+    formatter = logging.Formatter("%(message)s")
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    file_handler = logging.FileHandler(log_file, mode="w")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+
 def main() -> None:
-    # configure_logging()
     torch.set_num_threads(6)
     grid = create_grid()
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
@@ -47,6 +65,11 @@ def main() -> None:
 
     turbulence = Laminar(grid=grid, nu=0.1)
 
+    force_config = grid.sim_config.forceCoeff
+    if force_config is None:
+        raise ValueError("forceCoeff is required for this example.")
+    force_evaluator = ForceEvaluator(force_config)
+
     algo = SIMPLE(
         grid=grid,
         U=U,
@@ -56,6 +79,7 @@ def main() -> None:
 
     output_dir = Path(grid.sim_config.control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    configure_run_logger(output_dir / LOG_FILE_NAME)
     write_interval = grid.sim_config.control.writeInterval
     ugrid = to_unstructured_grid(grid)
 
@@ -74,20 +98,37 @@ def main() -> None:
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             print(f"step={step:4d} max|U|={max_u:.4e}")
 
-    force_coefficients = compute_force_coefficients(
+    force_evaluator.evaluate(
         grid,
-        U,
-        p,
-        turbulence,
-        drag_direction=DRAG_DIRECTION,
-        reference_velocity=REFERENCE_VELOCITY,
-        reference_area=REFERENCE_AREA,
+        time=float(n_steps),
+        p=p,
+        U=U,
+        turbulence=turbulence,
     )
-    print(
-        "final Cd="
-        f"{force_coefficients.cd.item():.6e} "
-        f"(pressure={force_coefficients.pressure_cd.item():.6e}, "
-        f"viscous={force_coefficients.viscous_cd.item():.6e})"
+    logger.info(
+        (
+            "final Cd=%.6e Cd(f)=%.6e Cd(r)=%.6e "
+            "Cl=%.6e Cl(f)=%.6e Cl(r)=%.6e "
+            "CmPitch=%.6e CmRoll=%.6e CmYaw=%.6e "
+            "Cs=%.6e Cs(f)=%.6e Cs(r)=%.6e"
+        ),
+        force_evaluator.history[-1].Cd.item(),
+        force_evaluator.history[-1].Cd_f.item(),
+        force_evaluator.history[-1].Cd_r.item(),
+        force_evaluator.history[-1].Cl.item(),
+        force_evaluator.history[-1].Cl_f.item(),
+        force_evaluator.history[-1].Cl_r.item(),
+        force_evaluator.history[-1].CmPitch.item(),
+        force_evaluator.history[-1].CmRoll.item(),
+        force_evaluator.history[-1].CmYaw.item(),
+        force_evaluator.history[-1].Cs.item(),
+        force_evaluator.history[-1].Cs_f.item(),
+        force_evaluator.history[-1].Cs_r.item(),
+    )
+    grid.surface_mesh.save(
+        output_dir / "surface_mesh.vtu",
+        overwrite_features=True,
+        overwrite_file=True,
     )
 
 
