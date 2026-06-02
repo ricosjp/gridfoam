@@ -105,7 +105,12 @@ def main() -> None:
         turbulence=turbulence,
     )
     logger.info(
-        "final Cd=%.6e Cd(f)=%.6e Cd(r)=%.6e Cl=%.6e Cl(f)=%.6e Cl(r)=%.6e CmPitch=%.6e CmRoll=%.6e CmYaw=%.6e Cs=%.6e Cs(f)=%.6e Cs(r)=%.6e",
+        (
+            "final Cd=%.6e Cd(f)=%.6e Cd(r)=%.6e "
+            "Cl=%.6e Cl(f)=%.6e Cl(r)=%.6e "
+            "CmPitch=%.6e CmRoll=%.6e CmYaw=%.6e "
+            "Cs=%.6e Cs(f)=%.6e Cs(r)=%.6e"
+        ),
         force_evaluator.history[-1].Cd.item(),
         force_evaluator.history[-1].Cd_f.item(),
         force_evaluator.history[-1].Cd_r.item(),
@@ -119,7 +124,11 @@ def main() -> None:
         force_evaluator.history[-1].Cs_f.item(),
         force_evaluator.history[-1].Cs_r.item(),
     )
-    grid.surface_mesh.save(output_dir / "surface_mesh.vtu", overwrite_features=True, overwrite_file=True)
+    grid.surface_mesh.save(
+        output_dir / "surface_mesh.vtu",
+        overwrite_features=True,
+        overwrite_file=True,
+    )
 
 
 if __name__ == "__main__":
