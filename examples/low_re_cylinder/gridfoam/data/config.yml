@@ -74,7 +74,7 @@ simulator:
     patches: [_default]
     rho: 1.0
     magU_ref: 1.0
-    A_ref: 4.0
+    A_ref: 8.0
     L_ref: 1.0
     local_coord:
       drag_dir: [1.0, 0.0, 0.0]

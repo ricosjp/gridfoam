@@ -7,6 +7,8 @@ used in Elghannay & El Hasadi (2023), namely the Sucker-Brauwer (1975) fit:
 Cd = 6.8/Re^0.89 + 1.96/Re^0.5 + 1.18 - 1/(2500/Re + Re/1100)
 ```
 
+https://mdp.omu.edu.ly/journals/index.php/mjer/article/view/59
+
 ## Run gridfoam (Re sweep)
 
 ```bash

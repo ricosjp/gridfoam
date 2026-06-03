@@ -11,7 +11,7 @@ def write_cylinder(path: Path) -> None:
         center=(0.0, 0.0, 0.0),
         direction=(0.0, 0.0, 1.0),
         radius=0.5,
-        height=4.0,
+        height=8.0,
         resolution=96,
         capping=True,
     ).triangulate()

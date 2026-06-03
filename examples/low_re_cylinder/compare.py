@@ -8,12 +8,12 @@ SUMMARY_PATH = ROOT / "gridfoam" / "outputs" / "sweep_summary.csv"
 OF_SUMMARY_PATH = ROOT / "of" / "outputs" / "sweep_summary.csv"
 
 
-def _sucker_brauwer_cd(re_value: float) -> float:
+def _sucker_brauwer_cd(re: float) -> float:
     return (
-        6.8 / re_value**0.89
-        + 1.96 / re_value**0.5
+        6.8 / re**0.89
+        + 1.96 / re**0.5
         + 1.18
-        - 1.0 / (2500.0 / re_value + re_value / 1100.0)
+        - 0.0004*re / (1 + 3.63e-7*re*re)
     )
 
 

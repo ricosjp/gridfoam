@@ -9,9 +9,18 @@ SUMMARY_PATH = ROOT / "gridfoam" / "outputs" / "sweep_summary.csv"
 OF_SUMMARY_PATH = ROOT / "of" / "outputs" / "sweep_summary.csv"
 
 
-def _cheng_cd(re_value: float) -> float:
-    return (24.0 / re_value) * (1.0 + 0.27 * re_value) ** 0.43 + 0.47 * (
-        1.0 - math.exp(-0.04 * re_value**0.38)
+def _clift_cd(re: float) -> float:
+    # Clift et al. (1978)
+    w = math.log(re)
+    if re < 0.01:
+        return (24.0 / re) * (1.0 + (3.0/16.0) * re)
+    if re < 20.0:
+        return (24.0 / re) * (1.0 + 0.1315 * re**(0.82-0.05*w))
+    if re < 260.0:
+        return (24.0 / re) * (1.0 + 0.1935 * re**(0.6305))
+
+    raise ValueError(
+        "Re is out of validity range."
     )
 
 
@@ -46,7 +55,7 @@ def main() -> None:
     of_map = dict(openfoam_rows)
 
     for re_value in sorted(set(gf_map) | set(of_map)):
-        cd_paper = _cheng_cd(re_value)
+        cd_paper = _clift_cd(re_value)
         cd_gridfoam = gf_map.get(re_value)
         cd_openfoam = of_map.get(re_value)
         gf_text = "-" if cd_gridfoam is None else f"{cd_gridfoam:.6g}"

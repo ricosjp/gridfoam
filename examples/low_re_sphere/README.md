@@ -1,11 +1,9 @@
 # Low-Reynolds Sphere Drag
 
 This example compares sphere drag from CFD against the paper correlation
-summarized by Ramírez (2017), using Cheng (2009):
+summarized by Clift et al., 1978
 
-```text
-Cd = 24/Re * (1 + 0.27 Re)^0.43 + 0.47[1 - exp(-0.04 Re^0.38)]
-```
+https://api.pageplace.de/preview/DT0400.9780429522871_A46452874/preview-9780429522871_A46452874.pdf
 
 ## Run gridfoam (Re sweep)
 
