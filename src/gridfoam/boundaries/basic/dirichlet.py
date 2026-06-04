@@ -32,7 +32,7 @@ class DirichletBC(BoundaryCondition):
         return BoundaryConditionType.DIRICHLET
 
     def component(self, c: int) -> BoundaryCondition:
-        return DirichletBC(self.value[c])
+        return DirichletBC(self.value[c : c + 1])
 
     def evaluate(
         self,

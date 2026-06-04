@@ -47,7 +47,7 @@ class InletOutletBC(BoundaryCondition):
 
     def component(self, c: int) -> BoundaryCondition:
         return InletOutletBC(
-            self.inlet_value[c],
+            self.inlet_value[c : c + 1],
             self.phi_builtin_key,
         )
 

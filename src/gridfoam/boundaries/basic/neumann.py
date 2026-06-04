@@ -32,7 +32,7 @@ class NeumannBC(BoundaryCondition):
         return BoundaryConditionType.NEUMANN
 
     def component(self, c: int) -> BoundaryCondition:
-        return NeumannBC(self.grad_value[c])
+        return NeumannBC(self.grad_value[c : c + 1])
 
     def evaluate(
         self,
