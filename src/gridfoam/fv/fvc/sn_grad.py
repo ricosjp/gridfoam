@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 
 from gridfoam.core.field import CellField, FaceField, FieldRole
@@ -7,13 +9,22 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
+from gridfoam.fv.fvc.grad import grad
+from gridfoam.fv.fvc.interpolate import interpolate
+from gridfoam.fv.mesh_geometry import (
+    non_orth_correction_vectors,
+    non_orth_delta_coeffs,
+)
 
 
 def sn_grad(field: CellField) -> FaceField:
     """
     Compute the surface-normal gradient on faces.
 
-    snGrad(psi) ~= (psi_N - psi_O) / |d|.
+    Uses the OpenFOAM corrected scheme:
+
+    snGrad(psi) = nonOrthDeltaCoeffs * (psi_N - psi_O)
+                  + nonOrthCorrectionVectors & grad(psi)_f.
 
     Parameters
     ----------
@@ -38,18 +49,33 @@ def sn_grad(field: CellField) -> FaceField:
             export=False,
         )
     assert isinstance(sn_grad_field, FaceField)
-    owner_single = grid.owner[sn_grad_field.single_mask]
-    neighbour_single = grid.neighbour[sn_grad_field.single_mask]
+    single_mask = sn_grad_field.single_mask
+    owner_single = grid.owner[single_mask]
+    neighbour_single = grid.neighbour[single_mask]
 
     # Internal faces
-    axis_single = grid.axis[sn_grad_field.single_mask, None]
     d_vec_single = (
         grid.cell_centers[neighbour_single] - grid.cell_centers[owner_single]
     )
-    mag_d_single = torch.abs(d_vec_single.gather(1, axis_single))
+    Sf_single = grid.Sf[single_mask]
+    mag_Sf_single = cast(
+        torch.Tensor,
+        torch.linalg.vector_norm(Sf_single, dim=1, keepdim=True),
+    )
+    delta_coeffs = non_orth_delta_coeffs(d_vec_single, mag_Sf_single, Sf_single)
+
     psi_N_single = field.data[neighbour_single]
     psi_O_single = field.data[owner_single]
-    sn_grad_field.single_data = (psi_N_single - psi_O_single) / mag_d_single
+    orthogonal = delta_coeffs * (psi_N_single - psi_O_single)
+
+    corr_vec = non_orth_correction_vectors(
+        d_vec_single, delta_coeffs, mag_Sf_single, Sf_single
+    )
+    grad_f = interpolate(grad(field)).single_data.reshape(
+        -1, field.num_components, 3
+    )
+    correction = torch.sum(corr_vec[:, None, :] * grad_f, dim=2)
+    sn_grad_field.single_data = orthogonal + correction
 
     for batch in iter_boundary_batches(field):
         _, _, ref_g, _ = evaluate_boundary_state(field, batch)
@@ -63,7 +89,7 @@ def sn_grad(field: CellField) -> FaceField:
             if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
                 sn_grad_field.immersed_upper[batch.face_mask] = ref_g
                 continue
-            elif batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
+            if batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
                 sn_grad_field.immersed_lower[batch.face_mask] = ref_g
                 continue
 

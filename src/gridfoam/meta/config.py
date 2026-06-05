@@ -280,6 +280,22 @@ class fvSolutionConfig(BaseModel, frozen=True):
         The key is the target equation name to be solved by the solver.
         The value is the solver configuration.
     """
+    n_non_orthogonal_correctors: int = Field(default=1)
+    """
+    n_non_orthogonal_correctors : int, default=1
+        Number of non-orthogonal correctors for pressure (and other
+        elliptic) equations. The pressure Poisson system is reassembled
+        and resolved this many extra times using updated gradients.
+    """
+
+    @field_validator("n_non_orthogonal_correctors")
+    @classmethod
+    def validate_n_non_orthogonal_correctors(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError(
+                "n_non_orthogonal_correctors must be non-negative"
+            )
+        return value
 
 
 class BoundaryConditionConfig(BaseModel, frozen=True):

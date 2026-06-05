@@ -1,7 +1,7 @@
 from typing import cast
 
 import torch
-from jaxtyping import Float
+from jaxtyping import Float, Int
 
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
@@ -11,6 +11,12 @@ from gridfoam.fv.boundary_ops import (
     BoundaryFaceKind,
     evaluate_boundary_state,
     iter_boundary_batches,
+)
+from gridfoam.fv.fvc.grad import grad
+from gridfoam.fv.fvc.interpolate import interpolate
+from gridfoam.fv.mesh_geometry import (
+    non_orth_correction_vectors,
+    non_orth_delta_coeffs,
 )
 
 
@@ -34,6 +40,49 @@ def _interpolate_gamma(
         gamma_f = gamma
 
     return gamma_f
+
+
+def _non_orthogonal_correction_source(
+    field: CellField,
+    gamma_f: Float[torch.Tensor, " F 1"] | float,
+    d: Float[torch.Tensor, " F 3"],
+    delta_coeffs: Float[torch.Tensor, " F 1"],
+    mag_Sf: Float[torch.Tensor, " F 1"],
+) -> tuple[
+    Int[torch.Tensor, " F_single"],
+    Int[torch.Tensor, " F_single"],
+    Float[torch.Tensor, " F_single k"],
+]:
+    """
+    Build the explicit non-orthogonal Laplacian source on single-sided faces.
+
+    Returns owner/neighbour cell indices and
+    ``gamma_f * |Sf| * (k & grad(psi)_f)`` for each face.
+    """
+    grid = field.grid
+    grad_psi_f = interpolate(grad(field))
+    single_mask = grad_psi_f.single_mask
+
+    d_vec = d[single_mask]
+    delta_coeffs_face = delta_coeffs[single_mask]
+    Sf = grid.Sf[single_mask]
+    mag_Sf_face = mag_Sf[single_mask]
+    corr_vec = non_orth_correction_vectors(
+        d_vec, delta_coeffs_face, mag_Sf_face, Sf
+    )
+
+    grad_f = grad_psi_f.single_data.reshape(-1, field.num_components, 3)
+    correction = torch.sum(corr_vec[:, None, :] * grad_f, dim=2)
+
+    if isinstance(gamma_f, torch.Tensor):
+        gamma_face = gamma_f[single_mask]
+    else:
+        gamma_face = gamma_f
+    source = gamma_face * mag_Sf_face * correction
+
+    owner = grid.owner[single_mask]
+    neighbour = grid.neighbour[single_mask]
+    return owner, neighbour, source
 
 
 def laplacian(
@@ -66,18 +115,16 @@ def laplacian(
     c_nei = grid.cell_centers[grid.neighbour]
     d = c_nei - c_own
 
-    # Extract only axis-direction distance normal to the face.
-    axis_idx = grid.axis[:, None]
-    mag_d = torch.abs(d.gather(1, axis_idx))
     mag_Sf = cast(
         torch.Tensor, torch.linalg.vector_norm(grid.Sf, dim=1, keepdim=True)
     )
+    delta_coeffs = non_orth_delta_coeffs(d, mag_Sf, grid.Sf)
 
     # Interpolate gamma to face centers.
     gamma_f = _interpolate_gamma(grid, gamma)
 
-    # Face diffusion coefficient: gamma * |Sf| / |d|
-    coeff = gamma_f * mag_Sf / mag_d  # [F_internal 1]
+    # Face diffusion coefficient: gamma * |Sf| * nonOrthDeltaCoeffs
+    coeff = gamma_f * mag_Sf * delta_coeffs
 
     # Cut immersed split faces for dual-sided IBM treatment.
     if isinstance(grid, AxisProjectedGrid):
@@ -89,6 +136,15 @@ def laplacian(
     # Subtract from owner and neighbor diagonal contributions.
     mat.diag.index_add_(0, grid.owner, -coeff)
     mat.diag.index_add_(0, grid.neighbour, -coeff)
+
+    # Non-orthogonal correction source
+    owner_single, neighbour_single, correction_src = (
+        _non_orthogonal_correction_source(
+            field, gamma_f, d, delta_coeffs, mag_Sf
+        )
+    )
+    mat.source.index_add_(0, owner_single, -correction_src)
+    mat.source.index_add_(0, neighbour_single, correction_src)
 
     # Domain boundaries
     for batch in iter_boundary_batches(field):

@@ -23,7 +23,8 @@ def grad(field: CellField) -> CellField:
     CellField
         Computed cell-centered gradient field.
         For scalar input, stores ``num_components=3`` with shape ``[C, 3]``.
-        For vector input, stores shape ``[C, k, 3]``.
+        For vector input, stores ``num_components=k * 3`` with shape
+        ``[C, k * 3]`` (component ``c`` occupies columns ``3*c:3*c+3``).
     """
     grid = field.grid
     # Scalar field case
@@ -67,8 +68,8 @@ def grad(field: CellField) -> CellField:
         grad_c_data = _grad_scalar(field_c)
         grads.append(grad_c_data)
 
-    # Stack per-component gradients to build a [C, k, 3] tensor.
-    grad_data = torch.stack(grads, dim=1)
+    # Concatenate per-component gradients to [C, k * 3].
+    grad_data = torch.cat(grads, dim=1)
 
     # Gradient of a k-component vector in 3D has k * 3 entries.
     grad_field = grid.get_field(f"grad({field.name})")
@@ -98,7 +99,7 @@ def _grad_scalar(field: CellField) -> Float[torch.Tensor, " C 3"]:
     Returns
     -------
     torch.Tensor
-            Computed cell-centered gradient tensor with shape ``[C, 3]``.
+        Computed cell-centered gradient tensor with shape ``[C, 3]``.
     """
     grid = field.grid
     assert field.num_components == 1

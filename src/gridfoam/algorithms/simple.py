@@ -5,7 +5,7 @@ import torch
 from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.utils import (
     needs_reference_value,
-    set_reference_value,
+    solve_pressure_poisson,
 )
 from gridfoam.core.builtins import make_builtin_key
 from gridfoam.core.equation import equation
@@ -178,27 +178,22 @@ class SIMPLE(AlgorithmBase):
         # =========================================================
         # -∇・(rAU ∇p) = -∇・U*
 
-        # rAU is cell-centered and will be interpolated to faces
-        # inside the laplacian operator.
-        pEqn_mat = -fvm.laplacian(self.rAU_field.data, self.p)
-
-        # Add continuity residual (div(phi)) to source
-        div_phi = fvc.div(self.phi)
         logger.debug(
             "SIMPLE continuity residual L2=%.3e",
-            torch.linalg.vector_norm(div_phi.data, ord=2).item(),
+            torch.linalg.vector_norm(fvc.div(self.phi).data, ord=2).item(),
         )
-        pEqn_mat.source = pEqn_mat.source - div_phi.data
-
-        if self.p_needs_ref:
-            set_reference_value(pEqn_mat)
-
-        # Solve pressure Poisson equation
-        pressure_eq = equation("pressure_poisson", self.p, pEqn_mat)
 
         # Store old pressure for pressure under-relaxation
         p_old = self.p.data.clone()
-        p_solved = self.solvers[pressure_eq.name].solve(pressure_eq)
+        fv_solution = grid.sim_config.fvSolution
+        p_solved = solve_pressure_poisson(
+            self.p,
+            self.rAU_field,
+            self.phi,
+            self.solvers["pressure_poisson"],
+            p_needs_ref=self.p_needs_ref,
+            n_non_orthogonal_correctors=fv_solution.n_non_orthogonal_correctors,
+        )
 
         # flux correction with the unrelaxed pressure-equation solution.
         self.p.data = p_solved

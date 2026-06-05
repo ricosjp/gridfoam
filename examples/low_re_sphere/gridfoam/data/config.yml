@@ -26,6 +26,7 @@ simulator:
     divSchemes:
       default: upwind
   fvSolution:
+    n_non_orthogonal_correctors: 2
     solvers:
       momentum:
         method: bicgstab
