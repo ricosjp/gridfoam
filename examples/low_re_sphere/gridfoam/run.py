@@ -13,9 +13,10 @@ from gridfoam.algorithms.simple import SIMPLE
 from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
+from gridfoam.initialization import initialize_from_dirichlet_patch
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import GridfoamConfig
-from gridfoam.meta.enums import FieldRole
+from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole
 from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import ForceCoeffs, ForceEvaluator
 
@@ -106,6 +107,9 @@ def _solve_single_case(
         raise ValueError("boundaryConditions is required for this example.")
     apply_boundary_condition_configs(U, boundary_conditions["U"])
     apply_boundary_condition_configs(p, boundary_conditions["p"])
+    initialize_from_dirichlet_patch(
+        U, boundary_conditions["U"], DomainBoundaryPatch.X_MINUS
+    )
 
     turbulence = Laminar(grid=grid, nu=nu)
 
