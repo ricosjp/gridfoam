@@ -8,7 +8,7 @@ https://api.pageplace.de/preview/DT0400.9780429522871_A46452874/preview-97804295
 ## Run gridfoam (Re sweep)
 
 ```bash
-uv run python examples/low_re_sphere/gridfoam/run.py --re 0.5 1 2 5 10
+uv run python examples/low_re_sphere/gridfoam/run.py --re 0.5 1 2 5 10 100
 ```
 
 Each Re result is written under `outputs/re_<Re>/`, and a merged summary is
@@ -17,7 +17,7 @@ written to `outputs/sweep_summary.csv`.
 ### Run OpenFOAM (Re sweep)
 
 ```bash
-uv run python examples/low_re_sphere/of/run_sweep.py --re 0.5 1 2 5 10
+uv run python examples/low_re_sphere/of/run_sweep.py --re 0.5 1 2 5 10 100
 ```
 
 This writes:

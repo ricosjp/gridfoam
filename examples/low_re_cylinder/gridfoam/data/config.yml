@@ -7,6 +7,11 @@ fluxel:
   n_leaf_refinement: 2
   mesh_path: "examples/low_re_cylinder/gridfoam/data/cylinder.stl"
   ibm_type: axis_projected
+  refinement_regions:
+    - name: refinement_box
+      min: [-2.0, -2.0, -2.0]
+      max: [6.0, 2.0, 2.0]
+      level: 2
 simulator:
   control:
     deltaT: 1
