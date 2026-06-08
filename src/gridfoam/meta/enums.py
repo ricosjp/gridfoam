@@ -103,9 +103,11 @@ class GradScheme(StrEnum):
     """
     Type of the gradient scheme.
     - LINEAR: Linear scheme.
+    - LEASTSQUARE: Least-squares scheme.
     """
 
     LINEAR = auto()
+    LEASTSQUARE = auto()
 
 
 class DivScheme(StrEnum):

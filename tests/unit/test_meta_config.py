@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from gridfoam.meta.config import SolverConfig, fvSchemesConfig
-from gridfoam.meta.enums import DivScheme, PreconditionerType, SolverType
+from gridfoam.meta.enums import (
+    DivScheme,
+    GradScheme,
+    PreconditionerType,
+    SolverType,
+)
 
 
 def test_fvschemes_regularizes_div_scheme_keys():
@@ -15,6 +20,19 @@ def test_fvschemes_regularizes_div_scheme_keys():
     assert cfg.divSchemes is not None
     assert "default, linear" in cfg.divSchemes
     assert cfg.divSchemes["default, linear"] is DivScheme.LINEAR
+
+
+def test_fvschemes_accepts_grad_scheme_values():
+    cfg = fvSchemesConfig(
+        gradSchemes={
+            "default": "linear",
+            "grad(p)": "leastsquare",
+        },
+    )
+
+    assert cfg.gradSchemes is not None
+    assert cfg.gradSchemes["default"] is GradScheme.LINEAR
+    assert cfg.gradSchemes["grad(p)"] is GradScheme.LEASTSQUARE
 
 
 def test_solver_config_defaults():

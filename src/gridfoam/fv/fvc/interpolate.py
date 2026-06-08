@@ -1,5 +1,3 @@
-import torch
-
 from gridfoam.core.field import CellField, FaceField, FieldRole
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
@@ -7,6 +5,7 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
+from gridfoam.fv.fvc.reconstruction import skew_corrected_internal_face_values
 
 
 def interpolate(field: CellField) -> FaceField:
@@ -39,25 +38,8 @@ def interpolate(field: CellField) -> FaceField:
             export=False,
         )
     assert isinstance(psi_f, FaceField)
-    owner_single = grid.owner[psi_f.single_mask]
-    neighbour_single = grid.neighbour[psi_f.single_mask]
-
     # Internal faces
-    axis_single = grid.axis[psi_f.single_mask, None]
-    d_ON_vec_single = (
-        grid.cell_centers[neighbour_single] - grid.cell_centers[owner_single]
-    )
-    d_fN_vec_single = (
-        grid.cell_centers[neighbour_single]
-        - grid.face_centers[psi_f.single_mask]
-    )
-    d_ON_single = torch.abs(d_ON_vec_single.gather(1, axis_single))
-    d_fN_single = torch.abs(d_fN_vec_single.gather(1, axis_single))
-    w_single = d_fN_single / d_ON_single
-    psi_f.single_data = (
-        w_single * field.data[owner_single]
-        + (1.0 - w_single) * field.data[neighbour_single]
-    )
+    psi_f.single_data = skew_corrected_internal_face_values(field)
 
     for batch in iter_boundary_batches(field):
         _, _, _, psi_b = evaluate_boundary_state(field, batch)

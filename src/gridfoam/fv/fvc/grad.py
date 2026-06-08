@@ -4,6 +4,26 @@ from jaxtyping import Float
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.fvc.interpolate import interpolate
+from gridfoam.fv.fvc.reconstruction import (
+    least_square_grad_data,
+    linear_internal_face_values,
+)
+from gridfoam.meta.config import SimulatorConfig
+from gridfoam.meta.enums import GradScheme
+
+
+def _search_grad_scheme(
+    sim_config: SimulatorConfig, field: CellField
+) -> GradScheme:
+    if sim_config.fvSchemes.gradSchemes is None:
+        return GradScheme.LINEAR
+    key = f"grad({field.name})"
+    grad_scheme = sim_config.fvSchemes.gradSchemes.get(key)
+    if grad_scheme is None:
+        grad_scheme = sim_config.fvSchemes.gradSchemes.get("default")
+    if grad_scheme is None:
+        grad_scheme = GradScheme.LINEAR
+    return grad_scheme
 
 
 def grad(field: CellField) -> CellField:
@@ -27,9 +47,10 @@ def grad(field: CellField) -> CellField:
         ``[C, k * 3]`` (component ``c`` occupies columns ``3*c:3*c+3``).
     """
     grid = field.grid
+    grad_scheme = _search_grad_scheme(grid.sim_config, field)
     # Scalar field case
     if field.num_components == 1:
-        grad_data = _grad_scalar(field)
+        grad_data = _grad_scalar(field, grad_scheme)
         grad_field = grid.get_field(f"grad({field.name})")
         if grad_field is None:
             grad_field = CellField(
@@ -65,7 +86,7 @@ def grad(field: CellField) -> CellField:
         field_c_bcs = {k: v.component(c) for k, v in field.bcs.items()}
         field_c.add_boundary_conditions(field_c_bcs)
 
-        grad_c_data = _grad_scalar(field_c)
+        grad_c_data = _grad_scalar(field_c, grad_scheme)
         grads.append(grad_c_data)
 
     # Concatenate per-component gradients to [C, k * 3].
@@ -87,7 +108,9 @@ def grad(field: CellField) -> CellField:
     return grad_field
 
 
-def _grad_scalar(field: CellField) -> Float[torch.Tensor, " C 3"]:
+def _grad_scalar(
+    field: CellField, grad_scheme: GradScheme
+) -> Float[torch.Tensor, " C 3"]:
     """
     Internal Gauss-theorem gradient routine for scalar fields.
 
@@ -101,9 +124,20 @@ def _grad_scalar(field: CellField) -> Float[torch.Tensor, " C 3"]:
     torch.Tensor
         Computed cell-centered gradient tensor with shape ``[C, 3]``.
     """
-    grid = field.grid
     assert field.num_components == 1
+    match grad_scheme:
+        case GradScheme.LINEAR:
+            return _grad_scalar_linear(field)
+        case GradScheme.LEASTSQUARE:
+            return _grad_scalar_leastsquare(field)
+        case _:
+            raise ValueError(f"Unsupported grad scheme: {grad_scheme}")
+
+
+def _grad_scalar_linear(field: CellField) -> Float[torch.Tensor, " C 3"]:
+    grid = field.grid
     psi_f = interpolate(field)
+    psi_f.single_data = linear_internal_face_values(field)
 
     grad_data = torch.zeros(
         (grid.num_cells, 3), dtype=grid.dtype, device=grid.device
@@ -132,3 +166,7 @@ def _grad_scalar(field: CellField) -> Float[torch.Tensor, " C 3"]:
     # Divide by control-volume size
     grad_data = grad_data / grid.cell_volumes
     return grad_data
+
+
+def _grad_scalar_leastsquare(field: CellField) -> Float[torch.Tensor, " C 3"]:
+    return least_square_grad_data(field).reshape(field.grid.num_cells, 3)

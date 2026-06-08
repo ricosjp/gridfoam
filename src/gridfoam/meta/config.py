@@ -190,6 +190,7 @@ class fvSchemesConfig(BaseModel, frozen=True):
         Scheme for the grad.
         Currently supported schemes:
             - LINEAR: Linear scheme.
+            - LEASTSQUARE: Least-squares scheme.
     """
     divSchemes: dict[str, DivScheme] | None = None
     """
@@ -384,9 +385,11 @@ class ForceCoeffConfig(BaseModel, frozen=True):
     local_coord: ForceCoord
     """
     local_coord : ForceCoord
-        Defines the local coordinate system used to decompose aerodynamic forces and moments.
+        Defines the local coordinate system used to decompose aerodynamic
+        forces and moments.
 
-        The local coordinate system is specified by the drag direction, one additional direction and the center of rotation.
+        The local coordinate system is specified by the drag direction, one
+        additional direction and the center of rotation.
         Two input modes are supported:
 
         - drag_lift mode:
@@ -445,7 +448,8 @@ class ForceCoeffConfig(BaseModel, frozen=True):
             local_coord["mode"] = ForceCoordMode.DRAG_PITCH
         elif has_lift and has_pitch:
             raise ValueError(
-                "local_coord is ambiguous: provide either lift_dir or pitch_axis, not both. "
+                "local_coord is ambiguous: provide either lift_dir or "
+                "pitch_axis, not both. "
             )
         else:
             raise ValueError(

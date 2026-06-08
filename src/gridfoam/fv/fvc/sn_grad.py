@@ -1,7 +1,3 @@
-from typing import cast
-
-import torch
-
 from gridfoam.core.field import CellField, FaceField, FieldRole
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
@@ -9,12 +5,7 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
-from gridfoam.fv.fvc.grad import grad
-from gridfoam.fv.fvc.interpolate import interpolate
-from gridfoam.fv.mesh_geometry import (
-    non_orth_correction_vectors,
-    non_orth_delta_coeffs,
-)
+from gridfoam.fv.fvc.reconstruction import corrected_internal_sn_grad_values
 
 
 def sn_grad(field: CellField) -> FaceField:
@@ -49,33 +40,8 @@ def sn_grad(field: CellField) -> FaceField:
             export=False,
         )
     assert isinstance(sn_grad_field, FaceField)
-    single_mask = sn_grad_field.single_mask
-    owner_single = grid.owner[single_mask]
-    neighbour_single = grid.neighbour[single_mask]
-
     # Internal faces
-    d_vec_single = (
-        grid.cell_centers[neighbour_single] - grid.cell_centers[owner_single]
-    )
-    Sf_single = grid.Sf[single_mask]
-    mag_Sf_single = cast(
-        torch.Tensor,
-        torch.linalg.vector_norm(Sf_single, dim=1, keepdim=True),
-    )
-    delta_coeffs = non_orth_delta_coeffs(d_vec_single, mag_Sf_single, Sf_single)
-
-    psi_N_single = field.data[neighbour_single]
-    psi_O_single = field.data[owner_single]
-    orthogonal = delta_coeffs * (psi_N_single - psi_O_single)
-
-    corr_vec = non_orth_correction_vectors(
-        d_vec_single, delta_coeffs, mag_Sf_single, Sf_single
-    )
-    grad_f = interpolate(grad(field)).single_data.reshape(
-        -1, field.num_components, 3
-    )
-    correction = torch.sum(corr_vec[:, None, :] * grad_f, dim=2)
-    sn_grad_field.single_data = orthogonal + correction
+    sn_grad_field.single_data = corrected_internal_sn_grad_values(field)
 
     for batch in iter_boundary_batches(field):
         _, _, ref_g, _ = evaluate_boundary_state(field, batch)
