@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import torch
@@ -161,46 +162,16 @@ class ForceEvaluator:
         moment = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
         nu_eff = turbulence.nu_eff()
 
-        immersed_owner = grid.owner[grid.ap_is_immersed_faces]
-        immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
-        immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
-
         for patch_name in self.patches:
-            upper_mask, lower_mask = grid.ap_get_patch_mask(patch_name)
-
-            if torch.any(upper_mask):
-                # Upper faces use the owner-side AP face normal.
-                Sf = immersed_Sf[upper_mask]
-                f_patch, m_patch = self._integrate_side(
-                    grid=grid,
-                    p=p,
-                    U=U,
-                    nu_eff=nu_eff,
-                    patch_name=patch_name,
-                    side=FaceSide.UPPER,
-                    target_cells=immersed_owner[upper_mask],
-                    Sf=Sf,
-                    mag_d=grid.ap_dist_owner_to_bnd[upper_mask],
-                )
-                force = force + f_patch
-                moment = moment + m_patch
-
-            if torch.any(lower_mask):
-                # Lower faces use the opposite AP face normal.
-                Sf = -immersed_Sf[lower_mask]
-                f_patch, m_patch = self._integrate_side(
-                    grid=grid,
-                    p=p,
-                    U=U,
-                    nu_eff=nu_eff,
-                    patch_name=patch_name,
-                    side=FaceSide.LOWER,
-                    target_cells=immersed_neighbour[lower_mask],
-                    Sf=Sf,
-                    mag_d=grid.ap_dist_neighbour_to_bnd[lower_mask],
-                )
-                force = force + f_patch
-                moment = moment + m_patch
+            f_patch, m_patch = self._integrate_patch_on_surface_mesh(
+                grid=grid,
+                p=p,
+                U=U,
+                nu_eff=nu_eff,
+                patch_name=patch_name,
+            )
+            force = force + f_patch
+            moment = moment + m_patch
 
         e1 = self.local_coord.e1.to(dtype=grid.dtype, device=grid.device)
         e2 = self.local_coord.e2.to(dtype=grid.dtype, device=grid.device)
@@ -236,9 +207,129 @@ class ForceEvaluator:
     def get_history(self) -> list[ForceCoeffs]:
         return self.history
 
-    def _integrate_side(
+    def _integrate_patch_on_surface_mesh(
         self,
         grid: AxisProjectedGrid,
+        p: CellField,
+        U: CellField,
+        nu_eff: Float[torch.Tensor, " C 1"],
+        patch_name: str,
+    ) -> tuple[Float[torch.Tensor, " 3"], Float[torch.Tensor, " 3"]]:
+        """
+        Integrate an immersed patch using AP projected surface samples.
+
+        The original surface-mesh normal chooses the physical AP side. The
+        force is still integrated over AP projected faces, preserving the
+        axis-projected method's surface coverage without a solid/fluid cell
+        classification.
+        """
+        surface_mesh = grid.surface_mesh
+        surface_S_out = surface_mesh.geometry.face_area_vectors().to(
+            dtype=grid.dtype, device=grid.device
+        )
+
+        force = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
+        moment = torch.zeros((3,), dtype=grid.dtype, device=grid.device)
+
+        for sample in self._iter_side_samples(
+            grid=grid,
+            p=p,
+            U=U,
+            nu_eff=nu_eff,
+            patch_name=patch_name,
+        ):
+            if sample.anchor_id.numel() == 0:
+                continue
+
+            # Graphlow/STL area vectors are body-outward. The fluid-domain
+            # normal for the body boundary points into the body.
+            S_body = -surface_S_out[sample.anchor_id]
+            alignment = torch.sum(sample.n_hat * S_body, dim=1, keepdim=True)
+            keep = alignment[:, 0] > 0.0
+            if not torch.any(keep):
+                continue
+
+            n_surface = S_body / torch.linalg.vector_norm(
+                S_body, dim=1, keepdim=True
+            )
+            normal_alignment = torch.sum(
+                sample.n_hat * n_surface, dim=1, keepdim=True
+            )
+            wall_dist = sample.mag_d[keep] * normal_alignment[keep].clamp_min(
+                1.0e-12
+            )
+            dUdn = (sample.U_b[keep] - sample.U_cell[keep]) / wall_dist
+            grad_U = dUdn[:, :, None] * n_surface[keep, None, :]
+            viscous_stress = (
+                self.rho
+                * sample.nu_eff[keep, :, None]
+                * (grad_U + torch.transpose(grad_U, 1, 2))
+            )
+            pressure_force = self.rho * sample.p_b[keep] * sample.Sf[keep]
+            viscous_force = -torch.matmul(
+                viscous_stress, sample.Sf[keep, :, None]
+            ).squeeze(-1)
+            face_force = pressure_force + viscous_force
+
+            self._map_sample_force_to_surface_mesh(
+                grid=grid,
+                anchor_id=sample.anchor_id[keep],
+                pressure_force=pressure_force,
+                viscous_force=viscous_force,
+            )
+
+            force = force + torch.sum(face_force, dim=0)
+            CofR = self.CofR.to(dtype=grid.dtype, device=grid.device)
+            moment_arm = sample.face_centers[keep] - CofR
+            moment = moment + torch.sum(
+                torch.cross(moment_arm, face_force, dim=1), dim=0
+            )
+
+        return force, moment
+
+    def _iter_side_samples(
+        self,
+        grid: AxisProjectedGrid,
+        p: CellField,
+        U: CellField,
+        nu_eff: Float[torch.Tensor, " C 1"],
+        patch_name: str,
+    ) -> Iterable[_SurfaceSample]:
+        immersed_owner = grid.owner[grid.ap_is_immersed_faces]
+        immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
+        immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
+        upper_mask, lower_mask = grid.ap_get_patch_mask(patch_name)
+
+        if torch.any(upper_mask):
+            yield self._sample_side(
+                p=p,
+                U=U,
+                nu_eff=nu_eff,
+                patch_name=patch_name,
+                side=FaceSide.UPPER,
+                target_cells=immersed_owner[upper_mask],
+                Sf=immersed_Sf[upper_mask],
+                mag_d=grid.ap_dist_owner_to_bnd[upper_mask],
+                anchor_id=grid.ap_owner_bnd_anchor_id[upper_mask],
+                cell_centers=grid.cell_centers[immersed_owner[upper_mask]],
+            )
+
+        if torch.any(lower_mask):
+            yield self._sample_side(
+                p=p,
+                U=U,
+                nu_eff=nu_eff,
+                patch_name=patch_name,
+                side=FaceSide.LOWER,
+                target_cells=immersed_neighbour[lower_mask],
+                Sf=-immersed_Sf[lower_mask],
+                mag_d=grid.ap_dist_neighbour_to_bnd[lower_mask],
+                anchor_id=grid.ap_neighbour_bnd_anchor_id[lower_mask],
+                cell_centers=grid.cell_centers[immersed_neighbour[lower_mask]],
+            )
+
+    def _sample_side(
+        self,
         p: CellField,
         U: CellField,
         nu_eff: Float[torch.Tensor, " C 1"],
@@ -247,14 +338,14 @@ class ForceEvaluator:
         target_cells: Int[torch.Tensor, " F_patch"],
         Sf: Float[torch.Tensor, " F_patch 3"],
         mag_d: Float[torch.Tensor, " F_patch 1"],
-    ) -> tuple[Float[torch.Tensor, " 3"], Float[torch.Tensor, " 3"]]:
+        anchor_id: Int[torch.Tensor, " F_patch"],
+        cell_centers: Float[torch.Tensor, " F_patch 3"],
+    ) -> _SurfaceSample:
         """
-        Integrate force and moment on one side of an AP immersed patch.
+        Evaluate AP-side boundary samples for later surface-face integration.
 
         Parameters
         ----------
-        grid : AxisProjectedGrid
-            Grid containing geometry and surface mesh references.
         p : CellField
             Kinematic pressure field.
         U : CellField
@@ -271,11 +362,10 @@ class ForceEvaluator:
             AP-projected face area vectors.
         mag_d : torch.Tensor
             AP-axis distance from cell center to boundary.
-
-        Returns
-        -------
-        tuple[torch.Tensor, torch.Tensor]
-            Integrated force and moment vectors.
+        anchor_id : torch.Tensor
+            Surface-mesh face ids associated with these AP samples.
+        cell_centers : torch.Tensor
+            Adjacent-cell centers for AP boundary-point reconstruction.
         """
         p_b = self._boundary_value(p, patch_name, side, target_cells, mag_d)
         U_b = self._boundary_value(U, patch_name, side, target_cells, mag_d)
@@ -283,41 +373,17 @@ class ForceEvaluator:
         mag_Sf = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
         n_hat = Sf / mag_Sf
 
-        # ``Sf`` points outward from the fluid cell into the body.
-        # With kinematic pressure, the force on the body is +rho*p*Sf.
-        pressure_force = self.rho * p_b * Sf
-
-        # ``tau@Sf`` is the traction exerted by the body on the fluid. The
-        # force on the body has the opposite sign.
-        dUdn = (U_b - U.data[target_cells]) / mag_d  # [F_patch 3]
-        grad_U = dUdn[:, :, None] * n_hat[:, None, :]  # [F_patch 3 3]
-        viscous_stress = (
-            self.rho
-            * nu_eff[target_cells, :, None]
-            * (grad_U + torch.transpose(grad_U, 1, 2))
+        return _SurfaceSample(
+            anchor_id=anchor_id,
+            n_hat=n_hat,
+            Sf=Sf,
+            p_b=p_b,
+            U_b=U_b,
+            U_cell=U.data[target_cells],
+            nu_eff=nu_eff[target_cells],
+            mag_d=mag_d,
+            face_centers=cell_centers + n_hat * mag_d,
         )
-        viscous_force = -torch.matmul(viscous_stress, Sf[:, :, None]).squeeze(
-            -1
-        )  # fij, fj -> fi
-
-        # just for visualizing the force
-        self._map_force_to_surface_mesh(
-            grid=grid,
-            patch_name=patch_name,
-            side=side,
-            pressure_force=pressure_force,
-            viscous_force=viscous_force,
-        )
-
-        face_force = pressure_force + viscous_force
-        force = torch.sum(face_force, dim=0)
-
-        CofR = self.CofR.to(dtype=grid.dtype, device=grid.device)
-        face_centers = grid.cell_centers[target_cells] + n_hat * mag_d
-        moment_arm = face_centers - CofR
-        moment = torch.sum(torch.cross(moment_arm, face_force, dim=1), dim=0)
-
-        return force, moment
 
     def _boundary_value(
         self,
@@ -378,42 +444,28 @@ class ForceEvaluator:
             device=grid.device,
         )
 
-    def _map_force_to_surface_mesh(
+    def _map_sample_force_to_surface_mesh(
         self,
         grid: AxisProjectedGrid,
-        patch_name: str,
-        side: FaceSide,
-        pressure_force: Float[torch.Tensor, " F_patch 3"],
-        viscous_force: Float[torch.Tensor, " F_patch 3"],
+        anchor_id: Int[torch.Tensor, " F_sample"],
+        pressure_force: Float[torch.Tensor, " F_sample 3"],
+        viscous_force: Float[torch.Tensor, " F_sample 3"],
     ) -> None:
         """
-        Accumulate projected-face forces onto their anchor surface faces.
-
-        Multiple AP-projected faces may map to the same surface face. The
-        mapped value is therefore a resultant force per surface face.
+        Accumulate AP-sample forces onto anchored surface faces.
 
         Parameters
         ----------
         grid : AxisProjectedGrid
-            Grid owning the surface mesh and anchor-id arrays.
-        patch_name : str
-            Immersed patch name.
-        side : FaceSide
-            Owner-side or neighbour-side boundary.
+            Grid owning the surface mesh.
+        anchor_id : torch.Tensor
+            Surface-mesh face ids associated with the AP samples.
         pressure_force : torch.Tensor
-            Pressure-force contribution on AP-projected faces.
+            Pressure-force contribution on AP samples.
         viscous_force : torch.Tensor
-            Viscous-force contribution on AP-projected faces.
+            Viscous-force contribution on AP samples.
         """
         surface_mesh = grid.surface_mesh
-        upper_mask, lower_mask = grid.ap_get_patch_mask(patch_name)
-        match side:
-            case FaceSide.UPPER:
-                anchor_id = grid.ap_owner_bnd_anchor_id[upper_mask]
-            case FaceSide.LOWER:
-                anchor_id = grid.ap_neighbour_bnd_anchor_id[lower_mask]
-            case _:
-                raise ValueError(f"Invalid side: {side}")
 
         pressure_data = surface_mesh.cell_data.get("pressure_force")
         if pressure_data is None:
@@ -435,3 +487,18 @@ class ForceEvaluator:
 
         pressure_data.index_add_(0, anchor_id, pressure_force)
         viscous_data.index_add_(0, anchor_id, viscous_force)
+
+
+@dataclass(frozen=True)
+class _SurfaceSample:
+    """AP-side sampled boundary data anchored to surface-mesh faces."""
+
+    anchor_id: Int[torch.Tensor, " F_sample"]
+    n_hat: Float[torch.Tensor, " F_sample 3"]
+    Sf: Float[torch.Tensor, " F_sample 3"]
+    p_b: Float[torch.Tensor, " F_sample 1"]
+    U_b: Float[torch.Tensor, " F_sample 3"]
+    U_cell: Float[torch.Tensor, " F_sample 3"]
+    nu_eff: Float[torch.Tensor, " F_sample 1"]
+    mag_d: Float[torch.Tensor, " F_sample 1"]
+    face_centers: Float[torch.Tensor, " F_sample 3"]
