@@ -8,7 +8,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-
 ROOT = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = ROOT / "low_re_drag_comparison.png"
 
@@ -88,10 +87,16 @@ def _plot_correlation(
     ax.loglog(xs, ys, linestyle="--", color="black", linewidth=1.2, label=label)
 
 
-def _case_rows(case: str) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+def _case_rows(
+    case: str,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     case_root = ROOT / case
-    gridfoam_rows = _read_rows(case_root / "gridfoam" / "outputs" / "sweep_summary.csv")
-    openfoam_rows = _read_rows(case_root / "of" / "outputs" / "sweep_summary.csv")
+    gridfoam_rows = _read_rows(
+        case_root / "gridfoam" / "outputs" / "sweep_summary.csv"
+    )
+    openfoam_rows = _read_rows(
+        case_root / "of" / "outputs" / "sweep_summary.csv"
+    )
     return gridfoam_rows, openfoam_rows
 
 

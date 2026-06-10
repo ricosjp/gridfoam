@@ -3,10 +3,15 @@ fluxel:
     lower: [-5.0, -4.0, 0.0]
     upper: [15.0, 4.0, 8.0]
   root_resolution: [10, 4, 4]
-  target_level: 3
-  n_leaf_refinement: 3
+  target_level: 2
+  n_leaf_refinement: 2
   mesh_path: "tests/profile/data/motorBike_drop_shadow_no_group.obj"
   ibm_type: axis_projected
+  refinement_regions:
+    - name: refinement_box
+      min: [-1.0, -0.7, 0.0]
+      max: [ 8.0,  0.7, 2.5]
+      level: 2
 simulator:
   control:
     deltaT: 1
