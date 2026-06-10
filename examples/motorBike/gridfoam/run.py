@@ -52,7 +52,6 @@ def configure_run_logger(log_file: Path) -> None:
 
 
 def main() -> None:
-    torch.set_num_threads(6)
     grid = create_grid()
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
     p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)

@@ -66,66 +66,6 @@ def least_square_grad_data(field: CellField) -> Float[torch.Tensor, " C k 3"]:
     return torch.bmm(torch.linalg.pinv(ata), atb).transpose(1, 2)
 
 
-def skew_corrected_internal_face_values(
-    field: CellField,
-) -> Float[torch.Tensor, " F_single k"]:
-    grid = field.grid
-    single_mask = single_internal_mask(grid)
-    owner = grid.owner[single_mask]
-    neighbour = grid.neighbour[single_mask]
-    face_centers = grid.face_centers[single_mask]
-
-    grad_data = least_square_grad_data(field)
-    psi_O = field.data[owner]
-    psi_N = field.data[neighbour]
-    grad_O = grad_data[owner]
-    grad_N = grad_data[neighbour]
-
-    d_OF = face_centers - grid.cell_centers[owner]
-    d_NF = face_centers - grid.cell_centers[neighbour]
-    psi_OF = psi_O + torch.sum(grad_O * d_OF[:, None, :], dim=2)
-    psi_NF = psi_N + torch.sum(grad_N * d_NF[:, None, :], dim=2)
-
-    axis_idx = grid.axis[single_mask, None]
-    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
-    d_fN_vec = grid.cell_centers[neighbour] - face_centers
-    d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
-    d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
-    w = d_fN / d_ON
-    return w * psi_OF + (1.0 - w) * psi_NF
-
-
-def corrected_internal_sn_grad_values(
-    field: CellField,
-) -> Float[torch.Tensor, " F_single k"]:
-    grid = field.grid
-    single_mask = single_internal_mask(grid)
-    owner = grid.owner[single_mask]
-    neighbour = grid.neighbour[single_mask]
-    axis_idx = grid.axis[single_mask, None]
-
-    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
-    mag_d = torch.abs(d_ON_vec.gather(1, axis_idx))
-
-    grad_data = least_square_grad_data(field)
-    grad_O = grad_data[owner]
-    grad_N = grad_data[neighbour]
-
-    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[single_mask]
-    d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
-    d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
-    w = d_fN / d_ON
-    grad_f = w[:, :, None] * grad_O + (1.0 - w)[:, :, None] * grad_N
-
-    d_tangent = d_ON_vec.clone()
-    d_tangent.scatter_(1, axis_idx, 0.0)
-    tangential_delta = torch.sum(grad_f * d_tangent[:, None, :], dim=2)
-
-    psi_N = field.data[neighbour]
-    psi_O = field.data[owner]
-    return (psi_N - psi_O - tangential_delta) / mag_d
-
-
 def _add_boundary_least_square_terms(
     field: CellField,
     ata: Float[torch.Tensor, " C 3 3"],

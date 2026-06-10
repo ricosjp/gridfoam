@@ -4,10 +4,7 @@ from jaxtyping import Float
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.fvc.interpolate import interpolate
-from gridfoam.fv.fvc.reconstruction import (
-    least_square_grad_data,
-    linear_internal_face_values,
-)
+from gridfoam.fv.fvc.reconstruction import least_square_grad_data
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import GradScheme
 
@@ -137,7 +134,6 @@ def _grad_scalar(
 def _grad_scalar_linear(field: CellField) -> Float[torch.Tensor, " C 3"]:
     grid = field.grid
     psi_f = interpolate(field)
-    psi_f.single_data = linear_internal_face_values(field)
 
     grad_data = torch.zeros(
         (grid.num_cells, 3), dtype=grid.dtype, device=grid.device

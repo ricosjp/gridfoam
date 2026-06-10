@@ -1,3 +1,6 @@
+import torch
+from jaxtyping import Float
+
 from gridfoam.core.field import CellField, FaceField, FieldRole
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
@@ -5,7 +8,8 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
-from gridfoam.fv.fvc.reconstruction import corrected_internal_sn_grad_values
+from gridfoam.fv.fvc.grad import grad
+from gridfoam.fv.fvc.reconstruction import single_internal_mask
 
 
 def sn_grad(field: CellField) -> FaceField:
@@ -60,3 +64,36 @@ def sn_grad(field: CellField) -> FaceField:
                 continue
 
     return sn_grad_field
+
+
+def corrected_internal_sn_grad_values(
+    field: CellField,
+) -> Float[torch.Tensor, " F_single k"]:
+    grid = field.grid
+    single_mask = single_internal_mask(grid)
+    owner = grid.owner[single_mask]
+    neighbour = grid.neighbour[single_mask]
+    axis_idx = grid.axis[single_mask, None]
+
+    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
+    mag_d = torch.abs(d_ON_vec.gather(1, axis_idx))
+
+    grad_data = grad(field).data.reshape(
+        grid.num_cells, field.num_components, 3
+    )
+    grad_O = grad_data[owner]
+    grad_N = grad_data[neighbour]
+
+    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[single_mask]
+    d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
+    d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
+    w = d_fN / d_ON
+    grad_f = w[:, :, None] * grad_O + (1.0 - w)[:, :, None] * grad_N
+
+    d_tangent = d_ON_vec.clone()
+    d_tangent.scatter_(1, axis_idx, 0.0)
+    tangential_delta = torch.sum(grad_f * d_tangent[:, None, :], dim=2)
+
+    psi_N = field.data[neighbour]
+    psi_O = field.data[owner]
+    return (psi_N - psi_O - tangential_delta) / mag_d

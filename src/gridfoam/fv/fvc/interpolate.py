@@ -5,7 +5,7 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
-from gridfoam.fv.fvc.reconstruction import skew_corrected_internal_face_values
+from gridfoam.fv.fvc.reconstruction import linear_internal_face_values
 
 
 def interpolate(field: CellField) -> FaceField:
@@ -39,7 +39,7 @@ def interpolate(field: CellField) -> FaceField:
         )
     assert isinstance(psi_f, FaceField)
     # Internal faces
-    psi_f.single_data = skew_corrected_internal_face_values(field)
+    psi_f.single_data = linear_internal_face_values(field)
 
     for batch in iter_boundary_batches(field):
         _, _, _, psi_b = evaluate_boundary_state(field, batch)

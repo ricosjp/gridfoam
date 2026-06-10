@@ -14,7 +14,7 @@ with parameters from Wang et al. (2025), Table 4.
 ## Run gridfoam (Re sweep)
 
 ```bash
-uv run python examples/low_re_cube/gridfoam/run.py --re 0.5 1 2 5 10 100 500
+uv run python examples/low_re_cube/gridfoam/run.py --re 0.5 1 2 5 10 100
 ```
 
 Each Re result is written under `outputs/re_<Re>/`, and a merged summary is
@@ -23,7 +23,7 @@ written to `outputs/sweep_summary.csv`.
 ### Run OpenFOAM (Re sweep)
 
 ```bash
-uv run python examples/low_re_cube/of/run_sweep.py --re 0.5 1 2 5 10 100 500
+uv run python examples/low_re_cube/of/run_sweep.py --re 0.5 1 2 5 10 100
 ```
 
 This writes:

@@ -86,4 +86,4 @@ simulator:
       drag_dir: [1.0, 0.0, 0.0]
       lift_dir: [0.0, 0.0, 1.0]
       center_of_rotation: [0.0, 0.0, 0.0]
-  device: cpu
+  device: cuda
