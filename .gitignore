@@ -194,3 +194,4 @@ outputs
 reference/
 examples/**/plots/*
 examples/**/of/*
+tests/profile/of/*
