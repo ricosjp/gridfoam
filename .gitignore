@@ -189,9 +189,11 @@ mlflow.db
 .DS_Store
 tmp
 spike
+*.pvsm
 
 outputs
 reference/
 examples/**/plots/*
 examples/**/of/*
 tests/profile/of/*
+tests/profile/benchmark_results/*
