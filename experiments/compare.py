@@ -13,7 +13,7 @@ def compare_on_slice(
     slc = of_mesh.slice(
         normal=cfg.plot.get_slice_normal(),
         origin=cfg.plot.slice_origin,
-        generate_triangles=False,
+        generate_triangles=True,
     )
     slc.clear_data()
     assert isinstance(slc, pv.DataSet)

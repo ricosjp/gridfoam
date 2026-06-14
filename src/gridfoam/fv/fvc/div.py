@@ -1,3 +1,5 @@
+import torch
+
 from gridfoam.core.field import CellField, FaceField, FieldRole
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 
@@ -29,24 +31,29 @@ def div(phi: FaceField) -> CellField:
         )
     assert isinstance(div_phi, CellField)
 
-    # Clear previous values (index_add_ is cumulative)
-    div_phi.data.zero_()
+    data = torch.zeros(
+        (grid.num_cells, 1), dtype=grid.dtype, device=grid.device
+    )
 
     # Internal faces
-    div_phi.data.index_add_(0, grid.owner[phi.single_mask], phi.single_data)
-    div_phi.data.index_add_(
-        0, grid.neighbour[phi.single_mask], -phi.single_data
+    single_data = phi.single_data.clone()
+    data.index_add_(0, grid.owner[phi.single_mask], single_data)
+    data.index_add_(
+        0, grid.neighbour[phi.single_mask], -single_data
     )
 
     # Domain boundaries
-    div_phi.data.index_add_(0, grid.domain_bnd_owner, phi.domain_bnd_data)
+    data.index_add_(0, grid.domain_bnd_owner, phi.domain_bnd_data.clone())
 
     # Immersed boundaries
     if isinstance(grid, AxisProjectedGrid):
-        div_phi.data.index_add_(
-            0, grid.owner[grid.ap_is_immersed_faces], phi.immersed_upper
+        data.index_add_(
+            0, grid.owner[grid.ap_is_immersed_faces], phi.immersed_upper.clone()
         )
-        div_phi.data.index_add_(
-            0, grid.neighbour[grid.ap_is_immersed_faces], -phi.immersed_lower
+        data.index_add_(
+            0,
+            grid.neighbour[grid.ap_is_immersed_faces],
+            -phi.immersed_lower.clone(),
         )
+    div_phi.data = data
     return div_phi

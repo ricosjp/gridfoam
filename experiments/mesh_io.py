@@ -16,7 +16,7 @@ def load_openfoam_mesh(cfg: CompareConfig) -> pv.DataSet:
 
 def load_gridfoam_mesh(cfg: CompareConfig) -> pv.DataSet:
     vtu_dir = cfg.case_dir / "gridfoam" / "outputs"
-    vtus = vtu_dir.glob("*.vtu")
+    vtus = vtu_dir.glob("*_[0-9][0-9][0-9][0-9].vtu")
     if not vtus:
         msg = f"No .vtu files found in {vtu_dir}"
         raise FileNotFoundError(msg)
