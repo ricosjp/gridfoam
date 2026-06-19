@@ -340,6 +340,12 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
             out.append(reserved if reserved is not None else p)
         return out
 
+class PropertiesConfig(BaseModel, frozen=True):
+    nu: float
+    """
+    nu : float
+        Kinematic viscosity for the properties.
+    """
 
 class DragLiftCoord(BaseModel, frozen=True, extra="forbid"):
     mode: Literal[ForceCoordMode.DRAG_LIFT]
@@ -479,6 +485,11 @@ class SimulatorConfig(BaseModel, frozen=True):
     boundaryConditions: dict[str, list[BoundaryConditionConfig]] | None = None
     """
     Boundary condition configuration grouped by field name.
+    """
+    properties: PropertiesConfig
+    """
+    properties : PropertiesConfig
+        Properties configuration.
     """
     forceCoeff: ForceCoeffConfig | None = None
     """
