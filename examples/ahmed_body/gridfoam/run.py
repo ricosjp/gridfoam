@@ -63,7 +63,7 @@ def main() -> None:
     apply_boundary_condition_configs(U, boundary_conditions["U"])
     apply_boundary_condition_configs(p, boundary_conditions["p"])
 
-    turbulence = Laminar(grid=grid, nu=0.1)
+    turbulence = Laminar(grid=grid, nu=grid.sim_config.properties.nu)
 
     force_config = grid.sim_config.forceCoeff
     if force_config is None:

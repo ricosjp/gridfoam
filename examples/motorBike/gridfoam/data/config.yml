@@ -7,6 +7,11 @@ fluxel:
   n_leaf_refinement: 3
   mesh_path: "examples/motorBike/gridfoam/data/motorBike_drop_shadow_no_group.obj"
   ibm_type: axis_projected
+  refinement_regions:
+    - name: refinement_box
+      min: [-1.0, -0.7, 0.0]
+      max: [8.0, 0.7, 2.5]
+      level: 2
 simulator:
   control:
     deltaT: 1
@@ -21,6 +26,7 @@ simulator:
     divSchemes:
       default: upwind
   fvSolution:
+    n_non_orthogonal_correctors: 2
     solvers:
       momentum:
         method: bicgstab
@@ -78,6 +84,8 @@ simulator:
         type: neumann
         patches: [_default]
         value: [0.0]
+  properties:
+    nu: 0.1
   forceCoeff:
     patches: [_default]
     rho: 1.0

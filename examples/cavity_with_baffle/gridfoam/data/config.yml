@@ -65,4 +65,6 @@ simulator:
         type: neumann
         patches: [_default]
         value: [0.0]
+  properties:
+    nu: 0.01
   device: cpu

@@ -65,4 +65,6 @@ simulator:
       - name: empty
         type: empty
         patches: [z_minus, z_plus]
+  properties:
+    nu: 0.1
   device: cpu
