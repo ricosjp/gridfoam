@@ -1,0 +1,21 @@
+case:
+  - name: motorBike
+    slice_origin: [0.0, 0.0, 0.0]
+    openfoam: true
+    gridfoam: true
+  - name: ahmed_body
+    slice_origin: [0.0, 0.0, 0.0]
+    openfoam: true
+    gridfoam: true
+  - name: cavity
+    slice_origin: [0.0, 0.0, 0.0]
+    openfoam: true
+    gridfoam: true
+  - name: cavity_with_baffle
+    slice_origin: [0.0, 0.0, 0.0]
+    openfoam: true
+    gridfoam: true
+  - name: hagen_poiseuille
+    slice_origin: [0.0, 0.0, 0.0]
+    openfoam: true
+    gridfoam: true

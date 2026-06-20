@@ -1,0 +1,32 @@
+forceCoeffs1
+{
+    type            forceCoeffs;
+    libs            (forces);
+
+    writeControl    timeStep;
+    timeInterval    1;
+    log             yes;
+
+    patches         ({{ case_name }});
+    rho             rhoInf;
+    rhoInf          1;
+
+    dragDir         (1 0 0);
+    liftDir         (0 0 1);
+    pitchAxis       (0 1 0);
+    CofR            (0 0 0);
+
+    magUInf         {{ magU_ref }};
+    lRef            {{ L_ref }};
+    Aref            {{ A_ref }};
+}
+
+wallShearStress1
+{
+    type            wallShearStress;
+    libs            (fieldFunctionObjects);
+
+    patches         ({{ case_name }});
+
+    writeControl    writeTime;
+}

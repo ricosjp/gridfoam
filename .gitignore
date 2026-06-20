@@ -197,3 +197,4 @@ examples/**/plots/*
 examples/**/of/*
 tests/profile/of/*
 tests/profile/benchmark_results/*
+experiments/**/data/*

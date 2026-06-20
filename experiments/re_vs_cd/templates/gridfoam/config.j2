@@ -1,0 +1,91 @@
+fluxel:
+  domain:
+    lower: [-8.0, -4.0, -4.0]
+    upper: [16.0, 4.0, 4.0]
+  root_resolution: [24, 8, 8]
+  target_level: 2
+  n_leaf_refinement: 2
+  mesh_path: {{ mesh_path }}
+  ibm_type: axis_projected
+  refinement_regions:
+    - name: refinement_box
+      min: [-2.0, -2.0, -2.0]
+      max: [6.0, 2.0, 2.0]
+      level: 2
+simulator:
+  control:
+    deltaT: 1
+    endTime: 100
+    writeInterval: 20
+    output:
+      output_dir: "experiments/re_vs_cd/outputs/{{ case_name }}/gridfoam/{{ re_param }}"
+      base_name: {{ case_name }}
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    n_non_orthogonal_correctors: 2
+    solvers:
+      momentum:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-8
+        rel_tolerance: 0.1
+        max_iter: 1000
+        norm_type: l_2
+      pressure_poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-7
+        rel_tolerance: 0.01
+        max_iter: 1000
+        norm_type: l_2
+  boundaryConditions:
+    U:
+      - name: inlet
+        type: dirichlet
+        patches: [x_minus]
+        value: [1.0, 0.0, 0.0]
+      - name: outlet
+        type: inlet_outlet
+        patches: [x_plus]
+        value: [0.0, 0.0, 0.0]
+      - name: farfield
+        type: slip
+        patches: [y_minus, y_plus, z_minus, z_plus]
+      - name: wall
+        type: dirichlet
+        patches: [_default]
+        value: [0.0, 0.0, 0.0]
+    p:
+      - name: inlet
+        type: neumann
+        patches: [x_minus]
+        value: [0.0]
+      - name: outlet
+        type: dirichlet
+        patches: [x_plus]
+        value: [0.0]
+      - name: farfield
+        type: neumann
+        patches: [y_minus, y_plus, z_minus, z_plus]
+        value: [0.0]
+      - name: wall
+        type: neumann
+        patches: [_default]
+        value: [0.0]
+  properties:
+    nu: {{ nu }}
+  forceCoeff:
+    patches: [_default]
+    rho: 1.0
+    magU_ref: {{ magU_ref }}
+    A_ref: {{ A_ref }}
+    L_ref: {{ L_ref }}
+    local_coord:
+      drag_dir: [1.0, 0.0, 0.0]
+      lift_dir: [0.0, 0.0, 1.0]
+      center_of_rotation: [0.0, 0.0, 0.0]
+  device: cuda
