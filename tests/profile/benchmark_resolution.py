@@ -23,7 +23,7 @@ from pathlib import Path
 import yaml
 
 PROFILE_DIR = Path(__file__).resolve().parent
-OF_CASE_DIR = PROFILE_DIR / "of"
+OF_CASE_DIR = PROFILE_DIR / "openfoam"
 GRIDFOAM_CONFIG = PROFILE_DIR / "data" / "config.yml"
 RESULTS_DIR = PROFILE_DIR / "benchmark_results"
 RESULTS_CSV = RESULTS_DIR / "resolution_scaling.csv"

@@ -194,7 +194,7 @@ spike
 outputs
 reference/
 examples/**/plots/*
-examples/**/of/*
-tests/profile/of/*
+examples/**/openfoam/*
+tests/profile/openfoam/*
 tests/profile/benchmark_results/*
 experiments/**/data/*
