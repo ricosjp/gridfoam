@@ -1,21 +1,26 @@
 case:
   - name: motorBike
-    slice_origin: [0.0, 0.0, 0.0]
-    openfoam: true
-    gridfoam: true
+    slice_modes: ["xy", "xz"]
+    slice_origin: [0.5, 0.0, 1.0]
+    openfoam: false
+    gridfoam: false
   - name: ahmed_body
-    slice_origin: [0.0, 0.0, 0.0]
-    openfoam: true
-    gridfoam: true
+    slice_modes: ["xy", "xz"]
+    slice_origin: [0.5, 0.0, 0.2]
+    openfoam: false
+    gridfoam: false
   - name: cavity
-    slice_origin: [0.0, 0.0, 0.0]
-    openfoam: true
-    gridfoam: true
+    slice_modes: ["xy"]
+    slice_origin: [0.05, 0.05, 0.005]
+    openfoam: false
+    gridfoam: false
   - name: cavity_with_baffle
-    slice_origin: [0.0, 0.0, 0.0]
-    openfoam: true
-    gridfoam: true
+    slice_modes: ["xy"]
+    slice_origin: [0.05, 0.05, 0.005]
+    openfoam: false
+    gridfoam: false
   - name: hagen_poiseuille
-    slice_origin: [0.0, 0.0, 0.0]
-    openfoam: true
-    gridfoam: true
+    slice_modes: ["xy"]
+    slice_origin: [10.0, 4.0, 0.5]
+    openfoam: false
+    gridfoam: false
