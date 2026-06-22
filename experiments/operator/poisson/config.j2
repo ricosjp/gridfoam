@@ -1,0 +1,39 @@
+fluxel:
+  domain:
+    lower: [-1.0, -1.0, -1.0]
+    upper: [1.0, 1.0, 1.0]
+  root_resolution: [2, 2, 2]
+  target_level: 2
+  n_leaf_refinement: {{ n_leaf_refinement }}
+  ibm_type: axis_projected
+simulator:
+  control:
+    deltaT: 0.01
+    endTime: 1.0
+    writeInterval: 10
+    output:
+      output_dir: "experiments/operator/poisson/outputs"
+      base_name: "poisson"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    solvers:
+      poisson:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-8
+        rel_tolerance: 1e-5
+        max_iter: 2000
+        norm_type: l_2
+  boundaryConditions:
+    p:
+      - name: wall
+        type: dirichlet
+        patches: [x_minus, x_plus, y_minus, y_plus, z_minus, z_plus]
+        value: [0.0]
+  properties:
+    nu: 1.0
+  device: cuda

@@ -298,18 +298,19 @@ def _apply_tvd_scheme(
 
     # 3. Compute gradients and OpenFOAM-style NVDTVD/NVDVTVDV r.
     n_cells = grid.num_cells
-    grad_data = fvc.grad(field).data.reshape(n_cells, field.num_components, 3)
 
     if field.num_components == 1:
-        grad_O = grad_data[owner]  # [F_single 3]
-        grad_N = grad_data[neighbour]  # [F_single 3]
+        grad_data = fvc.grad(field).data  # [n_cells, 3]
+        grad_O = grad_data[owner]  # [F_single, 3]
+        grad_N = grad_data[neighbour]  # [F_single, 3]
+        flux_mask = phi.single_data[:, 0] > 0  # [F_single]
         # Select upwind gradient.
         grad_U = torch.where(
-            phi.single_data > 0, grad_O, grad_N
-        )  # [F_single 3]
+            flux_mask[:, None], grad_O, grad_N
+        )  # [F_single, 3]
         grad_U_dot_d = torch.sum(
             grad_U * d_ON_vec, dim=1, keepdim=True
-        )  # [F_single 1]
+        )  # [F_single, 1]
 
         gradf = psi_N - psi_O  # [F_single k] (k=1)
         gradcf = grad_U_dot_d
@@ -321,9 +322,12 @@ def _apply_tvd_scheme(
             steep,
             2.0 * 1000.0 * torch.sign(gradcf) * torch.sign(gradf) - 1.0,
             2.0 * gradcf / gradf - 1.0,
-        )  # [F_single 1]
+        )  # [F_single, 1]
 
     else:
+        grad_data = fvc.grad(field).data.reshape(
+            n_cells, field.num_components, 3
+        )
         grad_t_O = grad_data[owner]  # [F_single k 3]
         grad_t_N = grad_data[neighbour]  # [F_single k 3]
         flux_mask = phi.single_data > 0  # [F_single 1]
