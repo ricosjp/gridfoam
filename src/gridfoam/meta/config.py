@@ -273,6 +273,33 @@ class SolverConfig(BaseModel, frozen=True):
     """
 
 
+class PotentialFlowConfig(BaseModel, frozen=True):
+    n_non_orthogonal_correctors: int = Field(default=0)
+    """
+    n_non_orthogonal_correctors : int, default=0
+        Number of non-orthogonal correctors for the velocity-potential
+        Poisson equation, matching OpenFOAM ``potentialFlow`` controls.
+    """
+    solve_pressure: bool = Field(default=True)
+    """
+    solve_pressure : bool, default=True
+        Whether to solve a pressure Poisson equation after reconstructing
+        the velocity field.
+    """
+
+    @field_validator("n_non_orthogonal_correctors")
+    @classmethod
+    def validate_potential_flow_n_non_orthogonal_correctors(
+        cls, value: int
+    ) -> int:
+        if value < 0:
+            raise ValueError(
+                "potential_flow.n_non_orthogonal_correctors "
+                "must be non-negative"
+            )
+        return value
+
+
 class fvSolutionConfig(BaseModel, frozen=True):
     solvers: dict[str, SolverConfig]
     """
@@ -287,6 +314,12 @@ class fvSolutionConfig(BaseModel, frozen=True):
         Number of non-orthogonal correctors for pressure (and other
         elliptic) equations. The pressure Poisson system is reassembled
         and resolved this many extra times using updated gradients.
+    """
+    potential_flow: PotentialFlowConfig | None = None
+    """
+    potential_flow : PotentialFlowConfig | None, default=None
+        Optional potential-flow initialization settings equivalent to
+        OpenFOAM ``potentialFoam``.
     """
 
     @field_validator("n_non_orthogonal_correctors")
