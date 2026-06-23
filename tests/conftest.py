@@ -14,6 +14,7 @@ from gridfoam.meta.config import (
     FluxelConfig,
     GridfoamConfig,
     OutputConfig,
+    PropertiesConfig,
     SimulatorConfig,
     SolverConfig,
     fvSchemesConfig,
@@ -66,6 +67,7 @@ def small_gridfoam_config(
                 },
             ),
             boundaryConditions=None,
+            properties=PropertiesConfig(nu=0.1),
             device=DeviceType.CPU,
         ),
     )

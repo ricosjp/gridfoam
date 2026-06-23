@@ -14,6 +14,7 @@ from gridfoam.meta.config import (
     FluxelConfig,
     GridfoamConfig,
     OutputConfig,
+    PropertiesConfig,
     RefinementRegionConfig,
     SimulatorConfig,
     SolverConfig,
@@ -66,6 +67,7 @@ def _refined_3d_grid(grad_scheme: GradScheme) -> IGridBase:
                 solvers={"p": SolverConfig(method=SolverType.CG)}
             ),
             boundaryConditions=None,
+            properties=PropertiesConfig(nu=0.1),
             device=DeviceType.CPU,
         ),
     )

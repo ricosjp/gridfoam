@@ -21,6 +21,7 @@ from gridfoam.meta.config import (
     ForceCoeffConfig,
     GridfoamConfig,
     OutputConfig,
+    PropertiesConfig,
     SimulatorConfig,
     SolverConfig,
     fvSchemesConfig,
@@ -170,6 +171,7 @@ def build_force_config() -> Callable[..., GridfoamConfig]:
                     solvers={"p": SolverConfig(method=SolverType.CG)},
                 ),
                 boundaryConditions=None,
+                properties=PropertiesConfig(nu=0.1),
                 forceCoeff=ForceCoeffConfig.model_validate(
                     {
                         "patches": ["_default"],
@@ -306,6 +308,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         ),
                     ],
                 },
+                properties=PropertiesConfig(nu=0.1),
                 forceCoeff=ForceCoeffConfig.model_validate(
                     {
                         "patches": ["_default"],
