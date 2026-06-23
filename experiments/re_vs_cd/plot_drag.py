@@ -251,7 +251,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Plot low-Reynolds drag comparisons from experiments/re_vs_cd outputs."
+            "Plot low-Reynolds drag comparisons from "
+            "experiments/re_vs_cd outputs."
         )
     )
     parser.add_argument(

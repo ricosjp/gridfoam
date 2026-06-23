@@ -99,7 +99,8 @@ def _find_final_gridfoam_vtu(case_name: str, re_value: float) -> Path:
     ]
     if not scored:
         raise FileNotFoundError(
-            f"gridfoam VTU files without step suffix were found under {output_dir}"
+            "gridfoam VTU files without step suffix were found under "
+            f"{output_dir}"
         )
     return max(scored, key=lambda item: item[0])[1]
 
@@ -111,8 +112,7 @@ def _gridfoam_vtu_path(
         return _find_final_gridfoam_vtu(case_name, re_value)
 
     path = (
-        _gridfoam_output_dir(case_name, re_value)
-        / f"{case_name}{time:04d}.vtu"
+        _gridfoam_output_dir(case_name, re_value) / f"{case_name}{time:04d}.vtu"
     )
     if not path.exists():
         raise FileNotFoundError(f"gridfoam output was not found: {path}")
@@ -264,12 +264,10 @@ def _plot_case(
     re_label = _re_label(re_value)
     if save_slices:
         gridfoam.save(
-            output_dir
-            / f"{case_name}_re_{re_label}_{plane.name}_gridfoam.vtp"
+            output_dir / f"{case_name}_re_{re_label}_{plane.name}_gridfoam.vtp"
         )
         openfoam.save(
-            output_dir
-            / f"{case_name}_re_{re_label}_{plane.name}_openfoam.vtp"
+            output_dir / f"{case_name}_re_{re_label}_{plane.name}_openfoam.vtp"
         )
 
     p_range = _field_range([gridfoam, openfoam], "p")
@@ -304,9 +302,7 @@ def _plot_case(
             plotter.subplot(row, col)
             plotter.camera.zoom(zoom)
 
-    output = (
-        output_dir / f"{case_name}_re_{re_label}_{plane.name}_p_U.png"
-    )
+    output = output_dir / f"{case_name}_re_{re_label}_{plane.name}_p_U.png"
     plotter.screenshot(str(output))
     plotter.close()
     return output
@@ -345,7 +341,9 @@ def _parse_args(case_names: list[str]) -> argparse.Namespace:
         "--output-dir",
         default=DEFAULT_OUTPUT_DIR,
         type=Path,
-        help=f"Directory for generated PNG files. Default: {DEFAULT_OUTPUT_DIR}",
+        help=(
+            f"Directory for generated PNG files. Default: {DEFAULT_OUTPUT_DIR}"
+        ),
     )
     parser.add_argument(
         "--save-slices",

@@ -21,6 +21,7 @@ from gridfoam.meta.config import (
     ForceCoeffConfig,
     GridfoamConfig,
     OutputConfig,
+    PropertiesConfig,
     SimulatorConfig,
     SolverConfig,
     fvSchemesConfig,
@@ -106,6 +107,7 @@ def _config(
                 n_non_orthogonal_correctors=0,
             ),
             boundaryConditions=None,
+            properties=PropertiesConfig(nu=0.1),
             forceCoeff=ForceCoeffConfig.model_validate(
                 {
                     "patches": ["_default"],

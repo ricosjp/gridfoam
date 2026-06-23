@@ -81,9 +81,7 @@ def test_linear_internal_face_values_is_exact_on_uniform_mesh():
     single_mask = single_internal_mask(grid)
 
     linear = linear_internal_face_values(field)
-    expected = (
-        grid.face_centers[single_mask] @ gradient + 7.0
-    ).reshape(-1, 1)
+    expected = (grid.face_centers[single_mask] @ gradient + 7.0).reshape(-1, 1)
 
     torch.testing.assert_close(linear, expected, atol=1e-12, rtol=1e-12)
 
@@ -105,9 +103,7 @@ def test_sn_grad_default_linear_scheme_does_not_use_leastsquare(
     def fail_leastsquare(_field: CellField) -> torch.Tensor:
         raise AssertionError("leastSquare reconstruction should not be used")
 
-    monkeypatch.setattr(
-        grad_module, "least_square_grad_data", fail_leastsquare
-    )
+    monkeypatch.setattr(grad_module, "least_square_grad_data", fail_leastsquare)
 
     grid = _refined_grid()
     field, _ = _linear_scalar_field(grid)

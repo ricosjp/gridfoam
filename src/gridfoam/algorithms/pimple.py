@@ -176,9 +176,12 @@ class PIMPLE(AlgorithmBase):
                     keepdim=True,
                 )
 
+                continuity_residual = torch.linalg.vector_norm(
+                    fvc.div(self.phi).data, ord=2
+                ).item()
                 logger.debug(
                     "PIMPLE continuity residual L2=%.3e",
-                    torch.linalg.vector_norm(fvc.div(self.phi).data, ord=2).item(),
+                    continuity_residual,
                 )
                 fv_solution = grid.sim_config.fvSolution
                 solve_pressure_poisson(

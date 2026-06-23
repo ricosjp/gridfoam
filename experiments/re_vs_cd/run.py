@@ -24,10 +24,13 @@ from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import ForceCoeffs, ForceEvaluator
 
 PARAMETERS_PATH = Path("experiments/re_vs_cd/data/parameters.yml")
-GRIDFOAM_TEMPLATE_PATH = Path("experiments/re_vs_cd/templates/gridfoam/config.j2")
+GRIDFOAM_TEMPLATE_PATH = Path(
+    "experiments/re_vs_cd/templates/gridfoam/config.j2"
+)
 OPENFOAM_TEMPLATE_PATH = Path("experiments/re_vs_cd/templates/openfoam")
 
 logger = logging.getLogger("gridfoam.experiments.re_vs_cd")
+
 
 def configure_run_logger(log_file: Path) -> None:
     formatter = logging.Formatter("%(message)s")
@@ -45,6 +48,7 @@ def configure_run_logger(log_file: Path) -> None:
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+
 class CaseConfig(BaseModel):
     name: str
     mesh_path: str
@@ -52,13 +56,16 @@ class CaseConfig(BaseModel):
     A_ref: float
     L_ref: float
 
+
 class ExperimentParameters(BaseModel):
     case: list[CaseConfig]
     Re: list[float]
 
+
 def load_experiment_parameters(yaml_path: Path) -> ExperimentParameters:
     with yaml_path.open() as f:
         return ExperimentParameters.model_validate(yaml.safe_load(f))
+
 
 def iter_parameter_combinations(
     parameters: ExperimentParameters,
@@ -67,16 +74,20 @@ def iter_parameter_combinations(
         for Re in parameters.Re:
             yield case, Re
 
+
 def re_param(Re: float) -> str:
     return f"re_{Re:g}"
 
+
 def compute_nu(case: CaseConfig, Re: float) -> float:
     return case.magU_ref * case.L_ref / Re
+
 
 def openfoam_output_dir(case: CaseConfig, Re: float) -> Path:
     return Path(
         f"experiments/re_vs_cd/outputs/{case.name}/openfoam/{re_param(Re)}"
     )
+
 
 def openfoam_template_context(
     case: CaseConfig, Re: float
@@ -93,6 +104,7 @@ def openfoam_template_context(
         "L_ref": case.L_ref,
     }
 
+
 def load_gridfoam_config(case: CaseConfig, Re: float) -> GridfoamConfig:
     template = Template(GRIDFOAM_TEMPLATE_PATH.read_text())
     nu = compute_nu(case, Re)
@@ -106,6 +118,7 @@ def load_gridfoam_config(case: CaseConfig, Re: float) -> GridfoamConfig:
         L_ref=case.L_ref,
     )
     return GridfoamConfig.model_validate(yaml.safe_load(rendered))
+
 
 def render_openfoam_case(case: CaseConfig, Re: float) -> Path:
     output_dir = openfoam_output_dir(case, Re)
@@ -132,6 +145,7 @@ def render_openfoam_case(case: CaseConfig, Re: float) -> Path:
 
     return output_dir
 
+
 def read_openfoam_numeric_rows(path: Path) -> list[list[float]]:
     rows: list[list[float]] = []
     with path.open() as f:
@@ -145,6 +159,7 @@ def read_openfoam_numeric_rows(path: Path) -> list[list[float]]:
                 continue
     return rows
 
+
 def read_openfoam_cd(case_dir: Path) -> float:
     force_coeffs_dir = case_dir / "postProcessing" / "forceCoeffs1" / "0"
     candidates = sorted(force_coeffs_dir.glob("**/coefficient.dat"))
@@ -155,6 +170,7 @@ def read_openfoam_cd(case_dir: Path) -> float:
         raise RuntimeError("OpenFOAM forceCoeffs output is empty.")
     return rows[-1][1]
 
+
 def run_openfoam_case(case: CaseConfig, Re: float) -> float:
     if shutil.which("blockMesh") is None:
         raise RuntimeError("OpenFOAM not found in PATH")
@@ -163,6 +179,7 @@ def run_openfoam_case(case: CaseConfig, Re: float) -> float:
     subprocess.run(["./Allclean"], cwd=case_dir, check=True)
     subprocess.run(["./Allrun"], cwd=case_dir, check=True)
     return read_openfoam_cd(case_dir)
+
 
 def write_force_coeffs(path: Path, coeffs: list[ForceCoeffs]) -> None:
     fieldnames = [
@@ -202,6 +219,7 @@ def write_force_coeffs(path: Path, coeffs: list[ForceCoeffs]) -> None:
                 }
             )
 
+
 def calculate_drag_coefficient(config: GridfoamConfig) -> float:
     grid = create_grid(config)
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
@@ -214,6 +232,8 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
     initialize_from_dirichlet_patch(
         U, boundary_conditions["U"], DomainBoundaryPatch.X_MINUS
     )
+    # phi = maybe_solve_potential_flow(grid, U, p)
+    # grid.register_builtin_field(make_builtin_key("phi", scope="global"), phi)
     nu = grid.sim_config.properties.nu
     turbulence = Laminar(grid=grid, nu=nu)
 
@@ -326,6 +346,7 @@ def main() -> None:
                     "Cd": Cd,
                 }
                 mlflow.log_metrics(metrics)
+
 
 if __name__ == "__main__":
     main()

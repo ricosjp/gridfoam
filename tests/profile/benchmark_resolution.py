@@ -73,10 +73,6 @@ class BenchmarkRow:
         }
 
 
-def _resolution_key(resolution: tuple[int, int, int]) -> str:
-    return "x".join(str(v) for v in resolution)
-
-
 def _load_existing_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -226,7 +222,8 @@ def run_openfoam_benchmark(
                 )
             )
             print(
-                f"[openfoam] {label}: n_cells={n_cells}, elapsed={elapsed_s:.3f}s"
+                f"[openfoam] {label}: n_cells={n_cells}, "
+                f"elapsed={elapsed_s:.3f}s"
             )
     finally:
         block_mesh_dict.write_text(original_block_mesh)
@@ -250,9 +247,6 @@ def run_gridfoam_benchmark(
     from gridfoam.meta.config import GridfoamConfig
     from gridfoam.meta.enums import FieldRole
     from gridfoam.models.turbulence.laminar import Laminar
-
-    with GRIDFOAM_CONFIG.open() as f:
-        base_config = yaml.safe_load(f)
 
     rows: list[BenchmarkRow] = []
     existing = _load_existing_rows(RESULTS_CSV)
@@ -306,7 +300,9 @@ def run_gridfoam_benchmark(
                 delta_t=delta_t,
             )
         )
-        print(f"[gridfoam] {label}: n_cells={n_cells}, elapsed={elapsed_s:.3f}s")
+        print(
+            f"[gridfoam] {label}: n_cells={n_cells}, elapsed={elapsed_s:.3f}s"
+        )
 
     _append_rows(RESULTS_CSV, rows)
     return rows
@@ -327,6 +323,23 @@ def _parse_resolutions(values: list[str] | None) -> list[tuple[int, int, int]]:
     return parsed
 
 
+def _run_openfoam_benchmark(args: argparse.Namespace) -> list[BenchmarkRow]:
+    return run_openfoam_benchmark(
+        _parse_resolutions(args.resolution),
+        end_time=args.end_time,
+        skip_existing=args.skip_existing,
+    )
+
+
+def _run_gridfoam_benchmark(args: argparse.Namespace) -> list[BenchmarkRow]:
+    return run_gridfoam_benchmark(
+        _parse_resolutions(args.resolution),
+        end_time=args.end_time,
+        device=args.device,
+        skip_existing=args.skip_existing,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -336,13 +349,17 @@ def main(argv: list[str] | None = None) -> int:
         "--resolution",
         action="append",
         metavar="NX NY NZ",
-        help="Mesh resolution to run (default: 5x2x2, 10x4x4, 20x8x8, 40x16x16)",
+        help=(
+            "Mesh resolution to run (default: 5x2x2, 10x4x4, 20x8x8, 40x16x16)"
+        ),
     )
     common.add_argument(
         "--end-time",
         type=float,
         default=None,
-        help="Override endTime for both solvers to make elapsed time comparable",
+        help=(
+            "Override endTime for both solvers to make elapsed time comparable"
+        ),
     )
     common.add_argument(
         "--skip-existing",
@@ -355,11 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         parents=[common],
         help="Run OpenFOAM resolution sweep",
     )
-    openfoam_parser.set_defaults(func=lambda args: run_openfoam_benchmark(
-        _parse_resolutions(args.resolution),
-        end_time=args.end_time,
-        skip_existing=args.skip_existing,
-    ))
+    openfoam_parser.set_defaults(func=_run_openfoam_benchmark)
 
     gridfoam_parser = subparsers.add_parser(
         "gridfoam",
@@ -372,12 +385,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Override simulator.device in config.yml",
     )
-    gridfoam_parser.set_defaults(func=lambda args: run_gridfoam_benchmark(
-        _parse_resolutions(args.resolution),
-        end_time=args.end_time,
-        device=args.device,
-        skip_existing=args.skip_existing,
-    ))
+    gridfoam_parser.set_defaults(func=_run_gridfoam_benchmark)
 
     args = parser.parse_args(argv)
     args.func(args)

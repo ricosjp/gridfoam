@@ -106,12 +106,18 @@ def make_thin_plate_stl() -> Callable[..., None]:
         verts = verts @ rot.T + np.array([cx, cy, cz])
 
         faces = [
-            [3, 0, 2, 1], [3, 0, 3, 2],
-            [3, 4, 5, 6], [3, 4, 6, 7],
-            [3, 0, 4, 7], [3, 0, 7, 3],
-            [3, 1, 2, 6], [3, 1, 6, 5],
-            [3, 0, 1, 5], [3, 0, 5, 4],
-            [3, 2, 3, 7], [3, 2, 7, 6],
+            [3, 0, 2, 1],
+            [3, 0, 3, 2],
+            [3, 4, 5, 6],
+            [3, 4, 6, 7],
+            [3, 0, 4, 7],
+            [3, 0, 7, 3],
+            [3, 1, 2, 6],
+            [3, 1, 6, 5],
+            [3, 0, 1, 5],
+            [3, 0, 5, 4],
+            [3, 2, 3, 7],
+            [3, 2, 7, 6],
         ]
         face_array = np.concatenate(faces).astype(np.int64)
         mesh = pv.PolyData(verts, face_array)
@@ -268,9 +274,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         BoundaryConditionConfig(
                             name="slip",
                             type=BoundaryConditionType.SLIP,
-                            patches=[
-                                "y_minus", "y_plus", "z_minus", "z_plus"
-                            ],
+                            patches=["y_minus", "y_plus", "z_minus", "z_plus"],
                         ),
                         BoundaryConditionConfig(
                             name="body",
@@ -295,9 +299,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         BoundaryConditionConfig(
                             name="slip",
                             type=BoundaryConditionType.NEUMANN,
-                            patches=[
-                                "y_minus", "y_plus", "z_minus", "z_plus"
-                            ],
+                            patches=["y_minus", "y_plus", "z_minus", "z_plus"],
                             value=[0.0],
                         ),
                         BoundaryConditionConfig(

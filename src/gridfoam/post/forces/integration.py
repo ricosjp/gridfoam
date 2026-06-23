@@ -79,13 +79,16 @@ def _face_forces_from_sample(
     *,
     rho: float,
     surface_area_vectors: Float[torch.Tensor, " F_surface 3"],
-) -> tuple[
-    Float[torch.Tensor, " F_kept 3"],
-    Float[torch.Tensor, " F_kept 3"],
-    Float[torch.Tensor, " F_kept 3"],
-    Int[torch.Tensor, " F_kept"],
-    Float[torch.Tensor, " F_kept 3"],
-] | None:
+) -> (
+    tuple[
+        Float[torch.Tensor, " F_kept 3"],
+        Float[torch.Tensor, " F_kept 3"],
+        Float[torch.Tensor, " F_kept 3"],
+        Int[torch.Tensor, " F_kept"],
+        Float[torch.Tensor, " F_kept 3"],
+    ]
+    | None
+):
     if sample.anchor_id.numel() == 0:
         return None
 
@@ -108,9 +111,9 @@ def _face_forces_from_sample(
         * (grad_U + torch.transpose(grad_U, 1, 2))
     )
     pressure_force = rho * sample.p_b[keep] * sample.Sf[keep]
-    viscous_force = -torch.matmul(viscous_stress, sample.Sf[keep, :, None]).squeeze(
-        -1
-    )
+    viscous_force = -torch.matmul(
+        viscous_stress, sample.Sf[keep, :, None]
+    ).squeeze(-1)
     face_force = pressure_force + viscous_force
 
     return (
@@ -177,6 +180,8 @@ def integrate_patch_on_surface_mesh(
 
         force = force + torch.sum(face_force, dim=0)
         moment_arm = face_centers - CofR
-        moment = moment + torch.sum(torch.cross(moment_arm, face_force, dim=1), dim=0)
+        moment = moment + torch.sum(
+            torch.cross(moment_arm, face_force, dim=1), dim=0
+        )
 
     return force, moment

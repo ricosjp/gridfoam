@@ -102,9 +102,7 @@ def assemble_poisson_matrix(p: CellField) -> FvMatrix:
     z = cell_centers[:, 2]
 
     poisson_mat = fvm.laplacian(1.0, p)
-    poisson_mat.source += (
-        source_term(x, y, z).unsqueeze(-1) * grid.cell_volumes
-    )
+    poisson_mat.source += source_term(x, y, z).unsqueeze(-1) * grid.cell_volumes
     return poisson_mat
 
 
@@ -246,9 +244,7 @@ def plot_linf_vs_dx(metrics: list[PoissonMetrics], plot_path: Path) -> None:
 
     dx_ref = ordered[-1].dx
     linf_ref = ordered[-1].linf
-    linf_second_order = [
-        linf_ref * (mesh_dx / dx_ref) ** 2 for mesh_dx in dx
-    ]
+    linf_second_order = [linf_ref * (mesh_dx / dx_ref) ** 2 for mesh_dx in dx]
 
     fig, ax = plt.subplots(figsize=(6.0, 4.0))
     ax.loglog(dx, linf, marker="o", linewidth=1.5, label="numerical")

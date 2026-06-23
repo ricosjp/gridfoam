@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from gridfoam.meta.config import SolverConfig, fvSchemesConfig
 from gridfoam.meta.enums import (
     DivScheme,
@@ -24,10 +26,13 @@ def test_fvschemes_regularizes_div_scheme_keys():
 
 def test_fvschemes_accepts_grad_scheme_values():
     cfg = fvSchemesConfig(
-        gradSchemes={
-            "default": "linear",
-            "grad(p)": "leastsquare",
-        },
+        gradSchemes=cast(
+            "dict[str, GradScheme]",
+            {
+                "default": "linear",
+                "grad(p)": "leastsquare",
+            },
+        ),
     )
 
     assert cfg.gradSchemes is not None

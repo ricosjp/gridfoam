@@ -53,8 +53,12 @@ class ForceCoeffs:
         Cd = torch.sum(force * coord.e1, dim=0, keepdim=True) / force_scale
         Cs = torch.sum(force * coord.e2, dim=0, keepdim=True) / force_scale
         Cl = torch.sum(force * coord.e3, dim=0, keepdim=True) / force_scale
-        CmRoll = torch.sum(moment * coord.e1, dim=0, keepdim=True) / moment_scale
-        CmPitch = torch.sum(moment * coord.e2, dim=0, keepdim=True) / moment_scale
+        CmRoll = (
+            torch.sum(moment * coord.e1, dim=0, keepdim=True) / moment_scale
+        )
+        CmPitch = (
+            torch.sum(moment * coord.e2, dim=0, keepdim=True) / moment_scale
+        )
         CmYaw = torch.sum(moment * coord.e3, dim=0, keepdim=True) / moment_scale
 
         return cls(

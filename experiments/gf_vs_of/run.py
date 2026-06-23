@@ -34,6 +34,7 @@ EDGE_COLOR = "black"
 EDGE_LINE_WIDTH = 0.1
 EDGE_OPACITY = 0.08
 
+
 class SliceMode(StrEnum):
     XY = "xy"
     XZ = "xz"

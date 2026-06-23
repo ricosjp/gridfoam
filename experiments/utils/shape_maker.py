@@ -40,6 +40,7 @@ def write_sphere(path: Path) -> None:
     )
     sphere.save(path)
 
+
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     write_cylinder(root / "re_vs_cd" / "data" / "cylinder.stl")

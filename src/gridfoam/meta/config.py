@@ -293,9 +293,7 @@ class fvSolutionConfig(BaseModel, frozen=True):
     @classmethod
     def validate_n_non_orthogonal_correctors(cls, value: int) -> int:
         if value < 0:
-            raise ValueError(
-                "n_non_orthogonal_correctors must be non-negative"
-            )
+            raise ValueError("n_non_orthogonal_correctors must be non-negative")
         return value
 
 
@@ -340,12 +338,14 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
             out.append(reserved if reserved is not None else p)
         return out
 
+
 class PropertiesConfig(BaseModel, frozen=True):
     nu: float
     """
     nu : float
         Kinematic viscosity for the properties.
     """
+
 
 class DragLiftCoord(BaseModel, frozen=True, extra="forbid"):
     mode: Literal[ForceCoordMode.DRAG_LIFT]

@@ -9,6 +9,7 @@ import json
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -18,7 +19,7 @@ DEFAULT_CUDA_HTML = PROFILE_DIR / "outputs" / "time" / "cuda-profile.html"
 DEFAULT_OUTPUT = PROFILE_DIR / "outputs" / "time" / "simple_step_breakdown.png"
 
 
-def _load_pyinstrument_session(path: Path) -> dict:
+def _load_pyinstrument_session(path: Path) -> dict[str, Any]:
     text = path.read_text()
     match = re.search(r"const sessionData = (\{.*\});", text, re.DOTALL)
     if match is None:
@@ -38,10 +39,10 @@ def _short_label(identifier: str) -> str:
     return name
 
 
-def _find_simple_steps(frame_tree: dict) -> list[dict]:
-    steps: list[dict] = []
+def _find_simple_steps(frame_tree: dict[str, Any]) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
 
-    def walk(node: dict) -> None:
+    def walk(node: dict[str, Any]) -> None:
         identifier = node.get("identifier", "")
         if identifier.startswith("step") and "simple.py" in identifier:
             steps.append(node)
@@ -54,7 +55,9 @@ def _find_simple_steps(frame_tree: dict) -> list[dict]:
     return steps
 
 
-def _aggregate_step_children(steps: list[dict]) -> tuple[float, dict[str, float]]:
+def _aggregate_step_children(
+    steps: list[dict[str, Any]],
+) -> tuple[float, dict[str, float]]:
     totals: dict[str, float] = defaultdict(float)
     step_total = sum(step.get("time", 0.0) for step in steps)
 
@@ -171,7 +174,9 @@ def main() -> None:
         "--min-fraction",
         type=float,
         default=0.01,
-        help="Group entries below this fraction of SIMPLE.step time into 'other'",
+        help=(
+            "Group entries below this fraction of SIMPLE.step time into 'other'"
+        ),
     )
     args = parser.parse_args()
     plot_simple_step_breakdown(

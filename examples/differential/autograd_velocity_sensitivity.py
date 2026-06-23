@@ -19,6 +19,7 @@ from gridfoam.meta.config import (
     FluxelConfig,
     GridfoamConfig,
     OutputConfig,
+    PropertiesConfig,
     SimulatorConfig,
     SolverConfig,
     fvSchemesConfig,
@@ -99,6 +100,7 @@ def _config(
                 n_non_orthogonal_correctors=0,
             ),
             boundaryConditions=None,
+            properties=PropertiesConfig(nu=0.1),
             device=device,
         ),
     )
@@ -261,9 +263,7 @@ def main() -> None:
     device = probe_grid.device
     num_cells = probe_grid.num_cells
 
-    U_ref_init = torch.zeros(
-        (num_cells, 3), dtype=dtype, device=device
-    )
+    U_ref_init = torch.zeros((num_cells, 3), dtype=dtype, device=device)
     U_ref_inlet = _constant_vector((1.0, 0.0, 0.0), dtype=dtype, device=device)
 
     with torch.no_grad():
@@ -290,9 +290,7 @@ def main() -> None:
     )
     loss_init.backward()
 
-    U_inlet = _constant_vector(
-        (0.75, 0.10, 0.0), dtype=dtype, device=device
-    )
+    U_inlet = _constant_vector((0.75, 0.10, 0.0), dtype=dtype, device=device)
     U_inlet.requires_grad_(True)
     sim_from_inlet = _simulate(
         config,

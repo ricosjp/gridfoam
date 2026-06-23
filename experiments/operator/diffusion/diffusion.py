@@ -56,7 +56,14 @@ def initialize_T(T: CellField) -> None:
     x = cell_centers[:, 0]
     y = cell_centers[:, 1]
     z = cell_centers[:, 2]
-    mask = (-1.0 <= x) & (x <= 1.0) & (-1.0 <= y) & (y <= 1.0) & (1.0 <= z) & (z <= 3.0)
+    mask = (
+        (-1.0 <= x)
+        & (x <= 1.0)
+        & (-1.0 <= y)
+        & (y <= 1.0)
+        & (1.0 <= z)
+        & (z <= 3.0)
+    )
     T.data[mask] = 1.0
 
 

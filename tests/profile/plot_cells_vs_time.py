@@ -24,8 +24,11 @@ def _load_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def _group_by_solver(rows: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
-    grouped: dict[str, list[dict[str, str]]] = {}
+CsvRow = dict[str, str]
+
+
+def _group_by_solver(rows: list[CsvRow]) -> dict[str, list[CsvRow]]:
+    grouped: dict[str, list[CsvRow]] = {}
     for row in rows:
         grouped.setdefault(row["solver"], []).append(row)
     for solver_rows in grouped.values():
@@ -46,15 +49,18 @@ def plot_cells_vs_time(
     markers = {"gridfoam": "o", "openfoam": "s"}
     colors = {"gridfoam": "C0", "openfoam": "C1"}
 
+    y_label = (
+        "Elapsed time per time step [s]"
+        if use_time_per_step
+        else "Total elapsed time [s]"
+    )
     end_times: set[str] = set()
     for solver, solver_rows in grouped.items():
         x = [int(row["n_cells"]) for row in solver_rows]
         if use_time_per_step:
             y = [float(row["time_per_step_s"]) for row in solver_rows]
-            y_label = "Elapsed time per time step [s]"
         else:
             y = [float(row["elapsed_s"]) for row in solver_rows]
-            y_label = "Total elapsed time [s]"
 
         end_times.update(row["end_time"] for row in solver_rows)
 

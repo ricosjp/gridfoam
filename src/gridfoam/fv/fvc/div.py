@@ -38,9 +38,7 @@ def div(phi: FaceField) -> CellField:
     # Internal faces
     single_data = phi.single_data.clone()
     data.index_add_(0, grid.owner[phi.single_mask], single_data)
-    data.index_add_(
-        0, grid.neighbour[phi.single_mask], -single_data
-    )
+    data.index_add_(0, grid.neighbour[phi.single_mask], -single_data)
 
     # Domain boundaries
     data.index_add_(0, grid.domain_bnd_owner, phi.domain_bnd_data.clone())
