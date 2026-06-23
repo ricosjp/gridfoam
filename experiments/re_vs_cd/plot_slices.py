@@ -238,7 +238,7 @@ def _add_slice(
     )
     plotter.add_text(title, font_size=11)
     getattr(plotter, plane.view)()
-    plotter.enable_parallel_projection()
+    plotter.renderer.enable_parallel_projection()
 
 
 def _plot_case(
@@ -298,7 +298,7 @@ def _plot_case(
             show_edges=show_edges,
         )
     plotter.link_views()
-    plotter.show_axes()
+    plotter.renderer.add_axes()
     for row in range(2):
         for col in range(2):
             plotter.subplot(row, col)

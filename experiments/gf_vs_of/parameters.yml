@@ -3,24 +3,24 @@ case:
     slice_modes: ["xy", "xz"]
     slice_origin: [0.5, 0.0, 1.0]
     openfoam: false
-    gridfoam: false
+    gridfoam: true
   - name: ahmed_body
     slice_modes: ["xy", "xz"]
     slice_origin: [0.5, 0.0, 0.2]
     openfoam: false
-    gridfoam: false
+    gridfoam: true
   - name: cavity
     slice_modes: ["xy"]
     slice_origin: [0.05, 0.05, 0.005]
     openfoam: false
-    gridfoam: false
+    gridfoam: true
   - name: cavity_with_baffle
     slice_modes: ["xy"]
     slice_origin: [0.05, 0.05, 0.005]
     openfoam: false
-    gridfoam: false
+    gridfoam: true
   - name: hagen_poiseuille
     slice_modes: ["xy"]
     slice_origin: [10.0, 4.0, 0.5]
     openfoam: false
-    gridfoam: false
+    gridfoam: true
