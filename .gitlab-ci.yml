@@ -22,7 +22,7 @@ default:
 lint:
   stage: test
   script:
-    - uv sync --group lint --extra cpu
+    - uv sync --group lint --extra cpu --extra graphlow
     - make lint
   tags:
     - no-gpu
@@ -30,7 +30,7 @@ lint:
 cpu-pytest:
   stage: test
   script:
-    - uv sync --group test --extra cpu
+    - uv sync --group test --extra cpu --extra graphlow
     - make cpu-test
     - mv .coverage .coverage.cpu
   artifacts:
