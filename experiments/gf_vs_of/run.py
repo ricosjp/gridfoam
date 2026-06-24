@@ -262,8 +262,7 @@ def run_gridfoam(gf_dir: Path):
 
 
 def main() -> None:
-    # set MLflow tracking URI (default is ./mlruns)
-    mlflow.set_tracking_uri("file:./mlruns")
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
     # group experiments
     mlflow.set_experiment("gridfoam vs openfoam Experiment")
 

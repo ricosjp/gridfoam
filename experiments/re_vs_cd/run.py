@@ -16,12 +16,11 @@ from gridfoam.algorithms.simple import SIMPLE
 from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField, FieldRole
 from gridfoam.core.grid.factory import create_grid
-from gridfoam.initialization import initialize_from_dirichlet_patch
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import GridfoamConfig
-from gridfoam.meta.enums import DomainBoundaryPatch
 from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import ForceCoeffs, ForceEvaluator
+from gridfoam.pre.potential_flow import PotentialFlow
 
 PARAMETERS_PATH = Path("experiments/re_vs_cd/data/parameters.yml")
 GRIDFOAM_TEMPLATE_PATH = Path(
@@ -229,11 +228,12 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
         raise ValueError("boundaryConditions is required")
     apply_boundary_condition_configs(U, boundary_conditions["U"])
     apply_boundary_condition_configs(p, boundary_conditions["p"])
-    initialize_from_dirichlet_patch(
-        U, boundary_conditions["U"], DomainBoundaryPatch.X_MINUS
-    )
-    # phi = maybe_solve_potential_flow(grid, U, p)
-    # grid.register_builtin_field(make_builtin_key("phi", scope="global"), phi)
+
+    # initialize_from_dirichlet_patch(
+    #     U, boundary_conditions["U"], DomainBoundaryPatch.X_MINUS
+    # )
+
+    PotentialFlow(grid, U, p).solve()
     nu = grid.sim_config.properties.nu
     turbulence = Laminar(grid=grid, nu=nu)
 
@@ -290,8 +290,7 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
 
 
 def main() -> None:
-    # set MLflow tracking URI (default is ./mlruns)
-    mlflow.set_tracking_uri("file:./mlruns")
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
     # group experiments
     mlflow.set_experiment("Low-Re Experiment")
 

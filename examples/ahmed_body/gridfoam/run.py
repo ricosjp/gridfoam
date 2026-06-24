@@ -19,6 +19,7 @@ from gridfoam.meta.enums import (
 )
 from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import ForceEvaluator
+from gridfoam.pre.potential_flow import PotentialFlow
 
 LOG_FILE_NAME = "ahmed_body.log"
 
@@ -62,6 +63,8 @@ def main() -> None:
         raise ValueError("boundaryConditions is required for this example.")
     apply_boundary_condition_configs(U, boundary_conditions["U"])
     apply_boundary_condition_configs(p, boundary_conditions["p"])
+
+    PotentialFlow(grid, U, p).solve()
 
     turbulence = Laminar(grid=grid, nu=grid.sim_config.properties.nu)
 
