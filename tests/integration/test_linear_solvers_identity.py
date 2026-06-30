@@ -24,15 +24,15 @@ def _identity_linear_system(
     grid: IGridBase, *, name: str, k: int
 ) -> tuple[Equation, Float[torch.Tensor, " C K"]]:
     p = CellField(grid, name, role=FieldRole.LOCAL, num_components=k)
-    lhs = FvMatrix(p)
-    lhs.diag.fill_(1.0)
-    lhs.upper.zero_()
-    lhs.lower.zero_()
+    fv_matrix = FvMatrix(p)
+    fv_matrix.diag.fill_(1.0)
+    fv_matrix.upper.zero_()
+    fv_matrix.lower.zero_()
     torch.manual_seed(42)
     b = torch.randn(grid.num_cells, k, dtype=grid.dtype, device=grid.device)
-    lhs.source = b.clone()
+    fv_matrix.source = b.clone()
     p.data.zero_()
-    eq = equation("p", p, lhs)
+    eq = equation("p", p, fv_matrix)
     return eq, b
 
 
@@ -88,8 +88,8 @@ def test_equation_factory_returns_named_container(
 ):
     grid = small_axis_projected_grid
     p = CellField(grid, "p_eq", role=FieldRole.LOCAL, num_components=1)
-    lhs = FvMatrix(p)
-    eq = equation("pressure", p, lhs)
+    fv_matrix = FvMatrix(p)
+    eq = equation("pressure", p, fv_matrix)
     assert eq.name == "pressure"
     assert eq.target is p
-    assert eq.lhs is lhs
+    assert eq.fv_matrix is fv_matrix

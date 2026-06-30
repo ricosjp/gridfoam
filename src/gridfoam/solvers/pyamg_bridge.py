@@ -194,7 +194,7 @@ class PyamgBridgeSolver(LinearSolver):
         self,
         eq: Equation,
     ) -> Float[torch.Tensor, " C k"]:
-        A = eq.lhs
+        A = eq.fv_matrix
         x = eq.target.data
         owner = A.grid.owner
         neighbour = A.grid.neighbour

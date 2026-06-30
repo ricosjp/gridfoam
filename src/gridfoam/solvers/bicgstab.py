@@ -40,7 +40,7 @@ class BiCGSTABSolver(LinearSolver):
         self,
         eq: Equation,
     ) -> Float[torch.Tensor, " C k"]:
-        A = eq.lhs
+        A = eq.fv_matrix
         b = A.source
         x = eq.target.data
         k = A.num_components

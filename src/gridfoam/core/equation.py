@@ -12,18 +12,18 @@ class Equation:
         Equation name (e.g., ``"momentum"``, ``"pressure"``).
     target : CellField
         Target cell-centered field to solve/update.
-    lhs : FvMatrix
-        Assembled left-hand-side matrix.
-        The right-hand-side known term ``b`` is stored in ``lhs.source``.
+    fv_matrix : FvMatrix
+        Assembled finite-volume matrix.
+        The right-hand-side known term ``b`` is stored in ``fv_matrix.source``.
     """
 
-    def __init__(self, name: str, target: CellField, lhs: FvMatrix):
+    def __init__(self, name: str, target: CellField, fv_matrix: FvMatrix):
         self.name = name
         self.target = target
-        self.lhs = lhs
+        self.fv_matrix = fv_matrix
 
 
-def equation(name: str, target: CellField, lhs: FvMatrix) -> Equation:
+def equation(name: str, target: CellField, fv_matrix: FvMatrix) -> Equation:
     """
     Factory function to build an ``Equation`` instance.
 
@@ -33,7 +33,7 @@ def equation(name: str, target: CellField, lhs: FvMatrix) -> Equation:
         Equation name.
     target : CellField
         Target cell-centered field.
-    lhs : FvMatrix
+    fv_matrix : FvMatrix
         Assembled discrete matrix.
 
     Returns
@@ -41,4 +41,4 @@ def equation(name: str, target: CellField, lhs: FvMatrix) -> Equation:
     Equation
         Constructed equation object.
     """
-    return Equation(name, target, lhs)
+    return Equation(name, target, fv_matrix)
