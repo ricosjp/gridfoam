@@ -1,7 +1,7 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.field import CellField
+from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.fvc.interpolate import interpolate
 from gridfoam.fv.fvc.reconstruction import least_square_grad_data
@@ -48,34 +48,19 @@ def grad(field: CellField) -> CellField:
     # Scalar field case
     if field.num_components == 1:
         grad_data = _grad_scalar(field, grad_scheme)
-        grad_field = grid.get_field(f"grad({field.name})")
-        if grad_field is None:
-            grad_field = CellField(
-                grid,
-                name=f"grad({field.name})",
-                role=field.role,
-                num_components=3,
-                dimension=field.dimension,  # TODO: fix L: -1
-                export=field.export,
-            )
-        assert isinstance(grad_field, CellField)
+        # TODO: fix dimension L: -1
+        grad_field = get_or_create_cellfield(
+            grid, f"grad({field.name})", field.role, 3
+        )
         grad_field.data = grad_data
         return grad_field
 
     # Vector field case
     grads = []
     for c in range(field.num_components):
-        field_c = grid.get_field(f"{field.name}_{c}")
-        if field_c is None:
-            field_c = CellField(
-                grid,
-                name=f"{field.name}_{c}",
-                role=field.role,
-                num_components=1,
-                dimension=field.dimension,
-                export=False,
-            )
-        assert isinstance(field_c, CellField)
+        field_c = get_or_create_cellfield(
+            grid, f"{field.name}_{c}", field.role, 1
+        )
         field_c.data = field.data[:, c : c + 1]
 
         # Decompose vector BCs per component and apply them
@@ -90,17 +75,13 @@ def grad(field: CellField) -> CellField:
     grad_data = torch.cat(grads, dim=1)
 
     # Gradient of a k-component vector in 3D has k * 3 entries.
-    grad_field = grid.get_field(f"grad({field.name})")
-    if grad_field is None:
-        grad_field = CellField(
-            grid,
-            name=f"grad({field.name})",
-            role=field.role,
-            num_components=field.num_components * 3,
-            dimension=field.dimension,  # TODO: fix L: -1
-            export=field.export,
-        )
-    assert isinstance(grad_field, CellField)
+    # TODO: fix dimension L: -1
+    grad_field = get_or_create_cellfield(
+        grid,
+        f"grad({field.name})",
+        field.role,
+        field.num_components * 3,
+    )
     grad_field.data = grad_data
     return grad_field
 

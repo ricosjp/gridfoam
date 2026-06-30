@@ -1,12 +1,13 @@
 import pathlib
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from gridfoam.meta.enums import (
+    AlgorithmType,
     BoundaryConditionType,
     DdtScheme,
     DeviceType,
@@ -20,7 +21,10 @@ from gridfoam.meta.enums import (
     PrecisionType,
     PreconditionerType,
     SolverType,
+    TransportModelType,
+    TurbulenceType,
 )
+from gridfoam.meta.types import FieldName, PatchName
 
 
 class DomainConfig(BaseModel, frozen=True):
@@ -274,56 +278,171 @@ class SolverConfig(BaseModel, frozen=True):
 
 
 class PotentialFlowConfig(BaseModel, frozen=True):
-    n_non_orthogonal_correctors: int = Field(default=0, ge=0)
+    nNonOrthogonalCorrectors: int = Field(default=0, ge=0)
     """
-    n_non_orthogonal_correctors : int, default=0
+    nNonOrthogonalCorrectors : int, default=0
         Number of non-orthogonal correctors for the velocity-potential
         Poisson equation, matching OpenFOAM ``potentialFlow`` controls.
     """
+    phiRefCell: int | None = Field(default=None, ge=0)
+    """
+    phiRefCell : int | None, default=None
+        Reference cell for the velocity-potential.
+    """
+    phiRefValue: float | None = Field(default=None)
+    """
+    phiRefValue : float | None, default=None
+        Reference value for the velocity-potential.
+    """
 
 
-class fvSolutionConfig(BaseModel, frozen=True):
-    solvers: dict[str, SolverConfig]
+class RelaxationFactorsConfig(BaseModel, frozen=True):
+    equations: dict[FieldName, float] = Field(default_factory=dict)
     """
-    solvers : dict[str, SolverConfig]
-        Solvers configuration.
-        The key is the target equation name to be solved by the solver.
-        The value is the solver configuration.
+    equations : dict[FieldName, float]
+        Relaxation factors for the equations.
+        The key is the target field name to be relaxed.
+        The value is the relaxation factor.
     """
-    n_non_orthogonal_correctors: int = Field(default=1)
+
+
+class SIMPLEAlgorithm(BaseModel, frozen=True):
+    type: Literal[AlgorithmType.SIMPLE]
+    nNonOrthogonalCorrectors: int = Field(default=0, ge=0)
     """
-    n_non_orthogonal_correctors : int, default=1
+    nNonOrthogonalCorrectors : int, default=0
         Number of non-orthogonal correctors for pressure (and other
         elliptic) equations. The pressure Poisson system is reassembled
         and resolved this many extra times using updated gradients.
+        This setting is equivalent to OpenFOAM ``SIMPLE`` settings.
     """
-    potential_flow: PotentialFlowConfig | None = None
+    residualControl: dict[FieldName, float] = Field(default_factory=dict)
     """
-    potential_flow : PotentialFlowConfig | None, default=None
+    residualControl : dict[FieldName, float]
+        Residual control for the pressure (and other elliptic) equations.
+        The key is the target field name to be controlled.
+        The value is the residual tolerance.
+    """
+    relaxationFactors: RelaxationFactorsConfig = Field(
+        default_factory=RelaxationFactorsConfig
+    )
+    """
+    relaxationFactors : RelaxationFactorsConfig, default=RelaxationFactorsConfig()
+        Relaxation factors for the equations.
+    """
+    pRefCell: int | None = Field(default=None, ge=0)
+    """
+    pRefCell : int | None, default=None
+        Reference cell for the pressure.
+    """
+    pRefValue: float | None = Field(default=None)
+    """
+    pRefValue : float | None, default=None
+        Reference value for the pressure.
+    """
+
+
+class PISOAlgorithm(BaseModel, frozen=True):
+    type: Literal[AlgorithmType.PISO]
+    nNonOrthogonalCorrectors: int = Field(default=0, ge=0)
+    """
+    nNonOrthogonalCorrectors : int, default=0
+        Number of non-orthogonal correctors for the pressure (and other
+        elliptic) equations. The pressure Poisson system is reassembled
+        and resolved this many extra times using updated gradients.
+    """
+    nCorrectors: int = Field(default=2, ge=1)
+    """
+    nCorrectors : int, default=2
+        Number of pressure-correction loops.
+    """
+    pRefCell: int | None = Field(default=None, ge=0)
+    """
+    pRefCell : int | None, default=None
+        Reference cell for the pressure.
+    """
+    pRefValue: float | None = Field(default=None)
+    """
+    pRefValue : float | None, default=None
+        Reference value for the pressure.
+    """
+
+
+class PIMPLEAlgorithm(BaseModel, frozen=True):
+    type: Literal[AlgorithmType.PIMPLE]
+    nNonOrthogonalCorrectors: int = Field(default=0, ge=0)
+    """
+    nNonOrthogonalCorrectors : int, default=0
+        Number of non-orthogonal correctors for the pressure (and other
+        elliptic) equations. The pressure Poisson system is reassembled
+        and resolved this many extra times using updated gradients.
+    """
+    nCorrectors: int = Field(default=2, ge=1)
+    """
+    nCorrectors : int, default=2
+        Number of pressure-correction loops.
+    """
+    nOuterCorrectors: int = Field(default=1, ge=1)
+    """
+    nOuterCorrectors : int, default=1
+        Number of outer correctors.
+    """
+    residualControl: dict[FieldName, float] = Field(default_factory=dict)
+    """
+    residualControl : dict[FieldName, float]
+        Residual control for the pressure (and other elliptic) equations.
+        The key is the target field name to be controlled.
+        The value is the residual tolerance.
+    """
+    pRefCell: int | None = Field(default=None, ge=0)
+    """
+    pRefCell : int | None, default=None
+        Reference cell for the pressure.
+    """
+    pRefValue: float | None = Field(default=None)
+    """
+    pRefValue : float | None, default=None
+        Reference value for the pressure.
+    """
+
+
+class ManualAlgorithm(BaseModel, frozen=True):
+    type: Literal[AlgorithmType.MANUAL]
+
+
+Algorithm = Annotated[
+    SIMPLEAlgorithm | PISOAlgorithm | PIMPLEAlgorithm | ManualAlgorithm,
+    Field(discriminator="type"),
+]
+
+
+class fvSolutionConfig(BaseModel, frozen=True):
+    algorithm: Algorithm
+    """
+    algorithm : AlgorithmConfig
+        Algorithm configuration.
+    """
+    solvers: dict[FieldName, SolverConfig]
+    """
+    solvers : dict[FieldName, SolverConfig]
+        Solvers configuration.
+        The key is the target field name to be solved by the solver.
+        The value is the solver configuration.
+    """
+    potentialFlow: PotentialFlowConfig | None = None
+    """
+    potentialFlow : PotentialFlowConfig | None, default=None
         Optional potential-flow initialization settings equivalent to
         OpenFOAM ``potentialFoam``.
     """
 
-    @field_validator("n_non_orthogonal_correctors")
-    @classmethod
-    def validate_n_non_orthogonal_correctors(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("n_non_orthogonal_correctors must be non-negative")
-        return value
-
 
 class BoundaryConditionConfig(BaseModel, frozen=True):
-    name: str
-    """
-    name : str
-        Name of the boundary condition. This is just for labeling
-        and does not affect the behavior of the boundary condition.
-    """
     type: BoundaryConditionType
     """
     Boundary condition type.
     """
-    patches: list[str | DomainBoundaryPatch]
+    patches: list[PatchName]
     """
     Target patch names for this boundary condition.
     """
@@ -331,21 +450,20 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
     """
     Numeric payload used by value-based boundary conditions.
     """
-    phi_builtin_key: str | None = None
-    HbyA_builtin_key: str | None = None
-    rAU_builtin_key: str | None = None
+    phase: str | None = None
+    """
+    Phase name for this boundary condition.
+    """
 
     @field_validator("patches", mode="before")
     @classmethod
-    def regularize_patches(
-        cls, patches: object
-    ) -> list[str | DomainBoundaryPatch]:
+    def regularize_patches(cls, patches: object) -> list[PatchName]:
         if not isinstance(patches, Iterable):
             raise TypeError("patches must be an iterable of patch names")
         _DOMAIN_BOUNDARY_PATCH_BY_VALUE: dict[str, DomainBoundaryPatch] = {
             m.value: m for m in DomainBoundaryPatch
         }
-        out: list[str | DomainBoundaryPatch] = []
+        out: list[PatchName] = []
         for p in patches:
             if not isinstance(p, str):
                 raise TypeError("patch names must be strings")
@@ -354,11 +472,41 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
         return out
 
 
-class PropertiesConfig(BaseModel, frozen=True):
+class NewtonianTransportConfig(BaseModel, frozen=True):
+    type: Literal[TransportModelType.NEWTONIAN]
     nu: float
     """
     nu : float
-        Kinematic viscosity for the properties.
+        Kinematic viscosity for the transport model.
+    """
+
+
+TransportModel = Annotated[
+    NewtonianTransportConfig,
+    Field(discriminator="type"),
+]
+
+
+class LaminarConfig(BaseModel, frozen=True):
+    type: Literal[TurbulenceType.LAMINAR]
+
+
+TurbulenceModel = Annotated[
+    LaminarConfig,
+    Field(discriminator="type"),
+]
+
+
+class PropertiesConfig(BaseModel, frozen=True):
+    transport: TransportModel
+    """
+    transport : TransportModel
+        Transport model configuration.
+    """
+    turbulence: TurbulenceModel
+    """
+    turbulence : TurbulenceModel
+        Turbulence model configuration.
     """
 
 
@@ -421,19 +569,16 @@ class ForceCoeffConfig(BaseModel, frozen=True):
             Defined by ``drag_dir``, ``pitch_axis`` and ``center_of_rotation``.
             The lift direction is computed as ``drag_dir x pitch_axis``.
     """
-
     patches: list[str]
     """
     patches : list[str]
         Patch names of surfaces to be integrated for the force coefficients.
     """
-
     rho: float
     """
     rho : float
         Density for the force coefficients.
     """
-
     magU_ref: float
     """
     magU_ref : float
@@ -481,6 +626,40 @@ class ForceCoeffConfig(BaseModel, frozen=True):
         return data
 
 
+class ConditionConfig(BaseModel, frozen=True):
+    dimension: dict[str, int] | None = None
+    """
+    dimension : dict[str, int] | None, default=None
+        Physical dimension of the field.
+    """
+    internal: list[float]
+    """
+    internal : list[float]
+        Internal condition value for the field.
+    """
+    boundary: dict[str, BoundaryConditionConfig]
+    """
+    boundary : dict[str, BoundaryConditionConfig]
+        Boundary condition configuration grouped by label name.
+    """
+    export: bool = Field(default=True)
+    """
+    export : bool, default=True
+        Whether to export the field.
+    """
+
+    def iter_bc_configs(self) -> Iterator[BoundaryConditionConfig]:
+        yield from self.boundary.values()
+
+
+class PostProcessingConfig(BaseModel, frozen=True):
+    forceCoeff: ForceCoeffConfig | None = None
+    """
+    forceCoeff : ForceCoeffConfig
+        Force coefficients configuration.
+    """
+
+
 class SimulatorConfig(BaseModel, frozen=True):
     control: ControlConfig
     """
@@ -497,19 +676,20 @@ class SimulatorConfig(BaseModel, frozen=True):
     fvSolution : fvSolutionConfig
         Fv solution configuration.
     """
-    boundaryConditions: dict[str, list[BoundaryConditionConfig]] | None = None
+    conditions: dict[FieldName, ConditionConfig]
     """
-    Boundary condition configuration grouped by field name.
+    conditions : dict[FieldName, ConditionConfig]
+        Condition configuration grouped by field name.
     """
     properties: PropertiesConfig
     """
     properties : PropertiesConfig
         Properties configuration.
     """
-    forceCoeff: ForceCoeffConfig | None = None
+    post_processing: PostProcessingConfig | None = None
     """
-    forceCoeffConfig : ForceCoeffConfig
-        Force coefficients configuration.
+    post_processing : PostProcessingConfig | None, default=None
+        Post processing configuration.
     """
     device: DeviceType
     """
@@ -519,6 +699,24 @@ class SimulatorConfig(BaseModel, frozen=True):
             - CPU: CPU.
             - CUDA: CUDA.
     """
+
+    @model_validator(mode="after")
+    def check_algorithm_time_compatibility(self) -> Self:
+        algo_type = self.fvSolution.algorithm.type
+        deltaT = self.control.deltaT
+        endTime = self.control.endTime
+        if algo_type == AlgorithmType.SIMPLE:
+            if deltaT != 1.0 or not endTime.is_integer():
+                raise ValueError(
+                    "SIMPLE requires deltaT=1.0 and endTime to be an integer"
+                )
+
+        return self
+
+    def get_field_condition(
+        self, field_name: FieldName
+    ) -> ConditionConfig | None:
+        return self.conditions.get(field_name)
 
 
 class GridfoamConfig(BaseModel, frozen=True):

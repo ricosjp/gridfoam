@@ -17,8 +17,8 @@ class Laminar(TurbulenceModel):
     Uses only molecular viscosity and does not add turbulent viscosity.
     """
 
-    def __init__(self, grid: IGridBase, nu: float | torch.Tensor):
-        super().__init__(grid, nu)
+    def __init__(self, grid: IGridBase):
+        super().__init__(grid)
 
     def correct(self, U: CellField, phi: FaceField) -> None:
         """
@@ -33,7 +33,7 @@ class Laminar(TurbulenceModel):
         Since ``nu_t = 0`` in laminar mode, returning ``nu`` directly is
         slightly cheaper than evaluating ``nu + nu_t``.
         """
-        nu_eff_value = self.nu + self.nu_t.data
+        nu_eff_value = self.transport.nu() + self.nu_t.data
         nu_eff_min = torch.min(nu_eff_value).item()
         nu_eff_max = torch.max(nu_eff_value).item()
         logger.debug(

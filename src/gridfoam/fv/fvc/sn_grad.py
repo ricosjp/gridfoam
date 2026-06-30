@@ -1,7 +1,12 @@
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.field import CellField, FaceField, FieldRole
+from gridfoam.core.field import (
+    CellField,
+    FaceField,
+    FieldRole,
+    get_or_create_facefield,
+)
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
     BoundaryFaceKind,
@@ -33,17 +38,13 @@ def sn_grad(field: CellField) -> FaceField:
     """
     grid = field.grid
 
-    sn_grad_field = grid.get_field(f"snGrad({field.name})")
-    if sn_grad_field is None:
-        sn_grad_field = FaceField(
-            grid,
-            name=f"snGrad({field.name})",
-            role=FieldRole.LOCAL,
-            num_components=field.num_components,
-            dimension=field.dimension,  # TODO: fix L: -1
-            export=False,
-        )
-    assert isinstance(sn_grad_field, FaceField)
+    # TODO: fix dimension L: -1
+    sn_grad_field = get_or_create_facefield(
+        grid,
+        f"snGrad({field.name})",
+        FieldRole.LOCAL,
+        field.num_components,
+    )
     # Internal faces
     sn_grad_field.single_data = corrected_internal_sn_grad_values(field)
 

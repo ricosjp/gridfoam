@@ -17,9 +17,10 @@ from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
 if TYPE_CHECKING:
-    from gridfoam.core.field import GeometricField
+    from gridfoam.core.field import CellField, FaceField
 else:
-    GeometricField = Any
+    CellField = Any
+    FaceField = Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,8 @@ class AxisProjectedGrid(IGridBase):
         mesh_path: pathlib.Path | None = None,
     ):
         self._sim_config = simulator_config
-        self._fields = WeakValueDictionary[str, GeometricField]()
-        self._builtin_fields = WeakValueDictionary[str, GeometricField]()
+        self._cellfields = WeakValueDictionary[str, CellField]()
+        self._facefields = WeakValueDictionary[str, FaceField]()
         self._mesh_path = mesh_path
         self._surface_mesh_cache: gl.TensorMesh[Any] | None = None
 
@@ -155,31 +156,23 @@ class AxisProjectedGrid(IGridBase):
             .reshape(-1, 2)
         )
 
-    def register_field(self, field: GeometricField):
-        self._fields[field.name] = field
+    def register_cellfield(self, field: CellField):
+        self._cellfields[field.name] = field
 
-    def get_field(self, name: str) -> GeometricField | None:
-        """
-        Return a field associated with this grid
-        for boundary-condition reference.
+    def register_facefield(self, field: FaceField):
+        self._facefields[field.name] = field
 
-        This accessor is read-only by intent. Use it only to read existing
-        field values in boundary conditions (e.g. InletOutlet,
-        FixedFluxPressure), and do not use it as an update path for Field data.
-        """
-        return self._fields.get(name)
+    def get_cellfield(self, name: str) -> CellField | None:
+        return self._cellfields.get(name)
 
-    def field_names(self) -> Iterator[str]:
-        return self._fields.keys()
+    def get_facefield(self, name: str) -> FaceField | None:
+        return self._facefields.get(name)
 
-    def register_builtin_field(self, key: str, field: GeometricField):
-        self._builtin_fields[key] = field
+    def cellfield_names(self) -> Iterator[str]:
+        return self._cellfields.keys()
 
-    def get_builtin_field(self, key: str) -> GeometricField | None:
-        return self._builtin_fields.get(key)
-
-    def builtin_field_keys(self) -> Iterator[str]:
-        return self._builtin_fields.keys()
+    def facefield_names(self) -> Iterator[str]:
+        return self._facefields.keys()
 
     def get_domain_bnd_mask(
         self, patch_name: DomainBoundaryPatch

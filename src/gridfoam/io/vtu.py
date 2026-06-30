@@ -1,7 +1,6 @@
 import numpy as np
 import pyvista as pv
 
-from gridfoam.core.field import CellField
 from gridfoam.core.grid.base import IGridBase
 
 
@@ -95,13 +94,10 @@ def update_export_cell_data(
     grid : IGridBase
         Source grid that owns registered fields.
     """
-    for field_name in grid.field_names():
-        field = grid.get_field(field_name)
-        if not isinstance(field, CellField):
+    for field_name in grid.cellfield_names():
+        field = grid.get_cellfield(field_name)
+        if field is None or not field.export:
             continue
-        if not field.export:
-            continue
-
         values = field.data.detach().cpu().numpy()
         if values.shape[1] == 1:
             ugrid.cell_data[field.name] = values[:, 0]

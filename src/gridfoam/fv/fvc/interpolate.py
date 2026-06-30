@@ -1,4 +1,9 @@
-from gridfoam.core.field import CellField, FaceField, FieldRole
+from gridfoam.core.field import (
+    CellField,
+    FaceField,
+    FieldRole,
+    get_or_create_facefield,
+)
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
     BoundaryFaceKind,
@@ -27,17 +32,9 @@ def interpolate(field: CellField) -> FaceField:
     """
     grid = field.grid
 
-    psi_f = grid.get_field(f"{field.name}_f")
-    if psi_f is None:
-        psi_f = FaceField(
-            grid,
-            f"{field.name}_f",
-            role=FieldRole.LOCAL,
-            num_components=field.num_components,
-            dimension=field.dimension,
-            export=False,
-        )
-    assert isinstance(psi_f, FaceField)
+    psi_f = get_or_create_facefield(
+        grid, f"{field.name}_f", FieldRole.LOCAL, field.num_components
+    )
     # Internal faces
     psi_f.single_data = linear_internal_face_values(field)
 

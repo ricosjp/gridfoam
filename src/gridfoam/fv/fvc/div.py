@@ -1,6 +1,11 @@
 import torch
 
-from gridfoam.core.field import CellField, FaceField, FieldRole
+from gridfoam.core.field import (
+    CellField,
+    FaceField,
+    FieldRole,
+    get_or_create_cellfield,
+)
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 
 
@@ -19,18 +24,9 @@ def div(phi: FaceField) -> CellField:
         Cell-centered divergence field.
     """
     grid = phi.grid
-    div_phi = grid.get_field(f"div({phi.name})")
-    if div_phi is None:
-        div_phi = CellField(
-            grid,
-            f"div({phi.name})",
-            role=FieldRole.LOCAL,
-            num_components=1,
-            dimension=phi.dimension,
-            export=phi.export,
-        )
-    assert isinstance(div_phi, CellField)
-
+    div_phi = get_or_create_cellfield(
+        grid, f"div({phi.name})", FieldRole.LOCAL, 1
+    )
     data = torch.zeros(
         (grid.num_cells, 1), dtype=grid.dtype, device=grid.device
     )

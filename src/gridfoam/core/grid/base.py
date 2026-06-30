@@ -13,7 +13,7 @@ from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
 if TYPE_CHECKING:
-    from gridfoam.core.field import GeometricField
+    from gridfoam.core.field import CellField, FaceField
 
 
 class IGridBase(ABC):
@@ -26,27 +26,27 @@ class IGridBase(ABC):
         pass
 
     @abstractmethod
-    def register_field(self, field: GeometricField):
+    def register_cellfield(self, field: CellField):
         pass
 
     @abstractmethod
-    def get_field(self, name: str) -> GeometricField | None:
+    def register_facefield(self, field: FaceField):
         pass
 
     @abstractmethod
-    def field_names(self) -> Iterator[str]:
+    def get_cellfield(self, name: str) -> CellField | None:
         pass
 
     @abstractmethod
-    def register_builtin_field(self, key: str, field: GeometricField):
+    def get_facefield(self, name: str) -> FaceField | None:
         pass
 
     @abstractmethod
-    def get_builtin_field(self, key: str) -> GeometricField | None:
+    def cellfield_names(self) -> Iterator[str]:
         pass
 
     @abstractmethod
-    def builtin_field_keys(self) -> Iterator[str]:
+    def facefield_names(self) -> Iterator[str]:
         pass
 
     @abstractmethod

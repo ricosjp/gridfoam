@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import torch
 from jaxtyping import Float
 
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
-from gridfoam.core.builtins import make_builtin_key
-from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.name import make_field_name
 from gridfoam.meta.enums import (
     BoundaryConditionType,
     DomainBoundaryPatch,
     FaceSide,
 )
 from gridfoam.meta.types import PatchName
+
+if TYPE_CHECKING:
+    from gridfoam.core.field import CellField
+else:
+    CellField = Any
 
 
 class InletOutletBC(BoundaryCondition):
@@ -34,12 +40,11 @@ class InletOutletBC(BoundaryCondition):
     def __init__(
         self,
         inlet_value: Float[torch.Tensor, " k"],
-        phi_builtin_key: str | None = None,
+        phase: str | None = None,
     ):
         self.inlet_value = inlet_value
-        self.phi_builtin_key = phi_builtin_key or make_builtin_key(
-            "phi", scope="global"
-        )
+        self.phase = phase
+        self.phi_name = make_field_name("phi", phase=phase)
 
     @property
     def type(self) -> BoundaryConditionType:
@@ -48,7 +53,7 @@ class InletOutletBC(BoundaryCondition):
     def component(self, c: int) -> BoundaryCondition:
         return InletOutletBC(
             self.inlet_value[c : c + 1],
-            self.phi_builtin_key,
+            phase=self.phase,
         )
 
     def evaluate(
@@ -62,11 +67,6 @@ class InletOutletBC(BoundaryCondition):
         Float[torch.Tensor, " F_patch k"],
     ]:
         grid = field.grid
-        phi = grid.get_builtin_field(self.phi_builtin_key)
-        if not isinstance(phi, FaceField):
-            raise ValueError(
-                f"Builtin field {self.phi_builtin_key} is not a FaceField."
-            )
 
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
@@ -85,6 +85,11 @@ class InletOutletBC(BoundaryCondition):
         # Return zero-gradient behavior when there are no faces.
         if n_faces == 0:
             return fraction, ref_v, ref_g
+
+        # Lookup required fields from the field registry.
+        phi = grid.get_facefield(self.phi_name)
+        if phi is None:
+            raise ValueError(f"Field {self.phi_name} is not found.")
 
         # Fetch local face flux values on the target boundary.
         if isinstance(patch_name, DomainBoundaryPatch):

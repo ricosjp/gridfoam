@@ -9,7 +9,7 @@ class Equation:
     Parameters
     ----------
     name : str
-        Equation name (e.g., ``"momentum"``, ``"pressure"``).
+        Name of the field to be solved.
     target : CellField
         Target cell-centered field to solve/update.
     fv_matrix : FvMatrix
@@ -17,20 +17,18 @@ class Equation:
         The right-hand-side known term ``b`` is stored in ``fv_matrix.source``.
     """
 
-    def __init__(self, name: str, target: CellField, fv_matrix: FvMatrix):
-        self.name = name
+    def __init__(self, target: CellField, fv_matrix: FvMatrix):
+        self.name = target.name
         self.target = target
         self.fv_matrix = fv_matrix
 
 
-def equation(name: str, target: CellField, fv_matrix: FvMatrix) -> Equation:
+def equation(target: CellField, fv_matrix: FvMatrix) -> Equation:
     """
     Factory function to build an ``Equation`` instance.
 
     Parameters
     ----------
-    name : str
-        Equation name.
     target : CellField
         Target cell-centered field.
     fv_matrix : FvMatrix
@@ -41,4 +39,4 @@ def equation(name: str, target: CellField, fv_matrix: FvMatrix) -> Equation:
     Equation
         Constructed equation object.
     """
-    return Equation(name, target, fv_matrix)
+    return Equation(target, fv_matrix)

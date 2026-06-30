@@ -6,6 +6,7 @@ import torch
 from jaxtyping import Bool, Float
 
 from gridfoam.boundaries.base import BoundaryCondition
+from gridfoam.boundaries.factory import create_boundary_condition
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.enums import FieldRole
@@ -61,31 +62,52 @@ class CellField(GeometricField):
         name: str,
         role: FieldRole,
         num_components: int,
-        dimension: dict[str, int] | None = None,
-        export: bool = True,
-        bcs: dict[PatchName, BoundaryCondition] | None = None,
-        ref_cell_id: int = 0,
-        ref_value: float = 0.0,
     ):
         self._grid = grid
         self._name = name
         self._role = role
         self._num_components = num_components
-        self._dimension = dimension
-        self._export = export
-        self._bcs = bcs or {}
-        self._ref_cell_id = ref_cell_id
-        self._ref_value = ref_value
 
         device = grid.device
         dtype = grid.dtype
 
         shape = (grid.num_cells, num_components)
         self._data = torch.zeros(shape, dtype=dtype, device=device)
-        self.update_history()
+
+        self._bcs: dict[PatchName, BoundaryCondition] = {}
+        self._dimension = None
+        self._export = False
+        self._condition = self.grid.sim_config.get_field_condition(self.name)
+        if self._condition is not None:
+            self._dimension = self._condition.dimension
+            self._export = self._condition.export
+            # init internal value
+            self.reset_data(self._condition.internal)
+            # init boundary conditions
+            for bc_config in self._condition.iter_bc_configs():
+                bc = create_boundary_condition(
+                    bc_config, dtype=grid.dtype, device=grid.device
+                )
+                for patch in bc_config.patches:
+                    self._bcs[patch] = bc
 
         # Self-register in the grid field registry.
-        grid.register_field(self)
+        grid.register_cellfield(self)
+
+        self.update_history()
+
+    def reset_data(self, init_value: list[float]):
+        """
+        Reset data to initial condition.
+        """
+        if len(init_value) != self.num_components:
+            raise ValueError(
+                f"Field {self.name!r}: internal has {len(init_value)} value(s), "
+                f"expected {self.num_components}"
+            )
+        self._data[:] = torch.tensor(
+            init_value, dtype=self.grid.dtype, device=self.grid.device
+        ).view(1, self.num_components)
 
     def update_history(self):
         """
@@ -132,17 +154,13 @@ class CellField(GeometricField):
     def export(self) -> bool:
         return self._export
 
+    @export.setter
+    def export(self, value: bool):
+        self._export = value
+
     @property
     def bcs(self) -> dict[PatchName, BoundaryCondition]:
         return self._bcs
-
-    @property
-    def ref_cell_id(self) -> int:
-        return self._ref_cell_id
-
-    @property
-    def ref_value(self) -> float:
-        return self._ref_value
 
     # ================================
     # Data Accessors
@@ -211,7 +229,7 @@ class FaceField(GeometricField):
         self._single_data = torch.zeros(shape, dtype=dtype, device=device)
 
         # Self-register in the grid field registry.
-        grid.register_field(self)
+        grid.register_facefield(self)
 
     # ================================
     # Grid Accessors
@@ -301,3 +319,47 @@ class FaceField(GeometricField):
     @domain_bnd_data.setter
     def domain_bnd_data(self, value: Float[torch.Tensor, "F_bnd k"]):
         self._domain_bnd_data = value
+
+
+def get_or_create_cellfield(
+    grid: IGridBase,
+    name: str,
+    role: FieldRole,
+    num_components: int,
+) -> CellField:
+    field = grid.get_cellfield(name)
+    if field is None:
+        field = CellField(
+            grid=grid,
+            name=name,
+            role=role,
+            num_components=num_components,
+        )
+    assert field.role == role
+    assert field.num_components == num_components
+    return field
+
+
+def get_or_create_facefield(
+    grid: IGridBase,
+    name: str,
+    role: FieldRole,
+    num_components: int,
+    dimension: dict[str, int] | None = None,
+    export: bool = True,
+) -> FaceField:
+    field = grid.get_facefield(name)
+    if field is None:
+        field = FaceField(
+            grid=grid,
+            name=name,
+            role=role,
+            num_components=num_components,
+            dimension=dimension,
+            export=export,
+        )
+    assert field.role == role
+    assert field.num_components == num_components
+    assert field.dimension == dimension
+    assert field.export == export
+    return field

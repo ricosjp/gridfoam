@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import torch
 
-from gridfoam.core.field import CellField
+from gridfoam.core.field import get_or_create_cellfield
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
-from gridfoam.meta.config import ForceCoeffConfig
+from gridfoam.core.name import make_field_name
+from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.post.forces.coeffs import ForceCoeffs
 from gridfoam.post.forces.coord import OrthonormalCoord
@@ -20,7 +24,13 @@ class ForceEvaluator:
     Evaluate aerodynamic force and moment coefficients on immersed surfaces.
     """
 
-    def __init__(self, config: ForceCoeffConfig):
+    def __init__(self, grid: IGridBase, phase: str | None = None):
+        self.grid = grid
+
+        post_processing = grid.sim_config.post_processing
+        assert post_processing is not None
+        config = post_processing.forceCoeff
+        assert config is not None
         self.patches = config.patches
         self.rho = config.rho
         self.magU_ref = config.magU_ref
@@ -29,14 +39,17 @@ class ForceEvaluator:
         self.local_coord = OrthonormalCoord.from_local_coord(config.local_coord)
         self.CofR = torch.tensor(config.local_coord.center_of_rotation)
 
+        U_name = make_field_name("U", phase=phase)
+        p_name = make_field_name("p", phase=phase)
+        self.U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
+        self.p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+
         self.history: list[ForceCoeffs] = []
 
     def evaluate(
         self,
         grid: IGridBase,
         time: float,
-        p: CellField,
-        U: CellField,
         turbulence: TurbulenceModel,
     ) -> ForceCoeffs:
         """
@@ -48,10 +61,6 @@ class ForceEvaluator:
             Axis-projected grid containing immersed-boundary metadata.
         time : float
             Simulation time.
-        p : CellField
-            Kinematic pressure field.
-        U : CellField
-            Velocity field.
         turbulence : TurbulenceModel
             Turbulence model that provides the effective kinematic viscosity.
 
@@ -71,8 +80,8 @@ class ForceEvaluator:
         for patch_name in self.patches:
             f_patch, m_patch = integrate_patch_on_surface_mesh(
                 grid,
-                p=p,
-                U=U,
+                p=self.p,
+                U=self.U,
                 nu_eff=nu_eff,
                 patch_name=patch_name,
                 rho=self.rho,
@@ -96,6 +105,52 @@ class ForceEvaluator:
 
     def get_history(self) -> list[ForceCoeffs]:
         return self.history
+
+    def write_csv(self, path: Path) -> None:
+        with path.open("w") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "time",
+                    "Cd",
+                    "Cd_f",
+                    "Cd_r",
+                    "Cl",
+                    "Cl_f",
+                    "Cl_r",
+                    "CmPitch",
+                    "CmRoll",
+                    "CmYaw",
+                    "Cs",
+                    "Cs_f",
+                    "Cs_r",
+                ]
+            )
+            for coeff in self.history:
+                writer.writerow(
+                    [
+                        coeff.time,
+                        coeff.Cd.item(),
+                        coeff.Cd_f.item(),
+                        coeff.Cd_r.item(),
+                        coeff.Cl.item(),
+                        coeff.Cl_f.item(),
+                        coeff.Cl_r.item(),
+                        coeff.CmPitch.item(),
+                        coeff.CmRoll.item(),
+                        coeff.CmYaw.item(),
+                        coeff.Cs.item(),
+                        coeff.Cs_f.item(),
+                        coeff.Cs_r.item(),
+                    ]
+                )
+
+    def save_surface_mesh(self, path: Path) -> None:
+        self.grid.surface_mesh.save(
+            path,
+            overwrite_features=True,
+            overwrite_file=True,
+        )
 
     def _reference_scales(self) -> tuple[float, float]:
         q_inf = 0.5 * self.rho * self.magU_ref**2

@@ -243,3 +243,37 @@ class ForceCoordMode(StrEnum):
 
     DRAG_LIFT = auto()
     DRAG_PITCH = auto()
+
+
+class AlgorithmType(StrEnum):
+    """
+    Type of the algorithm.
+    - SIMPLE: Steady incompressible Navier-Stokes equations solver.
+    - PISO: Transient incompressible Navier-Stokes equations solver.
+    - PIMPLE: Transient incompressible Navier-Stokes equations solver.
+    - MANUAL: Manual algorithm.
+    """
+
+    SIMPLE = auto()
+    PISO = auto()
+    PIMPLE = auto()
+    MANUAL = auto()
+
+
+class TransportModelType(StrEnum):
+    """
+    Type of the transport model.
+    - NEWTONIAN: Newtonian transport model.
+    """
+
+    NEWTONIAN = auto()
+
+
+class TurbulenceType(StrEnum):
+    """
+    Type of the turbulence.
+    - LAMINAR: Laminar turbulence model.
+    """
+
+    LAMINAR = auto()
+    # TODO: RAS/LES

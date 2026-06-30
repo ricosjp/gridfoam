@@ -22,9 +22,13 @@ from pathlib import Path
 
 import yaml
 
+from gridfoam.algorithms.factory import create_algorithm
+from gridfoam.core.grid.factory import create_grid
+from gridfoam.meta.config import GridfoamConfig, ManualAlgorithm
+
 PROFILE_DIR = Path(__file__).resolve().parent
 OF_CASE_DIR = PROFILE_DIR / "openfoam"
-GRIDFOAM_CONFIG = PROFILE_DIR / "data" / "config.yml"
+GRIDFOAM_CONFIG = PROFILE_DIR / "data" / "config.yaml"
 RESULTS_DIR = PROFILE_DIR / "benchmark_results"
 RESULTS_CSV = RESULTS_DIR / "resolution_scaling.csv"
 
@@ -240,14 +244,6 @@ def run_gridfoam_benchmark(
     device: str | None,
     skip_existing: bool,
 ) -> list[BenchmarkRow]:
-    from gridfoam.algorithms.simple import SIMPLE
-    from gridfoam.boundaries.factory import apply_boundary_condition_configs
-    from gridfoam.core.field import CellField
-    from gridfoam.core.grid.factory import create_grid
-    from gridfoam.meta.config import GridfoamConfig
-    from gridfoam.meta.enums import FieldRole
-    from gridfoam.models.turbulence.laminar import Laminar
-
     rows: list[BenchmarkRow] = []
     existing = _load_existing_rows(RESULTS_CSV)
     existing_keys = {(row["solver"], row["resolution"]) for row in existing}
@@ -276,18 +272,14 @@ def run_gridfoam_benchmark(
         grid = create_grid(config)
         n_cells = grid.num_cells
 
-        U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-        p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
-        boundary_conditions = config.simulator.boundaryConditions
-        if boundary_conditions is None:
-            raise ValueError("boundaryConditions is required")
-        apply_boundary_condition_configs(U, boundary_conditions["U"])
-        apply_boundary_condition_configs(p, boundary_conditions["p"])
+        # Create the algorithm
+        algorithm_config = grid.sim_config.fvSolution.algorithm
+        if isinstance(algorithm_config, ManualAlgorithm):
+            raise ValueError("Manual algorithm has no step sequence")
+        algorithm = create_algorithm(grid)
 
-        turbulence = Laminar(grid=grid, nu=0.1)
-        algo = SIMPLE(grid=grid, U=U, p=p, turbulence=turbulence)
         for _ in range(n_steps):
-            algo.step()
+            algorithm.step()
 
         elapsed_s = time.perf_counter() - start
         rows.append(

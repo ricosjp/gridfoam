@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import torch
 from jaxtyping import Float
 
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
-from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.meta.enums import (
     BoundaryConditionType,
@@ -13,6 +14,11 @@ from gridfoam.meta.enums import (
     FaceSide,
 )
 from gridfoam.meta.types import PatchName
+
+if TYPE_CHECKING:
+    from gridfoam.core.field import CellField
+else:
+    CellField = Any
 
 
 class SlipBC(BoundaryCondition):

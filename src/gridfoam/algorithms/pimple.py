@@ -5,16 +5,21 @@ import torch
 from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.utils import (
     needs_reference_value,
-    solve_pressure_poisson,
+    set_reference_value,
 )
-from gridfoam.core.builtins import make_builtin_key
 from gridfoam.core.equation import equation
-from gridfoam.core.field import CellField, FaceField
+from gridfoam.core.field import (
+    get_or_create_cellfield,
+    get_or_create_facefield,
+)
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.flux import correct_flux
+from gridfoam.meta.config import PIMPLEAlgorithm
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
+from gridfoam.models.turbulence.factory import create_turbulence_model
 from gridfoam.solvers.factory import create_solver
 
 logger = logging.getLogger(__name__)
@@ -31,86 +36,67 @@ class PIMPLE(AlgorithmBase):
     ----------
     grid : IGridBase
         Computational grid.
-    U : CellField
-        Velocity field.
-    p : CellField
-        Pressure field.
-    turbulence : TurbulenceModel
-        Turbulence model.
-    n_outer_correctors : int, optional
-        Number of outer correctors. Default is 1.
-    n_correctors : int, optional
-        Number of inner correctors. Default is 2.
+    phase : str | None, optional
+        Phase name. Default is None.
     """
 
     def __init__(
         self,
         grid: IGridBase,
-        U: CellField,
-        p: CellField,
-        turbulence: TurbulenceModel,
-        n_outer_correctors: int = 1,
-        n_correctors: int = 2,
+        phase: str | None = None,
     ):
-        self.grid = grid
-        self.U = U
-        self.p = p
-        builtin_scope = "global"
-        phi_builtin_key = make_builtin_key("phi", scope=builtin_scope)
-        builtin_phi = self.grid.get_builtin_field(phi_builtin_key)
-        if isinstance(builtin_phi, FaceField):
-            self.phi = builtin_phi
-        else:
-            self.phi = FaceField(
-                grid=self.grid,
-                name="phi",
-                role=FieldRole.LOCAL,
-                num_components=1,
-                export=False,
-            )
+        self._grid = grid
+
+        U_name = make_field_name("U", phase=phase)
+        p_name = make_field_name("p", phase=phase)
+        phi_name = make_field_name("phi", phase=phase)
+        rAU_name = make_field_name("rAU", phase=phase)
+        HbyA_name = make_field_name("HbyA", phase=phase)
+
+        self.U = get_or_create_cellfield(grid, U_name, FieldRole.TRANSIENT, 3)
+        self.p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+        self.phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, 1)
+        self.rAU = get_or_create_cellfield(grid, rAU_name, FieldRole.LOCAL, 1)
+        self.HbyA = get_or_create_cellfield(grid, HbyA_name, FieldRole.LOCAL, 3)
+
         self.solvers = {
-            eq_name: create_solver(config)
-            for eq_name, config in (
+            field_name: create_solver(config)
+            for field_name, config in (
                 self.grid.sim_config.fvSolution.solvers.items()
             )
         }
-        self.turbulence = turbulence
-        self.n_outer_correctors = n_outer_correctors
-        self.n_correctors = n_correctors
-        self.grid.register_builtin_field(
-            make_builtin_key("U", scope=builtin_scope), self.U
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("p", scope=builtin_scope), self.p
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("phi", scope=builtin_scope), self.phi
-        )
+        self._turbulence = create_turbulence_model(grid)
 
-        self.rAU_field = CellField(
-            grid,
-            name="rAU",
-            role=FieldRole.LOCAL,
-            num_components=1,
-            export=False,
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("rAU", scope=builtin_scope), self.rAU_field
-        )
-
-        self.HbyA_field = CellField(
-            grid,
-            name="HbyA",
-            role=FieldRole.LOCAL,
-            num_components=3,
-            export=False,
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("HbyA", scope=builtin_scope), self.HbyA_field
+        algorithm_config = grid.sim_config.fvSolution.algorithm
+        assert isinstance(algorithm_config, PIMPLEAlgorithm)
+        self.n_outer_correctors = algorithm_config.nOuterCorrectors
+        self.n_correctors = algorithm_config.nCorrectors
+        self.n_non_orthogonal_correctors = (
+            algorithm_config.nNonOrthogonalCorrectors
         )
 
         self.p_needs_ref = needs_reference_value(self.p)
+        if self.p_needs_ref:
+            if algorithm_config.pRefCell is None:
+                raise ValueError(
+                    "pRefCell is required when p_needs_ref is True"
+                )
+            self.p_ref_cell = algorithm_config.pRefCell
+            if algorithm_config.pRefValue is None:
+                raise ValueError(
+                    "pRefValue is required when p_needs_ref is True"
+                )
+            self.p_ref_value = algorithm_config.pRefValue
+
         correct_flux(self.phi, self.U, update_internal=True)
+
+    @property
+    def grid(self) -> IGridBase:
+        return self._grid
+
+    @property
+    def turbulence(self) -> TurbulenceModel:
+        return self._turbulence
 
     def step(self):
         grid = self.grid
@@ -145,7 +131,7 @@ class PIMPLE(AlgorithmBase):
             UEqn_mat.source = original_source - grad_p.data * grid.cell_volumes
 
             # Solve momentum predictor (obtain U*)
-            momentum_eq = equation("momentum", self.U, UEqn_mat)
+            momentum_eq = equation(self.U, UEqn_mat)
             self.U.data = self.solvers[momentum_eq.name].solve(momentum_eq)
 
             # =========================================================
@@ -157,16 +143,14 @@ class PIMPLE(AlgorithmBase):
                     inner + 1,
                     self.n_correctors,
                 )
-                self.rAU_field.data = 1.0 / UEqn_mat.A()
+                self.rAU.data = 1.0 / UEqn_mat.A()
 
                 # Compute HbyA with H() without pressure-gradient source
                 UEqn_mat.source = original_source
-                self.HbyA_field.data = (
-                    UEqn_mat.H(self.U.data) * self.rAU_field.data
-                )
+                self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
 
                 # Interpolate HbyA to faces and compute phi_HbyA
-                HbyA_f = fvc.interpolate(self.HbyA_field)
+                HbyA_f = fvc.interpolate(self.HbyA)
 
                 # only update the internal faces
                 # (other faces are constrained by boundary conditions)
@@ -183,27 +167,31 @@ class PIMPLE(AlgorithmBase):
                     "PIMPLE continuity residual L2=%.3e",
                     continuity_residual,
                 )
-                fv_solution = grid.sim_config.fvSolution
-                solve_pressure_poisson(
-                    self.p,
-                    self.rAU_field,
-                    self.phi,
-                    self.solvers["pressure_poisson"],
-                    p_needs_ref=self.p_needs_ref,
-                    n_non_orthogonal_correctors=fv_solution.n_non_orthogonal_correctors,
-                )
 
-                # Velocity and flux correction
-                grad_p = fvc.grad(self.p)
+                # solve pressure Poisson equation
+                div_phi = fvc.div(self.phi).data
+                for corr in range(self.n_non_orthogonal_correctors + 1):
+                    pEqn_mat = -fvm.laplacian(self.rAU.data, self.p)
+                    pEqn_mat.source = pEqn_mat.source - div_phi
+                    if self.p_needs_ref:
+                        set_reference_value(
+                            pEqn_mat, self.p_ref_cell, self.p_ref_value
+                        )
+
+                    pressure_eq = equation(self.p, pEqn_mat)
+                    self.p.data = self.solvers[self.p.name].solve(pressure_eq)
+
+                    if corr < self.n_non_orthogonal_correctors:
+                        logger.debug(
+                            "non-orthogonal pressure corrector %d/%d",
+                            corr + 1,
+                            self.n_non_orthogonal_correctors,
+                        )
+
+                # flux correction
                 sn_grad_p = fvc.sn_grad(self.p)
-                rAU_f = fvc.interpolate(self.rAU_field)
+                rAU_f = fvc.interpolate(self.rAU)
 
-                # Velocity correction: U = HbyA - rAU * grad(p)
-                self.U.data = (
-                    self.HbyA_field.data - self.rAU_field.data * grad_p.data
-                )
-
-                # Face-flux correction:
                 # phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)
                 mag_Sf = torch.linalg.vector_norm(
                     grid.Sf[self.phi.single_mask], dim=1, keepdim=True
@@ -213,9 +201,25 @@ class PIMPLE(AlgorithmBase):
                     - rAU_f.single_data * mag_Sf * sn_grad_p.single_data
                 )
 
+                # =========================================================
+                # Velocity and flux correction
+                # =========================================================
+                grad_p = fvc.grad(self.p)
+
+                # Velocity correction: U = HbyA - rAU * grad(p)
+                self.U.data = self.HbyA.data - self.rAU.data * grad_p.data
+
                 correct_flux(self.phi, self.U)
+                logger.debug(
+                    "PIMPLE corrected flux L2=%.3e",
+                    torch.linalg.vector_norm(
+                        self.phi.single_data, ord=2
+                    ).item(),
+                )
+
             # =========================================================
             # Turbulence model update
             # =========================================================
             self.turbulence.correct(self.U, self.phi)
+        self.U.update_history()
         logger.info("PIMPLE step end")

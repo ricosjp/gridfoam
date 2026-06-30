@@ -3,8 +3,12 @@ import logging
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.builtins import make_builtin_key
-from gridfoam.core.field import CellField, FaceField, FieldRole
+from gridfoam.core.field import (
+    CellField,
+    FaceField,
+    FieldRole,
+    get_or_create_cellfield,
+)
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
 
@@ -23,27 +27,12 @@ class KOmegaSST(TurbulenceModel):
         Kinematic viscosity.
     """
 
-    def __init__(self, grid: IGridBase, nu: float | torch.Tensor):
-        super().__init__(grid, nu)
-        builtin_scope = "global"
+    def __init__(self, grid: IGridBase):
+        super().__init__(grid)
 
-        self.k = CellField(
-            grid=self.grid,
-            name="k",
-            role=FieldRole.LOCAL,
-            num_components=1,
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("k", scope=builtin_scope), self.k
-        )
-        self.omega = CellField(
-            grid=self.grid,
-            name="omega",
-            role=FieldRole.TRANSIENT,
-            num_components=1,
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("omega", scope=builtin_scope), self.omega
+        self.k = get_or_create_cellfield(self.grid, "k", FieldRole.LOCAL, 1)
+        self.omega = get_or_create_cellfield(
+            self.grid, "omega", FieldRole.TRANSIENT, 1
         )
 
         # Standard k-omega SST constants.
@@ -92,7 +81,7 @@ class KOmegaSST(TurbulenceModel):
         torch.Tensor
             Effective viscosity per cell with shape ``[C, 1]``.
         """
-        nu_eff_value = self.nu + self.nu_t.data
+        nu_eff_value = self.transport.nu() + self.nu_t.data
         nu_eff_min = torch.min(nu_eff_value).item()
         nu_eff_max = torch.max(nu_eff_value).item()
         logger.debug(

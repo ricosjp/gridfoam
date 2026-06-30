@@ -9,10 +9,8 @@ from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.boundaries.basic.slip import SlipBC
 from gridfoam.boundaries.derived.fixed_flux_pressure import FixedFluxPressure
 from gridfoam.boundaries.derived.inlet_outlet import InletOutletBC
-from gridfoam.core.field import CellField
 from gridfoam.meta.config import BoundaryConditionConfig
 from gridfoam.meta.enums import BoundaryConditionType
-from gridfoam.meta.types import PatchName
 
 
 def _to_tensor(
@@ -40,27 +38,10 @@ def create_boundary_condition(
     if bc_type == BoundaryConditionType.INLET_OUTLET:
         return InletOutletBC(
             inlet_value=_to_tensor(bc_config.value, dtype, device),
-            phi_builtin_key=bc_config.phi_builtin_key,
+            phase=bc_config.phase,
         )
     if bc_type == BoundaryConditionType.FIXED_FLUX_PRESSURE:
         return FixedFluxPressure(
-            phi_builtin_key=bc_config.phi_builtin_key,
-            HbyA_builtin_key=bc_config.HbyA_builtin_key,
-            rAU_builtin_key=bc_config.rAU_builtin_key,
+            phase=bc_config.phase,
         )
     raise ValueError(f"Unsupported boundary condition type: {bc_type}")
-
-
-def apply_boundary_condition_configs(
-    field: CellField, bc_configs: list[BoundaryConditionConfig]
-) -> None:
-    bcs: dict[PatchName, BoundaryCondition] = {}
-    for bc_config in bc_configs:
-        bc = create_boundary_condition(
-            bc_config,
-            dtype=field.grid.dtype,
-            device=field.grid.device,
-        )
-        for patch in bc_config.patches:
-            bcs[patch] = bc
-    field.add_boundary_conditions(bcs)

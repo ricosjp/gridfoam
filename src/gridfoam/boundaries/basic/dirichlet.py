@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 import torch
 from jaxtyping import Float
+from torch._tensor import Tensor
 
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
-from gridfoam.core.field import CellField
 from gridfoam.meta.enums import BoundaryConditionType, FaceSide
 from gridfoam.meta.types import PatchName
+
+if TYPE_CHECKING:
+    from gridfoam.core.field import CellField
+else:
+    CellField = Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +51,7 @@ class DirichletBC(BoundaryCondition):
         Float[torch.Tensor, " F_patch k"],
     ]:
         grid = field.grid
-        value = self.value.to(dtype=grid.dtype, device=grid.device)
+        value: Tensor = self.value.to(dtype=grid.dtype, device=grid.device)
 
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())

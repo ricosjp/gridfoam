@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 from jaxtyping import Float
@@ -11,6 +11,8 @@ from gridfoam.meta.types import PatchName
 
 if TYPE_CHECKING:
     from gridfoam.core.field import CellField
+else:
+    CellField = Any
 
 
 class BoundaryCondition(ABC):

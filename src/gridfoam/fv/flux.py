@@ -39,6 +39,20 @@ def correct_flux(
         phi.single_data = torch.sum(
             U_f.single_data * grid.Sf[U_f.single_mask], dim=1, keepdim=True
         )
+        phi.domain_bnd_data = torch.sum(
+            U_f.domain_bnd_data * grid.domain_bnd_Sf, dim=1, keepdim=True
+        )
+        if isinstance(grid, AxisProjectedGrid):
+            phi.immersed_upper = torch.sum(
+                U_f.immersed_upper * grid.Sf[grid.ap_is_immersed_faces],
+                dim=1,
+                keepdim=True,
+            )
+            phi.immersed_lower = torch.sum(
+                U_f.immersed_lower * grid.Sf[grid.ap_is_immersed_faces],
+                dim=1,
+                keepdim=True,
+            )
 
     for batch in iter_boundary_batches(U):
         _, _, _, U_b = evaluate_boundary_state(U, batch)
@@ -117,9 +131,7 @@ def reconstruct_U_from_phi(
         immersed_owner = grid.owner[grid.ap_is_immersed_faces]
         immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
         immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
-        u_data.index_add_(
-            0, immersed_owner, phi.immersed_upper * immersed_Sf
-        )
+        u_data.index_add_(0, immersed_owner, phi.immersed_upper * immersed_Sf)
         u_data.index_add_(
             0, immersed_neighbour, -phi.immersed_lower * immersed_Sf
         )

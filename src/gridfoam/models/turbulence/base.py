@@ -4,9 +4,15 @@ from abc import ABC, abstractmethod
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.builtins import make_builtin_key
-from gridfoam.core.field import CellField, FaceField, FieldRole
+from gridfoam.core.field import (
+    CellField,
+    FaceField,
+    FieldRole,
+    get_or_create_cellfield,
+)
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.name import make_field_name
+from gridfoam.models.transport.factory import create_transport_model
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +29,14 @@ class TurbulenceModel(ABC):
         Molecular kinematic viscosity.
     """
 
-    def __init__(self, grid: IGridBase, nu: float | torch.Tensor):
-        self.nu = nu
+    def __init__(self, grid: IGridBase):
         self.grid = grid
-        builtin_scope = "global"
+        self.transport = create_transport_model(grid)
 
         # Initialize turbulent viscosity field.
-        self.nu_t = CellField(
-            grid=self.grid,
-            name="nu_t",
-            role=FieldRole.LOCAL,
-            num_components=1,
-        )
-        self.grid.register_builtin_field(
-            make_builtin_key("nu_t", scope=builtin_scope), self.nu_t
+        nu_t_name = make_field_name("nu_t")
+        self.nu_t = get_or_create_cellfield(
+            self.grid, nu_t_name, FieldRole.LOCAL, 1
         )
 
     @abstractmethod
