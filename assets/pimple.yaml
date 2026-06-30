@@ -1,0 +1,114 @@
+# gridfoam config file
+version: 0.0.1
+
+# Parameters
+inlet_speed: &inlet_speed {{ magU_ref }}
+flow_velocity: &flow_velocity [*inlet_speed, 0.0, 0.0]
+
+# Fluxel config (mesh generation)
+fluxel:
+  domain:
+    lower: [-8.0, -4.0, -4.0]
+    upper: [16.0, 4.0, 4.0]
+  root_resolution: [24, 8, 8]
+  target_level: 2
+  n_leaf_refinement: 2
+  mesh_path: {{ mesh_path }}
+  ibm_type: axis_projected
+  refinement_regions:
+    - name: refinement_box
+      min: [-2.0, -2.0, -2.0]
+      max: [6.0, 2.0, 2.0]
+      level: 2
+
+# Simulator config (simulation settings)
+simulator:
+  # Control settings corresponding to system/controlDict
+  control:
+    deltaT: 0.01
+    endTime: 0.5
+    writeInterval: 10
+    output:
+      output_dir: "example"
+      base_name: "pimple"
+      overwrite_file: true
+    precision: float64
+  # Fv schemes settings corresponding to system/fvSchemes
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  # Fv solution settings corresponding to system/fvSolution
+  fvSolution:
+    algorithm:
+      type: pimple
+      nNonOrthogonalCorrectors: 2
+      nCorrectors: 2
+      nOuterCorrectors: 1
+      residualControl:
+        U: 1e-4
+        p: 1e-5
+      pRefCell: 0
+      pRefValue: 0.0
+    solvers:
+      U:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 0
+        rel_tolerance: 1e-8
+        max_iter: 1000
+        norm_type: l_2
+      p:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 0
+        rel_tolerance: 1e-6
+        max_iter: 1000
+        norm_type: l_2
+  # Conditions corresponding to 0.orig
+  conditions:
+      U:
+        internal: *flow_velocity
+        boundary:
+          inlet:
+            type: dirichlet
+            patches: [x_minus]
+            value: *flow_velocity
+          outlet:
+            type: inlet_outlet
+            patches: [x_plus]
+            value: [0.0, 0.0, 0.0]
+          farfield:
+            type: slip
+            patches: [y_minus, y_plus, z_minus, z_plus]
+          wall:
+            type: dirichlet
+            patches: [_default]
+            value: [0.0, 0.0, 0.0]
+      p:
+        internal: [0.0]
+        boundary:
+          inlet:
+            type: neumann
+            patches: [x_minus]
+            value: [0.0]
+          outlet:
+            type: dirichlet
+            patches: [x_plus]
+            value: [0.0]
+          farfield:
+            type: neumann
+            patches: [y_minus, y_plus, z_minus, z_plus]
+            value: [0.0]
+          wall:
+            type: neumann
+            patches: [_default]
+            value: [0.0]
+  # Properties settings corresponding to constant/properties
+  properties:
+    transport:
+      type: newtonian
+      nu: {{ nu }}
+    turbulence:
+      type: laminar
+  # Device settings
+  device: cuda
