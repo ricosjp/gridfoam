@@ -1,0 +1,94 @@
+# gridfoam config file
+version: 0.0.1
+
+# Fluxel config (mesh generation)
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [20.0, 8.0, 1.0]
+  root_resolution: [40, 16, 1]
+  target_level: 0
+  n_leaf_refinement: 0
+  mesh_path: null
+  ibm_type: axis_projected
+
+# Simulator config (simulation settings)
+simulator:
+  # Control settings corresponding to system/controlDict
+  control:
+    deltaT: 0.1
+    endTime: 100
+    writeInterval: 100
+    output:
+      output_dir: "examples/hagen_poiseuille/gridfoam/outputs"
+      base_name: "hagen_poiseuille"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    algorithm:
+      type: piso
+      nNonOrthogonalCorrectors: 2
+      nCorrectors: 2
+      pRefCell: 0
+      pRefValue: 0.0
+    solvers:
+      U:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 1000
+        norm_type: l_2
+      p:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 0.0
+        rel_tolerance: 1e-6
+        max_iter: 2000
+        norm_type: l_2
+  # Conditions corresponding to 0.orig
+  conditions:
+    U:
+      internal: [0.0, 0.0, 0.0]
+      boundary:
+        flow:
+          type: neumann
+          patches: [x_minus, x_plus]
+          value: [0.0, 0.0, 0.0]
+        wall:
+          type: dirichlet
+          patches: [y_minus, y_plus]
+          value: [0.0, 0.0, 0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+    p:
+      internal: [0.0]
+      boundary:
+        inflow:
+          type: dirichlet
+          patches: [x_minus]
+          value: [2.0]
+        outflow:
+          type: dirichlet
+          patches: [x_plus]
+          value: [0.0]
+        wall:
+          type: neumann
+          patches: [y_minus, y_plus]
+          value: [0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+  # Properties settings corresponding to constant/properties
+  properties:
+    transport:
+      type: newtonian
+      nu: 0.1
+    turbulence:
+      type: laminar
+  # Device settings
+  device: cpu

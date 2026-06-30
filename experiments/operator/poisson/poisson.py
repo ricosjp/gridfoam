@@ -12,11 +12,11 @@ import yaml
 from jinja2 import Template
 from pydantic import BaseModel
 
-from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.equation import equation
-from gridfoam.core.field import CellField
+from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
+from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvm
 from gridfoam.fv.fvm.laplacian import IGridBase
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
@@ -36,7 +36,7 @@ METRICS_CSV_NAME = "convergence_metrics.csv"
 CONVERGENCE_PLOT_NAME = "linf_vs_dx.png"
 DEFAULT_N_LEAF_REFINEMENTS = (1, 2, 3, 4, 5)
 
-logger = logging.getLogger("gridfoam.experiments.operator.poisson")
+logger = logging.getLogger(__name__)
 
 
 class PoissonMetrics(BaseModel, frozen=True):
@@ -165,14 +165,10 @@ def solve_poisson_case(
     """
     config = load_config(n_leaf_refinement)
     grid = create_grid_from_config(config)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
 
-    boundary_conditions = config.simulator.boundaryConditions
-    if boundary_conditions is None or "p" not in boundary_conditions:
-        raise ValueError("boundaryConditions.p is required for this example.")
-    apply_boundary_condition_configs(p, boundary_conditions["p"])
-
-    p_solver = create_solver(config.simulator.fvSolution.solvers["poisson"])
+    p_name = make_field_name("p")
+    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+    p_solver = create_solver(grid.sim_config.fvSolution.solvers[p_name])
 
     cell_centers = grid.cell_centers
     x = cell_centers[:, 0]
@@ -180,19 +176,20 @@ def solve_poisson_case(
     z = cell_centers[:, 2]
 
     poisson_mat = assemble_poisson_matrix(p)
-    poisson_eq = equation("poisson", p, poisson_mat)
+    poisson_eq = equation(p, poisson_mat)
     p.data = p_solver.solve(poisson_eq)
 
     p_ref = p_exact(x, y, z).unsqueeze(-1)
     errors = compute_errors(p.data, p_ref)
 
     if save_vtu:
-        p_exact_field = CellField(
-            grid, "p_exact", role=FieldRole.LOCAL, num_components=1
-        )
-        diff_field = CellField(
-            grid, "diff", role=FieldRole.LOCAL, num_components=1
-        )
+        p_exact_name = make_field_name("p_exact")
+        diff_name = make_field_name("diff")
+        p_exact_field = get_or_create_cellfield(grid, p_exact_name, FieldRole.LOCAL, 1)
+        diff_field = get_or_create_cellfield(grid, diff_name, FieldRole.LOCAL, 1)
+        p_exact_field.export = True
+        diff_field.export = True
+
         p_exact_field.data = p_ref
         diff_field.data = (p.data - p_ref).abs()
         case_output_dir = output_dir / f"n_leaf_{n_leaf_refinement}"

@@ -2,23 +2,23 @@
 version: 0.0.1
 
 # Parameters
-inlet_speed: &inlet_speed {{ magU_ref }}
+inlet_speed: &inlet_speed 20.0
 flow_velocity: &flow_velocity [*inlet_speed, 0.0, 0.0]
 
 # Fluxel config (mesh generation)
 fluxel:
   domain:
-    lower: [-8.0, -4.0, -4.0]
-    upper: [16.0, 4.0, 4.0]
-  root_resolution: [24, 8, 8]
-  target_level: 2
-  n_leaf_refinement: 2
-  mesh_path: {{ mesh_path }}
+    lower: [-5.0, -4.0, 0.0]
+    upper: [15.0, 4.0, 8.0]
+  root_resolution: [10, 4, 4]
+  target_level: 3
+  n_leaf_refinement: 3
+  mesh_path: "examples/motorBike/gridfoam/data/motorBike_drop_shadow_no_group.obj"
   ibm_type: axis_projected
   refinement_regions:
     - name: refinement_box
-      min: [-2.0, -2.0, -2.0]
-      max: [6.0, 2.0, 2.0]
+      min: [-1.0, -0.7, 0.0]
+      max: [8.0, 0.7, 2.5]
       level: 2
 
 # Simulator config (simulation settings)
@@ -26,11 +26,11 @@ simulator:
   # Control settings corresponding to system/controlDict
   control:
     deltaT: 1
-    endTime: 100
-    writeInterval: 20
+    endTime: 500
+    writeInterval: 100
     output:
-      output_dir: "experiments/re_vs_cd/outputs/{{ case_name }}/gridfoam/{{ re_param }}"
-      base_name: {{ case_name }}
+      output_dir: "examples/motorBike/gridfoam/outputs"
+      base_name: "motorBike"
       overwrite_file: true
     precision: float64
   # Fv schemes settings corresponding to system/fvSchemes
@@ -57,7 +57,7 @@ simulator:
         preconditioner: jacobi
         tolerance: 1e-8
         rel_tolerance: 0.1
-        max_iter: 1000
+        max_iter: 2000
         norm_type: l_2
       Phi:
         method: cg
@@ -75,47 +75,56 @@ simulator:
         norm_type: l_2
   # Conditions corresponding to 0.orig
   conditions:
-      U:
-        internal: *flow_velocity
-        boundary:
-          inlet:
-            type: dirichlet
-            patches: [x_minus]
-            value: *flow_velocity
-          outlet:
-            type: inlet_outlet
-            patches: [x_plus]
-            value: [0.0, 0.0, 0.0]
-          farfield:
-            type: slip
-            patches: [y_minus, y_plus, z_minus, z_plus]
-          wall:
-            type: dirichlet
-            patches: [_default]
-            value: [0.0, 0.0, 0.0]
-      p:
-        internal: [0.0]
-        boundary:
-          inlet:
-            type: neumann
-            patches: [x_minus]
-            value: [0.0]
-          outlet:
-            type: dirichlet
-            patches: [x_plus]
-            value: [0.0]
-          farfield:
-            type: neumann
-            patches: [y_minus, y_plus, z_minus, z_plus]
-            value: [0.0]
-          wall:
-            type: neumann
-            patches: [_default]
-            value: [0.0]
+    U:
+      internal: *flow_velocity
+      boundary:
+        inlet:
+          type: dirichlet
+          patches: [x_minus]
+          value: *flow_velocity
+        outlet:
+          type: inlet_outlet
+          patches: [x_plus]
+          value: [0.0, 0.0, 0.0]
+        slip_wall:
+          type: slip
+          patches: [y_minus, y_plus, z_plus]
+        floor:
+          type: dirichlet
+          patches: [z_minus]
+          value: *flow_velocity
+        bike:
+          type: dirichlet
+          patches: [_default]
+          value: [0.0, 0.0, 0.0]
+    p:
+      internal: [0.0]
+      boundary:
+        inlet:
+          type: neumann
+          patches: [x_minus]
+          value: [0.0]
+        outlet:
+          type: dirichlet
+          patches: [x_plus]
+          value: [0.0]
+        slip_wall:
+          type: neumann
+          patches: [y_minus, y_plus, z_plus]
+          value: [0.0]
+        floor:
+          type: neumann
+          patches: [z_minus]
+          value: [0.0]
+        bike:
+          type: neumann
+          patches: [_default]
+          value: [0.0]
+  # Properties settings corresponding to constant/properties
   properties:
     transport:
       type: newtonian
-      nu: {{ nu }}
+      nu: 0.1
     turbulence:
       type: laminar
   # Post processing settings
@@ -123,12 +132,12 @@ simulator:
     forceCoeff:
       patches: [_default]
       rho: 1.0
-      magU_ref: {{ magU_ref }}
-      A_ref: {{ A_ref }}
-      L_ref: {{ L_ref }}
+      magU_ref: *inlet_speed
+      A_ref: 0.75
+      L_ref: 1.42
       local_coord:
         drag_dir: [1.0, 0.0, 0.0]
         lift_dir: [0.0, 0.0, 1.0]
-        center_of_rotation: [0.0, 0.0, 0.0]
+        center_of_rotation: [0.72, 0.0, 0.0]
   # Device settings
   device: cuda

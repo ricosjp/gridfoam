@@ -3,36 +3,11 @@ import sys
 from pathlib import Path
 
 import torch
-import yaml
 
-from gridfoam.algorithms.simple import SIMPLE
-from gridfoam.boundaries.factory import apply_boundary_condition_configs
-from gridfoam.core.field import CellField
-from gridfoam.core.grid.factory import create_grid as create_grid_from_config
-from gridfoam.fv.fvm.laplacian import IGridBase
-from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
-from gridfoam.meta.config import (
-    GridfoamConfig,
-)
-from gridfoam.meta.enums import (
-    FieldRole,
-)
-from gridfoam.models.turbulence.laminar import Laminar
-from gridfoam.post.forces import ForceEvaluator
-from gridfoam.pre.potential_flow import PotentialFlow
+from gridfoam.io.vtu import save_export_fields_as_vtu
+from gridfoam.runner import manual_step
 
-LOG_FILE_NAME = "motorBike.log"
-
-logger = logging.getLogger("gridfoam.examples.motorBike")
-
-
-def create_grid(config_path: Path | None = None) -> IGridBase:
-    if config_path is None:
-        config_path = Path(__file__).resolve().parent / "data" / "config.yml"
-    with open(config_path) as f:
-        raw_yaml = yaml.safe_load(f)
-    config = GridfoamConfig.model_validate(raw_yaml)
-    return create_grid_from_config(config)
+logger = logging.getLogger(__name__)
 
 
 def configure_run_logger(log_file: Path) -> None:
@@ -53,85 +28,28 @@ def configure_run_logger(log_file: Path) -> None:
 
 
 def main() -> None:
-    grid = create_grid()
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
-
-    boundary_conditions = grid.sim_config.boundaryConditions
-    if boundary_conditions is None:
-        raise ValueError("boundaryConditions is required for this example.")
-    apply_boundary_condition_configs(U, boundary_conditions["U"])
-    apply_boundary_condition_configs(p, boundary_conditions["p"])
-
-    PotentialFlow(grid, U, p).solve()
-
-    turbulence = Laminar(grid=grid, nu=grid.sim_config.properties.nu)
-
-    force_config = grid.sim_config.forceCoeff
-    if force_config is None:
-        raise ValueError("forceCoeff is required for this example.")
-    force_evaluator = ForceEvaluator(force_config)
-
-    algo = SIMPLE(
-        grid=grid,
-        U=U,
-        p=p,
-        turbulence=turbulence,
-    )
-
-    output_dir = Path(grid.sim_config.control.output.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    configure_run_logger(output_dir / LOG_FILE_NAME)
-    write_interval = grid.sim_config.control.writeInterval
-    ugrid = to_unstructured_grid(grid)
-
-    n_steps = int(
-        grid.sim_config.control.endTime / grid.sim_config.control.deltaT
-    )
-
-    for step in range(1, n_steps + 1):
-        algo.step()
-        if step % write_interval == 0 or step == n_steps:
+    log_file = Path(__file__).resolve().parent / "outputs" / "motorBike.log"
+    configure_run_logger(log_file)
+    config_path = Path(__file__).resolve().parent / "data" / "config.yaml"
+    for step_data in manual_step(config_path):
+        step_data.algorithm.step()
+        write_interval = step_data.control.writeInterval
+        end_time = step_data.control.endTime
+        deltaT = step_data.control.deltaT
+        n_steps = int(end_time / deltaT)
+        if step_data.step % write_interval == 0 or step_data.step == n_steps:
+            output_dir = Path(step_data.control.output.output_dir)
+            base_name = step_data.control.output.base_name
+            grid = step_data.algorithm.grid
             save_export_fields_as_vtu(
                 grid,
-                str(output_dir / f"motorBike_{step:04d}.vtu"),
-                ugrid=ugrid,
+                str(output_dir / f"{base_name}_{step_data.step:04d}.vtu"),
+                ugrid=step_data.ugrid,
             )
+            U = grid.get_cellfield("U")
+            assert U is not None
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
-            print(f"step={step:4d} max|U|={max_u:.4e}")
-
-    force_evaluator.evaluate(
-        grid,
-        time=float(n_steps),
-        p=p,
-        U=U,
-        turbulence=turbulence,
-    )
-    logger.info(
-        (
-            "final Cd=%.6e Cd(f)=%.6e Cd(r)=%.6e "
-            "Cl=%.6e Cl(f)=%.6e Cl(r)=%.6e "
-            "CmPitch=%.6e CmRoll=%.6e CmYaw=%.6e "
-            "Cs=%.6e Cs(f)=%.6e Cs(r)=%.6e"
-        ),
-        force_evaluator.history[-1].Cd.item(),
-        force_evaluator.history[-1].Cd_f.item(),
-        force_evaluator.history[-1].Cd_r.item(),
-        force_evaluator.history[-1].Cl.item(),
-        force_evaluator.history[-1].Cl_f.item(),
-        force_evaluator.history[-1].Cl_r.item(),
-        force_evaluator.history[-1].CmPitch.item(),
-        force_evaluator.history[-1].CmRoll.item(),
-        force_evaluator.history[-1].CmYaw.item(),
-        force_evaluator.history[-1].Cs.item(),
-        force_evaluator.history[-1].Cs_f.item(),
-        force_evaluator.history[-1].Cs_r.item(),
-    )
-    grid.surface_mesh.save(
-        output_dir / "surface_mesh.vtu",
-        overwrite_features=True,
-        overwrite_file=True,
-    )
+            logger.info("step=%4d max|U|=%.4e", step_data.step, max_u)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,7 @@
+# gridfoam config file
+version: 0.0.1
+
+# Fluxel config (mesh generation)
 fluxel:
   domain:
     lower: [-1.0, -1.0, -1.0]
@@ -6,7 +10,10 @@ fluxel:
   target_level: 2
   n_leaf_refinement: {{ n_leaf_refinement }}
   ibm_type: axis_projected
+
+# Simulator config (simulation settings)
 simulator:
+  # Control settings corresponding to system/controlDict
   control:
     deltaT: 0.01
     endTime: 1.0
@@ -16,24 +23,37 @@ simulator:
       base_name: "poisson"
       overwrite_file: true
     precision: float64
+  # Fv schemes settings corresponding to system/fvSchemes
   fvSchemes:
     divSchemes:
       default: upwind
+  # Fv solution settings corresponding to system/fvSolution
   fvSolution:
+    algorithm:
+      type: manual
     solvers:
-      poisson:
+      p:
         method: cg
         preconditioner: jacobi
         tolerance: 1e-8
         rel_tolerance: 1e-5
         max_iter: 2000
         norm_type: l_2
-  boundaryConditions:
+  # Conditions settings corresponding to 0.orig
+  conditions:
     p:
-      - name: wall
-        type: dirichlet
-        patches: [x_minus, x_plus, y_minus, y_plus, z_minus, z_plus]
-        value: [0.0]
+      internal: [0.0]
+      boundary:
+        wall:
+          type: dirichlet
+          patches: [x_minus, x_plus, y_minus, y_plus, z_minus, z_plus]
+          value: [0.0]
+  # Properties settings corresponding to constant/properties
   properties:
-    nu: 1.0
+    transport:
+      type: newtonian
+      nu: 1.0
+    turbulence:
+      type: laminar
+  # Device settings corresponding to system/device
   device: cuda

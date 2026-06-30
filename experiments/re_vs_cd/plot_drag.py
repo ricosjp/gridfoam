@@ -57,7 +57,7 @@ def _read_gridfoam_rows(case_name: str) -> list[tuple[float, float]]:
         if re_value is None:
             continue
 
-        coeffs_path = re_dir / "force_coeffs.csv"
+        coeffs_path = re_dir / "coefficients.csv"
         if not coeffs_path.exists():
             continue
 

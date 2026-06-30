@@ -12,15 +12,12 @@ import yaml
 from jinja2 import Template
 from pydantic import BaseModel
 
-from gridfoam.algorithms.simple import SIMPLE
-from gridfoam.boundaries.factory import apply_boundary_condition_configs
-from gridfoam.core.field import CellField, FieldRole
+from gridfoam.algorithms.factory import create_algorithm
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
-from gridfoam.meta.config import GridfoamConfig
-from gridfoam.models.turbulence.laminar import Laminar
-from gridfoam.post.forces import ForceCoeffs, ForceEvaluator
-from gridfoam.pre.potential_flow import PotentialFlow
+from gridfoam.meta.config import GridfoamConfig, ManualAlgorithm
+from gridfoam.post.forces.coeffs import ForceCoeffs
+from gridfoam.post.forces.evaluator import ForceEvaluator
 
 PARAMETERS_PATH = Path("experiments/re_vs_cd/data/parameters.yml")
 GRIDFOAM_TEMPLATE_PATH = Path(
@@ -221,57 +218,51 @@ def write_force_coeffs(path: Path, coeffs: list[ForceCoeffs]) -> None:
 
 def calculate_drag_coefficient(config: GridfoamConfig) -> float:
     grid = create_grid(config)
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
-    boundary_conditions = grid.sim_config.boundaryConditions
-    if boundary_conditions is None:
-        raise ValueError("boundaryConditions is required")
-    apply_boundary_condition_configs(U, boundary_conditions["U"])
-    apply_boundary_condition_configs(p, boundary_conditions["p"])
 
-    # initialize_from_dirichlet_patch(
-    #     U, boundary_conditions["U"], DomainBoundaryPatch.X_MINUS
-    # )
-
-    PotentialFlow(grid, U, p).solve()
-    nu = grid.sim_config.properties.nu
-    turbulence = Laminar(grid=grid, nu=nu)
-
-    force_config = grid.sim_config.forceCoeff
-    if force_config is None:
-        raise ValueError("forceCoeff is required for this example.")
-    force_evaluator = ForceEvaluator(force_config)
-
-    algo = SIMPLE(grid=grid, U=U, p=p, turbulence=turbulence)
+    phase = None
+    # Create the algorithm
+    algorithm_config = grid.sim_config.fvSolution.algorithm
+    if isinstance(algorithm_config, ManualAlgorithm):
+        raise ValueError("Manual algorithm has no step sequence")
+    algorithm = create_algorithm(grid, phase)
 
     output_dir = Path(grid.sim_config.control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     configure_run_logger(output_dir / "run.log")
 
-    write_interval = grid.sim_config.control.writeInterval
     base_name = grid.sim_config.control.output.base_name
+    write_interval = grid.sim_config.control.writeInterval
+    end_time = grid.sim_config.control.endTime
+    deltaT = grid.sim_config.control.deltaT
+    n_steps = int(end_time / deltaT)
+
     ugrid = to_unstructured_grid(grid)
 
     n_steps = int(
         grid.sim_config.control.endTime / grid.sim_config.control.deltaT
     )
 
+    post_processing = grid.sim_config.post_processing
+    assert post_processing is not None
+    assert post_processing.forceCoeff is not None
+    force_evaluator = ForceEvaluator(grid, phase=phase)
+
     for step in range(1, n_steps + 1):
-        algo.step()
+        algorithm.step()
         if step % write_interval == 0 or step == n_steps:
+            save_export_fields_as_vtu(
+                grid,
+                str(output_dir / f"{base_name}_{step:04d}.vtu"),
+                ugrid=ugrid,
+            )
+            U = grid.get_cellfield("U")
+            assert U is not None
+            max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             force_evaluator.evaluate(
                 grid,
                 time=float(step),
-                p=p,
-                U=U,
-                turbulence=turbulence,
+                turbulence=algorithm.turbulence,
             )
-            save_export_fields_as_vtu(
-                grid,
-                str(output_dir / f"{base_name}{step:04d}.vtu"),
-                ugrid=ugrid,
-            )
-            max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             cd = force_evaluator.history[-1].Cd.item()
             logger.info(
                 "step=%4d max|U|=%.4e Cd=%.6e",
@@ -280,12 +271,9 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
                 cd,
             )
 
-    write_force_coeffs(output_dir / "force_coeffs.csv", force_evaluator.history)
-    grid.surface_mesh.save(
-        output_dir / "surface_mesh.vtu",
-        overwrite_features=True,
-        overwrite_file=True,
-    )
+    force_evaluator.write_csv(output_dir / "coefficients.csv")
+    force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
+
     return force_evaluator.history[-1].Cd.item()
 
 

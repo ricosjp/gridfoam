@@ -112,7 +112,7 @@ def _gridfoam_vtu_path(
         return _find_final_gridfoam_vtu(case_name, re_value)
 
     path = (
-        _gridfoam_output_dir(case_name, re_value) / f"{case_name}{time:04d}.vtu"
+        _gridfoam_output_dir(case_name, re_value) / f"{case_name}_{time:04d}.vtu"
     )
     if not path.exists():
         raise FileNotFoundError(f"gridfoam output was not found: {path}")

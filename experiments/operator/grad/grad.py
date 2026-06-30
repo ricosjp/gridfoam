@@ -7,9 +7,9 @@ import pyvista as pv
 import torch
 import yaml
 
-from gridfoam.boundaries.factory import apply_boundary_condition_configs
-from gridfoam.core.field import CellField
+from gridfoam.core.field import get_or_create_cellfield
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
+from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc
 from gridfoam.fv.fvm.laplacian import IGridBase
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
@@ -17,7 +17,7 @@ from gridfoam.meta.config import GridfoamConfig
 from gridfoam.meta.enums import FieldRole, GradScheme
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = SCRIPT_DIR / "config.yml"
+CONFIG_PATH = SCRIPT_DIR / "data" / "config.yaml"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "outputs"
 LOG_FILE_NAME = "grad.log"
 RADIAL_EPS = 1.0e-12
@@ -183,19 +183,21 @@ def run_case(
         ugrid_cache[mesh_key] = to_unstructured_grid(grid)
     ugrid = ugrid_cache[mesh_key]
 
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
-    grad_p = CellField(grid, "grad_p", role=FieldRole.LOCAL, num_components=3)
-    grad_exact = CellField(
-        grid, "grad_p_exact", role=FieldRole.LOCAL, num_components=3
-    )
-    grad_err = CellField(
-        grid, "grad_err", role=FieldRole.LOCAL, num_components=1
-    )
+    p_name = make_field_name("p")
+    grad_p_name = make_field_name("grad_p")
+    grad_exact_name = make_field_name("grad_p_exact")
+    grad_err_name = make_field_name("grad_err")
 
-    boundary_conditions = grid.sim_config.boundaryConditions
-    if boundary_conditions is None or "p" not in boundary_conditions:
-        raise ValueError("boundaryConditions.p is required for this example.")
-    apply_boundary_condition_configs(p, boundary_conditions["p"])
+    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+    grad_p = get_or_create_cellfield(grid, grad_p_name, FieldRole.LOCAL, 3)
+    grad_exact = get_or_create_cellfield(
+        grid, grad_exact_name, FieldRole.LOCAL, 3
+    )
+    grad_err = get_or_create_cellfield(grid, grad_err_name, FieldRole.LOCAL, 1)
+
+    grad_p.export = True
+    grad_exact.export = True
+    grad_err.export = True
 
     cell_centers = grid.cell_centers
     x = cell_centers[:, 0]

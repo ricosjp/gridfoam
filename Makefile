@@ -38,14 +38,8 @@ document:
 
 .PHONY: benchmark
 benchmark:
-	mkdir -p ./tests/outputs/benchmark
-	uv run pytest -v -m benchmark \
-		--benchmark-min-rounds=3 \
-		--benchmark-save-data \
-		--benchmark-time-unit=ms \
-		--benchmark-json=./tests/outputs/benchmark/latest.json \
-		--benchmark-storage=./tests/outputs/benchmark \
-		--benchmark-autosave
+	uv run python tests/profile/benchmark_resolution.py gridfoam
+	uv run python tests/profile/plot_cells_vs_time.py
 
 .PHONY: profile-time
 profile-time:

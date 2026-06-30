@@ -1,0 +1,94 @@
+# gridfoam config file
+version: 0.0.1
+
+# Fluxel config (mesh generation)
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [0.1, 0.1, 0.01]
+  root_resolution: [20, 20, 1]
+  target_level: 0
+  n_leaf_refinement: 0
+  mesh_path: "examples/cavity_with_baffle/gridfoam/data/mesh.stl"
+  ibm_type: axis_projected
+
+# Simulator config (simulation settings)
+simulator:
+  # Control settings corresponding to system/controlDict
+  control:
+    deltaT: 0.005
+    endTime: 0.5
+    writeInterval: 20
+    output:
+      output_dir: "examples/cavity_with_baffle/gridfoam/outputs"
+      base_name: "cavity_flow"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: linear
+  fvSolution:
+    algorithm:
+      type: piso
+      nNonOrthogonalCorrectors: 2
+      nCorrectors: 2
+      pRefCell: 0
+      pRefValue: 0.0
+    solvers:
+      U:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-5
+        rel_tolerance: 0.0
+        max_iter: 500
+        norm_type: l_2
+      p:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-6
+        rel_tolerance: 0.0
+        max_iter: 1000
+        norm_type: l_2
+  # Conditions corresponding to 0.orig
+  conditions:
+    U:
+      internal: [0.0, 0.0, 0.0]
+      boundary:
+        wall:
+          type: dirichlet
+          patches: [x_minus, x_plus, y_minus]
+          value: [0.0, 0.0, 0.0]
+        lid:
+          type: dirichlet
+          patches: [y_plus]
+          value: [1.0, 0.0, 0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+        baffle:
+          type: dirichlet
+          patches: [_default]
+          value: [0.0, 0.0, 0.0]
+    p:
+      internal: [0.0]
+      boundary:
+        wall:
+          type: neumann
+          patches: [x_minus, x_plus, y_minus, y_plus]
+          value: [0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+        baffle:
+          type: neumann
+          patches: [_default]
+          value: [0.0]
+  # Properties settings corresponding to constant/properties
+  properties:
+    transport:
+      type: newtonian
+      nu: 0.01
+    turbulence:
+      type: laminar
+  # Device settings
+  device: cpu
