@@ -13,6 +13,9 @@ from gridfoam.meta.config import (
     DomainConfig,
     FluxelConfig,
     GridfoamConfig,
+    LaminarConfig,
+    ManualAlgorithm,
+    NewtonianTransportConfig,
     OutputConfig,
     PropertiesConfig,
     SimulatorConfig,
@@ -20,7 +23,26 @@ from gridfoam.meta.config import (
     fvSchemesConfig,
     fvSolutionConfig,
 )
-from gridfoam.meta.enums import DeviceType, IbmType, PrecisionType, SolverType
+from gridfoam.meta.enums import (
+    AlgorithmType,
+    DeviceType,
+    IbmType,
+    PrecisionType,
+    SolverType,
+    TransportModelType,
+    TurbulenceType,
+)
+
+
+def default_properties(*, nu: float = 0.1) -> PropertiesConfig:
+    """Build a minimal laminar Newtonian properties block for tests."""
+    return PropertiesConfig(
+        transport=NewtonianTransportConfig(
+            type=TransportModelType.NEWTONIAN,
+            nu=nu,
+        ),
+        turbulence=LaminarConfig(type=TurbulenceType.LAMINAR),
+    )
 
 
 def small_gridfoam_config(
@@ -62,12 +84,13 @@ def small_gridfoam_config(
             ),
             fvSchemes=fvSchemesConfig(),
             fvSolution=fvSolutionConfig(
+                algorithm=ManualAlgorithm(type=AlgorithmType.MANUAL),
                 solvers={
                     "p": SolverConfig(method=SolverType.CG),
                 },
             ),
-            boundaryConditions=None,
-            properties=PropertiesConfig(nu=0.1),
+            conditions={},
+            properties=default_properties(),
             device=DeviceType.CPU,
         ),
     )

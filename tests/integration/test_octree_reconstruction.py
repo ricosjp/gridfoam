@@ -66,7 +66,6 @@ def _linear_scalar_field(
         name="linear_scalar",
         role=FieldRole.LOCAL,
         num_components=1,
-        export=False,
     )
     gradient = torch.tensor(
         [2.0, -3.0, 5.0], dtype=grid.dtype, device=grid.device

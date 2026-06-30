@@ -29,7 +29,6 @@ import pytest
 import torch
 
 from gridfoam.algorithms.simple import SIMPLE
-from gridfoam.boundaries.factory import apply_boundary_condition_configs
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.meta.config import (
@@ -42,7 +41,8 @@ from gridfoam.meta.enums import (
     ForceCoordMode,
 )
 from gridfoam.models.turbulence.laminar import Laminar
-from gridfoam.post.forces import ForceEvaluator, OrthonormalCoord
+from gridfoam.post.forces import ForceEvaluator
+from gridfoam.post.forces.coord import OrthonormalCoord
 
 # ---------------------------------------------------------------------------
 # 1. Local coordinate construction
@@ -135,15 +135,13 @@ def test_uniform_pressure_gives_zero_force_on_closed_body(
     add_dirichlet_bc(U, "_default", [0.0, 0.0, 0.0])
     add_neumann_bc(p, "_default", [0.0])
 
-    fc = config.simulator.forceCoeff
-    assert fc is not None
-    evaluator = ForceEvaluator(fc)
+    assert config.simulator.post_processing is not None
+    assert config.simulator.post_processing.forceCoeff is not None
+    evaluator = ForceEvaluator(grid)
     co = evaluator.evaluate(
         grid,
         time=0.0,
-        p=p,
-        U=U,
-        turbulence=Laminar(grid=grid, nu=0.1),
+        turbulence=Laminar(grid=grid),
     )
 
     tol = 1e-10
@@ -193,6 +191,7 @@ def _run_pressure_jump(
         stl_path=stl,
         root_resolution=root_resolution,
         output_dir=tmp_path / "out",
+        nu=0.0,
     )
     grid = create_grid(config)
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
@@ -204,15 +203,13 @@ def _run_pressure_jump(
     add_dirichlet_bc(U, "_default", [0.0, 0.0, 0.0])
     add_neumann_bc(p, "_default", [0.0])
 
-    fc = config.simulator.forceCoeff
-    assert fc is not None
-    evaluator = ForceEvaluator(fc)
+    assert config.simulator.post_processing is not None
+    assert config.simulator.post_processing.forceCoeff is not None
+    evaluator = ForceEvaluator(grid)
     co = evaluator.evaluate(
         grid,
         time=0.0,
-        p=p,
-        U=U,
-        turbulence=Laminar(grid=grid, nu=0.0),
+        turbulence=Laminar(grid=grid),
     )
     area = (2.0 * half) ** 2
     F_z_expected = (p_below - p_above) * area
@@ -287,24 +284,18 @@ def test_cube_low_re_drag_with_simple(
     grid = create_grid(config)
     U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
     p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
-    bcs = grid.sim_config.boundaryConditions
-    assert bcs is not None
-    apply_boundary_condition_configs(U, bcs["U"])
-    apply_boundary_condition_configs(p, bcs["p"])
 
-    turb = Laminar(grid=grid, nu=0.05)
-    fc = grid.sim_config.forceCoeff
-    assert fc is not None
-    evaluator = ForceEvaluator(fc)
-    algo = SIMPLE(grid=grid, U=U, p=p, turbulence=turb)
+    turb = Laminar(grid=grid)
+    assert grid.sim_config.post_processing is not None
+    assert grid.sim_config.post_processing.forceCoeff is not None
+    evaluator = ForceEvaluator(grid)
+    algo = SIMPLE(grid=grid)
     n_steps = int(
         grid.sim_config.control.endTime / grid.sim_config.control.deltaT
     )
     for _ in range(n_steps):
         algo.step()
-    co = evaluator.evaluate(
-        grid, time=float(n_steps), p=p, U=U, turbulence=turb
-    )
+    co = evaluator.evaluate(grid, time=float(n_steps), turbulence=turb)
 
     cd = co.Cd.item()
     cl = co.Cl.item()

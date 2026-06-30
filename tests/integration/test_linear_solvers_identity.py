@@ -32,7 +32,7 @@ def _identity_linear_system(
     b = torch.randn(grid.num_cells, k, dtype=grid.dtype, device=grid.device)
     fv_matrix.source = b.clone()
     p.data.zero_()
-    eq = equation("p", p, fv_matrix)
+    eq = equation(p, fv_matrix)
     return eq, b
 
 
@@ -89,7 +89,7 @@ def test_equation_factory_returns_named_container(
     grid = small_axis_projected_grid
     p = CellField(grid, "p_eq", role=FieldRole.LOCAL, num_components=1)
     fv_matrix = FvMatrix(p)
-    eq = equation("pressure", p, fv_matrix)
-    assert eq.name == "pressure"
+    eq = equation(p, fv_matrix)
+    assert eq.name == "p_eq"
     assert eq.target is p
     assert eq.fv_matrix is fv_matrix

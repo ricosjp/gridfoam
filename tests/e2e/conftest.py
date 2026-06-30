@@ -15,19 +15,23 @@ from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.core.field import CellField
 from gridfoam.meta.config import (
     BoundaryConditionConfig,
+    ConditionConfig,
     ControlConfig,
     DomainConfig,
     FluxelConfig,
     ForceCoeffConfig,
     GridfoamConfig,
     OutputConfig,
-    PropertiesConfig,
+    PostProcessingConfig,
+    RelaxationFactorsConfig,
     SimulatorConfig,
+    SIMPLEAlgorithm,
     SolverConfig,
     fvSchemesConfig,
     fvSolutionConfig,
 )
 from gridfoam.meta.enums import (
+    AlgorithmType,
     BoundaryConditionType,
     DeviceType,
     DivScheme,
@@ -35,6 +39,7 @@ from gridfoam.meta.enums import (
     PrecisionType,
     SolverType,
 )
+from tests.conftest import default_properties
 
 
 @pytest.fixture
@@ -148,6 +153,7 @@ def build_force_config() -> Callable[..., GridfoamConfig]:
         L_ref: float = 1.0,
         magU_ref: float = 1.0,
         rho: float = 1.0,
+        nu: float = 0.1,
     ) -> GridfoamConfig:
         return GridfoamConfig(
             fluxel=FluxelConfig(
@@ -174,23 +180,26 @@ def build_force_config() -> Callable[..., GridfoamConfig]:
                 ),
                 fvSchemes=fvSchemesConfig(),
                 fvSolution=fvSolutionConfig(
+                    algorithm=SIMPLEAlgorithm(type=AlgorithmType.SIMPLE),
                     solvers={"p": SolverConfig(method=SolverType.CG)},
                 ),
-                boundaryConditions=None,
-                properties=PropertiesConfig(nu=0.1),
-                forceCoeff=ForceCoeffConfig.model_validate(
-                    {
-                        "patches": ["_default"],
-                        "rho": rho,
-                        "magU_ref": magU_ref,
-                        "A_ref": A_ref,
-                        "L_ref": L_ref,
-                        "local_coord": {
-                            "drag_dir": list(drag_dir),
-                            "lift_dir": list(lift_dir),
-                            "center_of_rotation": list(cor),
-                        },
-                    }
+                conditions={},
+                properties=default_properties(nu=nu),
+                post_processing=PostProcessingConfig(
+                    forceCoeff=ForceCoeffConfig.model_validate(
+                        {
+                            "patches": ["_default"],
+                            "rho": rho,
+                            "magU_ref": magU_ref,
+                            "A_ref": A_ref,
+                            "L_ref": L_ref,
+                            "local_coord": {
+                                "drag_dir": list(drag_dir),
+                                "lift_dir": list(lift_dir),
+                                "center_of_rotation": list(cor),
+                            },
+                        }
+                    ),
                 ),
                 device=DeviceType.CPU,
             ),
@@ -214,6 +223,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
         A_ref: float,
         L_ref: float,
         end_time: float = 20.0,
+        nu: float = 0.05,
     ) -> GridfoamConfig:
         return GridfoamConfig(
             fluxel=FluxelConfig(
@@ -242,14 +252,22 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                     divSchemes={"default": DivScheme.UPWIND},
                 ),
                 fvSolution=fvSolutionConfig(
+                    algorithm=SIMPLEAlgorithm(
+                        type=AlgorithmType.SIMPLE,
+                        relaxationFactors=RelaxationFactorsConfig(
+                            equations={"U": 0.7, "p": 0.3},
+                        ),
+                        pRefCell=0,
+                        pRefValue=0.0,
+                    ),
                     solvers={
-                        "momentum": SolverConfig(
+                        "U": SolverConfig(
                             method=SolverType.BiCGSTAB,
                             max_iter=500,
                             rel_tolerance=0.1,
                             tolerance=1e-8,
                         ),
-                        "pressure_poisson": SolverConfig(
+                        "p": SolverConfig(
                             method=SolverType.CG,
                             max_iter=500,
                             rel_tolerance=0.01,
@@ -257,73 +275,83 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         ),
                     },
                 ),
-                boundaryConditions={
-                    "U": [
-                        BoundaryConditionConfig(
-                            name="inlet",
-                            type=BoundaryConditionType.DIRICHLET,
-                            patches=["x_minus"],
-                            value=[1.0, 0.0, 0.0],
-                        ),
-                        BoundaryConditionConfig(
-                            name="outlet",
-                            type=BoundaryConditionType.INLET_OUTLET,
-                            patches=["x_plus"],
-                            value=[0.0, 0.0, 0.0],
-                        ),
-                        BoundaryConditionConfig(
-                            name="slip",
-                            type=BoundaryConditionType.SLIP,
-                            patches=["y_minus", "y_plus", "z_minus", "z_plus"],
-                        ),
-                        BoundaryConditionConfig(
-                            name="body",
-                            type=BoundaryConditionType.DIRICHLET,
-                            patches=["_default"],
-                            value=[0.0, 0.0, 0.0],
-                        ),
-                    ],
-                    "p": [
-                        BoundaryConditionConfig(
-                            name="inlet",
-                            type=BoundaryConditionType.NEUMANN,
-                            patches=["x_minus"],
-                            value=[0.0],
-                        ),
-                        BoundaryConditionConfig(
-                            name="outlet",
-                            type=BoundaryConditionType.DIRICHLET,
-                            patches=["x_plus"],
-                            value=[0.0],
-                        ),
-                        BoundaryConditionConfig(
-                            name="slip",
-                            type=BoundaryConditionType.NEUMANN,
-                            patches=["y_minus", "y_plus", "z_minus", "z_plus"],
-                            value=[0.0],
-                        ),
-                        BoundaryConditionConfig(
-                            name="body",
-                            type=BoundaryConditionType.NEUMANN,
-                            patches=["_default"],
-                            value=[0.0],
-                        ),
-                    ],
-                },
-                properties=PropertiesConfig(nu=0.1),
-                forceCoeff=ForceCoeffConfig.model_validate(
-                    {
-                        "patches": ["_default"],
-                        "rho": 1.0,
-                        "magU_ref": 1.0,
-                        "A_ref": A_ref,
-                        "L_ref": L_ref,
-                        "local_coord": {
-                            "drag_dir": [1.0, 0.0, 0.0],
-                            "lift_dir": [0.0, 0.0, 1.0],
-                            "center_of_rotation": list(cor),
+                conditions={
+                    "U": ConditionConfig(
+                        internal=[0.0, 0.0, 0.0],
+                        boundary={
+                            "inlet": BoundaryConditionConfig(
+                                type=BoundaryConditionType.DIRICHLET,
+                                patches=["x_minus"],
+                                value=[1.0, 0.0, 0.0],
+                            ),
+                            "outlet": BoundaryConditionConfig(
+                                type=BoundaryConditionType.INLET_OUTLET,
+                                patches=["x_plus"],
+                                value=[0.0, 0.0, 0.0],
+                            ),
+                            "slip": BoundaryConditionConfig(
+                                type=BoundaryConditionType.SLIP,
+                                patches=[
+                                    "y_minus",
+                                    "y_plus",
+                                    "z_minus",
+                                    "z_plus",
+                                ],
+                            ),
+                            "body": BoundaryConditionConfig(
+                                type=BoundaryConditionType.DIRICHLET,
+                                patches=["_default"],
+                                value=[0.0, 0.0, 0.0],
+                            ),
                         },
-                    }
+                    ),
+                    "p": ConditionConfig(
+                        internal=[0.0],
+                        boundary={
+                            "inlet": BoundaryConditionConfig(
+                                type=BoundaryConditionType.NEUMANN,
+                                patches=["x_minus"],
+                                value=[0.0],
+                            ),
+                            "outlet": BoundaryConditionConfig(
+                                type=BoundaryConditionType.DIRICHLET,
+                                patches=["x_plus"],
+                                value=[0.0],
+                            ),
+                            "slip": BoundaryConditionConfig(
+                                type=BoundaryConditionType.NEUMANN,
+                                patches=[
+                                    "y_minus",
+                                    "y_plus",
+                                    "z_minus",
+                                    "z_plus",
+                                ],
+                                value=[0.0],
+                            ),
+                            "body": BoundaryConditionConfig(
+                                type=BoundaryConditionType.NEUMANN,
+                                patches=["_default"],
+                                value=[0.0],
+                            ),
+                        },
+                    ),
+                },
+                properties=default_properties(nu=nu),
+                post_processing=PostProcessingConfig(
+                    forceCoeff=ForceCoeffConfig.model_validate(
+                        {
+                            "patches": ["_default"],
+                            "rho": 1.0,
+                            "magU_ref": 1.0,
+                            "A_ref": A_ref,
+                            "L_ref": L_ref,
+                            "local_coord": {
+                                "drag_dir": [1.0, 0.0, 0.0],
+                                "lift_dir": [0.0, 0.0, 1.0],
+                                "center_of_rotation": list(cor),
+                            },
+                        }
+                    ),
                 ),
                 device=DeviceType.CPU,
             ),

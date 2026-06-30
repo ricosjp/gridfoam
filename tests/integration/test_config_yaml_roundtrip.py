@@ -13,7 +13,7 @@ from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
 def test_example_cavity_config_loads():
     repo = Path(__file__).resolve().parents[2]
     config_path = (
-        repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yml"
+        repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
     )
     assert config_path.is_file(), f"missing example config: {config_path}"
     with open(config_path) as f:

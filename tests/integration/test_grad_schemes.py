@@ -13,8 +13,8 @@ from gridfoam.meta.config import (
     DomainConfig,
     FluxelConfig,
     GridfoamConfig,
+    ManualAlgorithm,
     OutputConfig,
-    PropertiesConfig,
     RefinementRegionConfig,
     SimulatorConfig,
     SolverConfig,
@@ -22,6 +22,7 @@ from gridfoam.meta.config import (
     fvSolutionConfig,
 )
 from gridfoam.meta.enums import (
+    AlgorithmType,
     DeviceType,
     FieldRole,
     GradScheme,
@@ -29,6 +30,7 @@ from gridfoam.meta.enums import (
     PrecisionType,
     SolverType,
 )
+from tests.conftest import default_properties
 
 
 def _refined_3d_grid(grad_scheme: GradScheme) -> IGridBase:
@@ -64,10 +66,11 @@ def _refined_3d_grid(grad_scheme: GradScheme) -> IGridBase:
                 gradSchemes={"default": grad_scheme},
             ),
             fvSolution=fvSolutionConfig(
-                solvers={"p": SolverConfig(method=SolverType.CG)}
+                algorithm=ManualAlgorithm(type=AlgorithmType.MANUAL),
+                solvers={"p": SolverConfig(method=SolverType.CG)},
             ),
-            boundaryConditions=None,
-            properties=PropertiesConfig(nu=0.1),
+            conditions={},
+            properties=default_properties(),
             device=DeviceType.CPU,
         ),
     )
@@ -80,7 +83,6 @@ def _linear_scalar_field(grid: IGridBase) -> tuple[CellField, torch.Tensor]:
         name="psi",
         role=FieldRole.LOCAL,
         num_components=1,
-        export=False,
     )
     gradient = torch.tensor(
         [2.0, -3.0, 5.0], dtype=grid.dtype, device=grid.device
