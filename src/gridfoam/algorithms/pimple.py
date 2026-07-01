@@ -3,10 +3,18 @@ import logging
 import torch
 
 from gridfoam.algorithms.base import AlgorithmBase
-from gridfoam.algorithms.utils import (
-    needs_reference_value,
-    set_reference_value,
+from gridfoam.algorithms.pressure_correction import (
+    correct_phi,
+    correct_velocity,
+    finalize_pressure_correction,
+    solve_pressure_poisson,
 )
+from gridfoam.algorithms.residual import (
+    continuity_residual,
+    field_initial_residual,
+    residual_satisfied,
+)
+from gridfoam.algorithms.utils import needs_reference_value
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     get_or_create_cellfield,
@@ -15,12 +23,13 @@ from gridfoam.core.field import (
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.flux import correct_flux
-from gridfoam.meta.config import PIMPLEAlgorithm
+from gridfoam.fv.flux import compute_phi_hbya, correct_flux
+from gridfoam.meta.config import PIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
 from gridfoam.solvers.factory import create_solver
+from gridfoam.solvers.resolver import resolve_solver
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +40,9 @@ class PIMPLE(AlgorithmBase):
 
     Provides stable transient calculations with large time steps by
     introducing an outer corrector loop around the PISO loop.
+
+    The outer loop may exit early when ``residualControl`` is satisfied.
+    The final inner corrector uses the ``pFinal`` solver when configured.
 
     Parameters
     ----------
@@ -74,6 +86,14 @@ class PIMPLE(AlgorithmBase):
         self.n_non_orthogonal_correctors = (
             algorithm_config.nNonOrthogonalCorrectors
         )
+        self.consistent = algorithm_config.consistent
+        self.adjust_phi_enabled = grid.sim_config.fvSolution.adjustPhi
+        self._residual_control = normalize_residual_control(
+            algorithm_config.residualControl
+        )
+        self._initial_residuals: dict[str, float] = {}
+        self._current_residuals: dict[str, float] = {}
+        self._outer_converged = False
 
         self.p_needs_ref = needs_reference_value(self.p)
         if self.p_needs_ref:
@@ -98,6 +118,54 @@ class PIMPLE(AlgorithmBase):
     def turbulence(self) -> TurbulenceModel:
         return self._turbulence
 
+    def has_converged(self) -> bool:
+        """
+        Return whether the latest outer corrector satisfied residual control.
+
+        Returns
+        -------
+        bool
+            ``True`` when every monitored field meets absolute and relative
+            tolerances after an outer corrector.
+        """
+        return self._outer_converged
+
+    def _record_residual(
+        self,
+        field_name: str,
+        residual: float,
+    ) -> None:
+        """Store the current residual and capture the first value as initial."""
+        if field_name not in self._initial_residuals:
+            self._initial_residuals[field_name] = residual
+        self._current_residuals[field_name] = residual
+
+    def _check_outer_convergence(self) -> bool:
+        """
+        Return whether all configured ``residualControl`` fields are satisfied.
+
+        Returns
+        -------
+        bool
+            ``True`` when every monitored field meets its tolerances.
+        """
+        if not self._residual_control:
+            return False
+
+        for field_name, entry in self._residual_control.items():
+            residual = self._current_residuals.get(field_name)
+            initial = self._initial_residuals.get(field_name)
+            if residual is None or initial is None:
+                return False
+            if not residual_satisfied(
+                residual,
+                entry.tolerance,
+                entry.rel_tolerance,
+                initial,
+            ):
+                return False
+        return True
+
     def step(self):
         grid = self.grid
         logger.info(
@@ -106,6 +174,7 @@ class PIMPLE(AlgorithmBase):
             self.n_correctors,
         )
 
+        self._outer_converged = False
         # =========================================================
         # PIMPLE outer loop
         # =========================================================
@@ -131,6 +200,12 @@ class PIMPLE(AlgorithmBase):
             UEqn_mat.source = original_source - grad_p.data * grid.cell_volumes
 
             # Solve momentum predictor (obtain U*)
+            if self.U.name in self._residual_control and outer == 0:
+                self._record_residual(
+                    self.U.name,
+                    field_initial_residual(UEqn_mat, self.U),
+                )
+
             momentum_eq = equation(self.U, UEqn_mat)
             self.U.data = self.solvers[momentum_eq.name].solve(momentum_eq)
 
@@ -150,66 +225,53 @@ class PIMPLE(AlgorithmBase):
                 self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
 
                 # Interpolate HbyA to faces and compute phi_HbyA
-                HbyA_f = fvc.interpolate(self.HbyA)
+                phi_hbya = compute_phi_hbya(self.phi, self.HbyA)
 
-                # only update the internal faces
-                # (other faces are constrained by boundary conditions)
-                self.phi.single_data = torch.sum(
-                    HbyA_f.single_data * grid.Sf[HbyA_f.single_mask],
-                    dim=1,
-                    keepdim=True,
-                )
-
-                continuity_residual = torch.linalg.vector_norm(
-                    fvc.div(self.phi).data, ord=2
-                ).item()
                 logger.debug(
                     "PIMPLE continuity residual L2=%.3e",
-                    continuity_residual,
+                    continuity_residual(self.phi),
                 )
 
-                # solve pressure Poisson equation
+                # solve pressure Poisson equation (pFinal on last corrector)
                 div_phi = fvc.div(self.phi).data
-                for corr in range(self.n_non_orthogonal_correctors + 1):
-                    pEqn_mat = -fvm.laplacian(self.rAU.data, self.p)
-                    pEqn_mat.source = pEqn_mat.source - div_phi
-                    if self.p_needs_ref:
-                        set_reference_value(
-                            pEqn_mat, self.p_ref_cell, self.p_ref_value
-                        )
+                is_final = inner == self.n_correctors - 1
+                p_solver = resolve_solver(
+                    self.solvers, self.p.name, is_final=is_final
+                )
+                p_eqn_mat = solve_pressure_poisson(
+                    self.p,
+                    self.rAU,
+                    div_phi,
+                    p_solver,
+                    n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
+                    p_needs_ref=self.p_needs_ref,
+                    p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
+                    p_ref_value=self.p_ref_value if self.p_needs_ref else None,
+                )
 
-                    pressure_eq = equation(self.p, pEqn_mat)
-                    self.p.data = self.solvers[self.p.name].solve(pressure_eq)
-
-                    if corr < self.n_non_orthogonal_correctors:
-                        logger.debug(
-                            "non-orthogonal pressure corrector %d/%d",
-                            corr + 1,
-                            self.n_non_orthogonal_correctors,
-                        )
+                if self.p.name in self._residual_control and is_final:
+                    self._record_residual(
+                        self.p.name,
+                        field_initial_residual(p_eqn_mat, self.p),
+                    )
 
                 # flux correction
-                sn_grad_p = fvc.sn_grad(self.p)
-                rAU_f = fvc.interpolate(self.rAU)
-
-                # phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)
-                mag_Sf = torch.linalg.vector_norm(
-                    grid.Sf[self.phi.single_mask], dim=1, keepdim=True
-                )
-                self.phi.single_data = (
-                    self.phi.single_data
-                    - rAU_f.single_data * mag_Sf * sn_grad_p.single_data
+                correct_phi(
+                    self.phi,
+                    self.rAU,
+                    self.p,
+                    consistent=self.consistent,
+                    phi_hbya=phi_hbya,
+                    p_eqn_mat=p_eqn_mat,
                 )
 
-                # =========================================================
                 # Velocity and flux correction
-                # =========================================================
-                grad_p = fvc.grad(self.p)
-
-                # Velocity correction: U = HbyA - rAU * grad(p)
-                self.U.data = self.HbyA.data - self.rAU.data * grad_p.data
-
-                correct_flux(self.phi, self.U)
+                correct_velocity(self.U, self.HbyA, self.rAU, self.p)
+                finalize_pressure_correction(
+                    self.phi,
+                    self.U,
+                    adjust_phi_enabled=self.adjust_phi_enabled,
+                )
                 logger.debug(
                     "PIMPLE corrected flux L2=%.3e",
                     torch.linalg.vector_norm(
@@ -221,5 +283,17 @@ class PIMPLE(AlgorithmBase):
             # Turbulence model update
             # =========================================================
             self.turbulence.correct(self.U, self.phi)
+
+            if "phi" in self._residual_control:
+                self._record_residual("phi", continuity_residual(self.phi))
+
+            if self._check_outer_convergence():
+                self._outer_converged = True
+                logger.info(
+                    "PIMPLE outer loop converged at outer=%d",
+                    outer + 1,
+                )
+                break
+
         self.U.update_history()
         logger.info("PIMPLE step end")

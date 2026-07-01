@@ -3,10 +3,14 @@ import logging
 import torch
 
 from gridfoam.algorithms.base import AlgorithmBase
-from gridfoam.algorithms.utils import (
-    needs_reference_value,
-    set_reference_value,
+from gridfoam.algorithms.pressure_correction import (
+    correct_phi,
+    correct_velocity,
+    finalize_pressure_correction,
+    solve_pressure_poisson,
 )
+from gridfoam.algorithms.residual import continuity_residual
+from gridfoam.algorithms.utils import needs_reference_value
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     get_or_create_cellfield,
@@ -15,12 +19,13 @@ from gridfoam.core.field import (
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.flux import correct_flux
+from gridfoam.fv.flux import compute_phi_hbya, correct_flux
 from gridfoam.meta.config import PISOAlgorithm
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
 from gridfoam.solvers.factory import create_solver
+from gridfoam.solvers.resolver import resolve_solver
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,10 @@ class PISO(AlgorithmBase):
     PISO (Pressure Implicit with Splitting of Operators).
 
     Solves transient incompressible Navier-Stokes equations.
+
+    The last pressure corrector uses the ``pFinal`` solver when configured.
+    Flux correction always follows the inconsistent ``snGrad(p)`` path because
+    OpenFOAM PISO has no ``consistent`` option in ``fvSolution``.
 
     Parameters
     ----------
@@ -71,6 +80,9 @@ class PISO(AlgorithmBase):
         self.n_non_orthogonal_correctors = (
             algorithm_config.nNonOrthogonalCorrectors
         )
+        # PISO has no consistent option in fvSolution; use inconsistent flux.
+        self.consistent = False
+        self.adjust_phi_enabled = grid.sim_config.fvSolution.adjustPhi
 
         self.p_needs_ref = needs_reference_value(self.p)
         if self.p_needs_ref:
@@ -134,63 +146,47 @@ class PISO(AlgorithmBase):
             self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
 
             # Interpolate HbyA to faces and compute phi_HbyA
-            HbyA_f = fvc.interpolate(self.HbyA)
-
-            # only update the internal faces
-            # (other faces are constrained by boundary conditions)
-            self.phi.single_data = torch.sum(
-                HbyA_f.single_data * grid.Sf[HbyA_f.single_mask],
-                dim=1,
-                keepdim=True,
-            )
+            phi_hbya = compute_phi_hbya(self.phi, self.HbyA)
 
             logger.debug(
                 "PISO continuity residual L2=%.3e",
-                torch.linalg.vector_norm(fvc.div(self.phi).data, ord=2).item(),
+                continuity_residual(self.phi),
             )
 
-            # solve pressure Poisson equation
+            # solve pressure Poisson equation (pFinal on last corrector)
             div_phi = fvc.div(self.phi).data
-            for corr in range(self.n_non_orthogonal_correctors + 1):
-                pEqn_mat = -fvm.laplacian(self.rAU.data, self.p)
-                pEqn_mat.source = pEqn_mat.source - div_phi
-                if self.p_needs_ref:
-                    set_reference_value(
-                        pEqn_mat, self.p_ref_cell, self.p_ref_value
-                    )
-
-                pressure_eq = equation(self.p, pEqn_mat)
-                self.p.data = self.solvers[self.p.name].solve(pressure_eq)
-
-                if corr < self.n_non_orthogonal_correctors:
-                    logger.debug(
-                        "non-orthogonal pressure corrector %d/%d",
-                        corr + 1,
-                        self.n_non_orthogonal_correctors,
-                    )
+            is_final = i == self.n_correctors - 1
+            p_solver = resolve_solver(
+                self.solvers, self.p.name, is_final=is_final
+            )
+            p_eqn_mat = solve_pressure_poisson(
+                self.p,
+                self.rAU,
+                div_phi,
+                p_solver,
+                n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
+                p_needs_ref=self.p_needs_ref,
+                p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
+                p_ref_value=self.p_ref_value if self.p_needs_ref else None,
+            )
 
             # flux correction
-            sn_grad_p = fvc.sn_grad(self.p)
-            rAU_f = fvc.interpolate(self.rAU)
-
-            # phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)
-            mag_Sf = torch.linalg.vector_norm(
-                grid.Sf[self.phi.single_mask], dim=1, keepdim=True
-            )
-            self.phi.single_data = (
-                self.phi.single_data
-                - rAU_f.single_data * mag_Sf * sn_grad_p.single_data
+            correct_phi(
+                self.phi,
+                self.rAU,
+                self.p,
+                consistent=self.consistent,
+                phi_hbya=phi_hbya,
+                p_eqn_mat=p_eqn_mat,
             )
 
-            # =========================================================
             # Velocity and flux correction
-            # =========================================================
-            grad_p = fvc.grad(self.p)
-
-            # Velocity correction: U = HbyA - rAU * grad(p)
-            self.U.data = self.HbyA.data - self.rAU.data * grad_p.data
-
-            correct_flux(self.phi, self.U)
+            correct_velocity(self.U, self.HbyA, self.rAU, self.p)
+            finalize_pressure_correction(
+                self.phi,
+                self.U,
+                adjust_phi_enabled=self.adjust_phi_enabled,
+            )
             logger.debug(
                 "PISO corrected flux L2=%.3e",
                 torch.linalg.vector_norm(self.phi.single_data, ord=2).item(),

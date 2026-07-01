@@ -11,6 +11,55 @@ from gridfoam.fv.boundary_ops import (
 )
 
 
+def set_phi_from_matrix_flux(
+    phi: FaceField,
+    flux_data: Float[torch.Tensor, " F_single k"],
+) -> None:
+    """
+    Write matrix face flux values to single-sided internal faces.
+
+    Parameters
+    ----------
+    phi : FaceField
+        Target volumetric face-flux field.
+    flux_data : torch.Tensor
+        Flux values with shape ``[F_single, k]``.
+    """
+    phi.single_data = flux_data
+
+
+def compute_phi_hbya(
+    phi: FaceField, HbyA: CellField
+) -> Float[torch.Tensor, " F_single 1"]:
+    """
+    Compute ``phi_HbyA = HbyA_f & Sf`` on single-sided internal faces.
+
+    Domain and immersed boundary fluxes are left to ``correct_flux`` /
+    ``finalize_pressure_correction``.
+
+    Parameters
+    ----------
+    phi : FaceField
+        Face flux field whose ``single_data`` is updated.
+    HbyA : CellField
+        Momentum predictor ``H(U) / A(U)`` field.
+
+    Returns
+    -------
+    torch.Tensor
+        Computed ``phi_HbyA`` with shape ``[F_single, 1]``.
+    """
+    grid = HbyA.grid
+    HbyA_f = fvc.interpolate(HbyA)
+    phi_hbya = torch.sum(
+        HbyA_f.single_data * grid.Sf[HbyA_f.single_mask],
+        dim=1,
+        keepdim=True,
+    )
+    phi.single_data = phi_hbya
+    return phi_hbya
+
+
 def correct_flux(
     phi: FaceField,
     U: CellField,

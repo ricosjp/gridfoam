@@ -146,6 +146,10 @@ def laplacian(
     mat.source.index_add_(0, owner_single, -correction_src)
     mat.source.index_add_(0, neighbour_single, correction_src)
 
+    # Store the explicit correction so that ``FvMatrix.flux`` can reproduce the
+    # full discrete face flux (OpenFOAM ``faceFluxCorrectionPtr`` equivalent).
+    mat.face_flux_correction = correction_src
+
     # Domain boundaries
     for batch in iter_boundary_batches(field):
         f, ref_v, ref_g, _ = evaluate_boundary_state(field, batch)

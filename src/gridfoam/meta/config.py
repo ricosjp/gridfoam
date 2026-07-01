@@ -306,6 +306,49 @@ class RelaxationFactorsConfig(BaseModel, frozen=True):
     """
 
 
+class ResidualControlEntry(BaseModel, frozen=True):
+    tolerance: float
+    """
+    tolerance : float
+        Absolute residual tolerance.
+    """
+    rel_tolerance: float = Field(default=0.0)
+    """
+    rel_tolerance : float, default=0.0
+        Relative tolerance multiplier. ``0`` means absolute tolerance only.
+    """
+
+
+ResidualControlValue = ResidualControlEntry | float
+
+
+def normalize_residual_control(
+  value: dict[FieldName, ResidualControlValue],
+) -> dict[FieldName, ResidualControlEntry]:
+    """
+    Convert shorthand float tolerances to ``ResidualControlEntry`` objects.
+
+    Parameters
+    ----------
+    value : dict[FieldName, ResidualControlValue]
+        Raw residual-control mapping from configuration.
+
+    Returns
+    -------
+    dict[FieldName, ResidualControlEntry]
+        Normalized residual-control entries.
+    """
+    normalized: dict[FieldName, ResidualControlEntry] = {}
+    for field_name, entry in value.items():
+        if isinstance(entry, (int, float)):
+            normalized[field_name] = ResidualControlEntry(
+                tolerance=float(entry)
+            )
+        else:
+            normalized[field_name] = entry
+    return normalized
+
+
 class SIMPLEAlgorithm(BaseModel, frozen=True):
     type: Literal[AlgorithmType.SIMPLE]
     nNonOrthogonalCorrectors: int = Field(default=0, ge=0)
@@ -316,12 +359,19 @@ class SIMPLEAlgorithm(BaseModel, frozen=True):
         and resolved this many extra times using updated gradients.
         This setting is equivalent to OpenFOAM ``SIMPLE`` settings.
     """
-    residualControl: dict[FieldName, float] = Field(default_factory=dict)
+    residualControl: dict[FieldName, ResidualControlValue] = Field(
+        default_factory=dict
+    )
     """
-    residualControl : dict[FieldName, float]
+    residualControl : dict[FieldName, ResidualControlEntry | float]
         Residual control for the pressure (and other elliptic) equations.
         The key is the target field name to be controlled.
-        The value is the residual tolerance.
+        A float value is interpreted as an absolute tolerance shorthand.
+    """
+    consistent: bool = Field(default=False)
+    """
+    consistent : bool, default=False
+        Use the consistent pressure-correction formulation when ``True``.
     """
     relaxationFactors: RelaxationFactorsConfig = Field(
         default_factory=RelaxationFactorsConfig
@@ -387,12 +437,19 @@ class PIMPLEAlgorithm(BaseModel, frozen=True):
     nOuterCorrectors : int, default=1
         Number of outer correctors.
     """
-    residualControl: dict[FieldName, float] = Field(default_factory=dict)
+    residualControl: dict[FieldName, ResidualControlValue] = Field(
+        default_factory=dict
+    )
     """
-    residualControl : dict[FieldName, float]
+    residualControl : dict[FieldName, ResidualControlEntry | float]
         Residual control for the pressure (and other elliptic) equations.
         The key is the target field name to be controlled.
-        The value is the residual tolerance.
+        A float value is interpreted as an absolute tolerance shorthand.
+    """
+    consistent: bool = Field(default=False)
+    """
+    consistent : bool, default=False
+        Use the consistent pressure-correction formulation when ``True``.
     """
     pRefCell: int | None = Field(default=None, ge=0)
     """
@@ -434,6 +491,11 @@ class fvSolutionConfig(BaseModel, frozen=True):
     potentialFlow : PotentialFlowConfig | None, default=None
         Optional potential-flow initialization settings equivalent to
         OpenFOAM ``potentialFoam``.
+    """
+    adjustPhi: bool = Field(default=True)
+    """
+    adjustPhi : bool, default=True
+        Scale adjustable outlet boundary fluxes after pressure correction.
     """
 
 

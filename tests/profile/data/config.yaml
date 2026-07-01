@@ -39,6 +39,7 @@ simulator:
       default: upwind
   # Fv solution settings corresponding to system/fvSolution
   fvSolution:
+    adjustPhi: true  # OpenFOAM adjustPhi: scale adjustable outlet fluxes
     algorithm:
       type: simple
       nNonOrthogonalCorrectors: 2
@@ -51,6 +52,7 @@ simulator:
           p: 0.3
       pRefCell: 0
       pRefValue: 0.0
+      consistent: false  # OpenFOAM SIMPLE consistent formulation
     solvers:
       U:
         method: bicgstab
@@ -64,6 +66,13 @@ simulator:
         preconditioner: jacobi
         tolerance: 1e-7
         rel_tolerance: 0.01
+        max_iter: 1000
+        norm_type: l_2
+      pFinal:  # final pressure-correction solver (OpenFOAM pFinal)
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-8
+        rel_tolerance: 0.0
         max_iter: 1000
         norm_type: l_2
   # Conditions corresponding to 0.orig

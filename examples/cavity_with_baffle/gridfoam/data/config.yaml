@@ -28,9 +28,10 @@ simulator:
     divSchemes:
       default: linear
   fvSolution:
+    adjustPhi: true  # OpenFOAM adjustPhi: scale adjustable outlet fluxes
     algorithm:
       type: piso
-      nNonOrthogonalCorrectors: 2
+      nNonOrthogonalCorrectors: 0
       nCorrectors: 2
       pRefCell: 0
       pRefValue: 0.0
@@ -43,6 +44,13 @@ simulator:
         max_iter: 500
         norm_type: l_2
       p:
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-6
+        rel_tolerance: 0.05
+        max_iter: 1000
+        norm_type: l_2
+      pFinal:  # final pressure-correction solver (OpenFOAM pFinal)
         method: cg
         preconditioner: jacobi
         tolerance: 1e-6

@@ -11,6 +11,8 @@ from beartype.roar import BeartypeCallHintParamViolation
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.fv import fvc, fvm
+from gridfoam.fv.fvc.reconstruction import single_internal_mask
 from gridfoam.meta.enums import FieldRole, PreconditionerType
 from gridfoam.solvers.preconditioners import create_preconditioner
 
@@ -75,6 +77,27 @@ def test_fvmatrix_A_and_H_operators(
     assert torch.allclose(Aop, mat.diag / grid.cell_volumes)
     H = mat.H(x)
     assert H.shape == x.shape
+
+
+def test_fvmatrix_flux_on_laplacian_matrix(
+    small_axis_projected_grid: AxisProjectedGrid,
+):
+    grid = small_axis_projected_grid
+    p = CellField(grid, "p_flux_int", role=FieldRole.LOCAL, num_components=1)
+    gamma = CellField(grid, "gamma_flux", role=FieldRole.LOCAL, num_components=1)
+    gamma.data.fill_(0.5)
+    p.data = torch.randn_like(p.data)
+
+    mat = fvm.laplacian(gamma.data, p)
+    flux = mat.flux(p.data)
+    sn_grad_p = fvc.sn_grad(p)
+    single_mask = single_internal_mask(grid)
+    mag_Sf = torch.linalg.vector_norm(
+        grid.Sf[single_mask], dim=1, keepdim=True
+    )
+    gamma_f = fvc.interpolate(gamma)
+    expected = gamma_f.single_data * mag_Sf * sn_grad_p.single_data
+    assert torch.allclose(flux, expected, rtol=1e-4, atol=1e-6)
 
 
 def test_create_preconditioner_rejects_unknown_type(

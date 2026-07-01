@@ -13,6 +13,7 @@ from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import ControlConfig, GridfoamConfig, ManualAlgorithm
 from gridfoam.post.forces import ForceEvaluator
+from gridfoam.pre.potential_flow import PotentialFlow
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,11 @@ def manual_step(config_path: Path) -> Iterator[StepData]:
     algorithm_config = grid.sim_config.fvSolution.algorithm
     if isinstance(algorithm_config, ManualAlgorithm):
         raise ValueError("Manual algorithm has no step sequence")
+
+    if grid.sim_config.fvSolution.potentialFlow is not None:
+        # OpenFOAM potentialFoam-style initialization before the main solver
+        PotentialFlow(grid, phase).solve()
+
     algorithm = create_algorithm(grid, phase)
 
     output_dir = Path(grid.sim_config.control.output.output_dir)
@@ -88,9 +94,24 @@ def manual_step(config_path: Path) -> Iterator[StepData]:
             force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
 
 
+def _algorithm_converged(algorithm: AlgorithmBase) -> bool:
+    """
+    Return whether an algorithm reports pseudo-time / outer-loop convergence.
+
+    Algorithms without ``has_converged()`` always return ``False``.
+    """
+    has_converged = getattr(algorithm, "has_converged", None)
+    if callable(has_converged):
+        return bool(has_converged())
+    return False
+
+
 def all_run(config_path: Path) -> None:
     for step_data in manual_step(config_path):
         step_data.algorithm.step()
+        if _algorithm_converged(step_data.algorithm):
+            logger.info("Simulation converged at step=%d", step_data.step)
+            break
         write_interval = step_data.control.writeInterval
         end_time = step_data.control.endTime
         deltaT = step_data.control.deltaT

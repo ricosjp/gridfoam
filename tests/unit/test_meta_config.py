@@ -45,3 +45,30 @@ def test_solver_config_defaults():
     assert sc.preconditioner is PreconditionerType.NONE
     assert sc.tolerance == 1e-6
     assert sc.max_iter == 1000
+
+
+def test_residual_control_entry_and_adjust_phi_defaults():
+    from gridfoam.meta.config import (
+        ResidualControlEntry,
+        SIMPLEAlgorithm,
+        fvSolutionConfig,
+    )
+    from gridfoam.meta.enums import AlgorithmType
+
+    entry = ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.01)
+    assert entry.tolerance == 1e-6
+    assert entry.rel_tolerance == 0.01
+
+    algo = SIMPLEAlgorithm(
+        type=AlgorithmType.SIMPLE,
+        residualControl={"p": 1e-8, "U": {"tolerance": 1e-6, "rel_tolerance": 0.1}},
+        consistent=True,
+    )
+    assert algo.consistent is True
+    assert algo.residualControl["p"] == 1e-8
+
+    fv = fvSolutionConfig(
+        algorithm=algo,
+        solvers={"p": SolverConfig(method=SolverType.CG)},
+    )
+    assert fv.adjustPhi is True

@@ -17,7 +17,7 @@ simulator:
   # Control settings corresponding to system/controlDict
   control:
     deltaT: 0.1
-    endTime: 100
+    endTime: 500
     writeInterval: 100
     output:
       output_dir: "examples/hagen_poiseuille/gridfoam/outputs"
@@ -28,25 +28,33 @@ simulator:
     divSchemes:
       default: upwind
   fvSolution:
+    adjustPhi: true  # OpenFOAM adjustPhi: scale adjustable outlet fluxes
     algorithm:
       type: piso
-      nNonOrthogonalCorrectors: 2
-      nCorrectors: 2
+      nNonOrthogonalCorrectors: 0
+      nCorrectors: 1
       pRefCell: 0
       pRefValue: 0.0
     solvers:
       U:
         method: bicgstab
         preconditioner: jacobi
-        tolerance: 0.0
-        rel_tolerance: 1e-6
+        tolerance: 1e-8
+        rel_tolerance: 0.1
         max_iter: 1000
         norm_type: l_2
       p:
         method: cg
         preconditioner: jacobi
-        tolerance: 0.0
-        rel_tolerance: 1e-6
+        tolerance: 1e-7
+        rel_tolerance: 0.01
+        max_iter: 2000
+        norm_type: l_2
+      pFinal:  # final pressure-correction solver (OpenFOAM pFinal)
+        method: cg
+        preconditioner: jacobi
+        tolerance: 1e-7
+        rel_tolerance: 0.0
         max_iter: 2000
         norm_type: l_2
   # Conditions corresponding to 0.orig
