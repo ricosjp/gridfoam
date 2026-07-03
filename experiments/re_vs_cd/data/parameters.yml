@@ -1,0 +1,18 @@
+case: 
+  - name: sphere
+    mesh_path: "experiments/re_vs_cd/data/sphere.stl"
+    magU_ref: 1.0
+    A_ref: 0.7853981633974483
+    L_ref: 1.0
+  - name: cylinder
+    mesh_path: "experiments/re_vs_cd/data/cylinder.stl"
+    magU_ref: 1.0
+    A_ref: 8.0
+    L_ref: 1.0
+  - name: cube
+    mesh_path: "experiments/re_vs_cd/data/cube.stl"
+    magU_ref: 1.0
+    A_ref: 1.0
+    L_ref: 1.0
+
+Re: [0.5, 1, 2, 5, 10, 100]

@@ -58,7 +58,7 @@ def initialize_T(T: CellField) -> None:
 def main() -> None:
     log_file = Path(__file__).resolve().parent / "outputs" / "diffusion.log"
     configure_run_logger(log_file)
-    config_path = Path(__file__).resolve().parent / "data" / "config.yaml"
+    config_path = Path(__file__).resolve().parent / "config.yaml"
     grid = manual_run(config_path)
 
     output_dir = Path(grid.sim_config.control.output.output_dir)

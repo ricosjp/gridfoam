@@ -17,7 +17,7 @@ from gridfoam.meta.config import GridfoamConfig
 from gridfoam.meta.enums import FieldRole, GradScheme
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = SCRIPT_DIR / "data" / "config.yaml"
+CONFIG_PATH = SCRIPT_DIR / "config.yaml"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "outputs"
 LOG_FILE_NAME = "grad.log"
 RADIAL_EPS = 1.0e-12
