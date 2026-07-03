@@ -296,7 +296,14 @@ def main() -> None:
                 print(f"  Nested run: {run_name} ({rid})")
 
                 mlflow.log_param("solver", "gridfoam")
-                mlflow.log_params(config.model_dump())
+                mlflow.log_params(
+                    {
+                        "case_name": case.name,
+                        "mesh_path": case.mesh_path,
+                        "Re": Re,
+                        **config.model_dump(),
+                    }
+                )
 
                 # calculate drag coefficient and log to MLflow
                 Cd = calculate_drag_coefficient(config)

@@ -323,7 +323,7 @@ def main() -> None:
                     0.0,
                 )
                 cos_theta = np.clip(cos_theta, -1.0, 1.0)
-                err_theta = np.rad2deg(np.arccos(cos_theta))
+                err_theta = np.rad2deg(np.arccos(cos_theta)) - 90.0
                 sliced_mesh.cell_data["err_theta"] = err_theta
                 plot_rows_U = PlotRow(
                     ref_field=PlotItem(name="of_U", cmap=FAST_CMAP),

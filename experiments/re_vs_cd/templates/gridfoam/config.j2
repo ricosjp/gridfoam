@@ -26,8 +26,8 @@ simulator:
   # Control settings corresponding to system/controlDict
   control:
     deltaT: 1
-    endTime: 100
-    writeInterval: 20
+    endTime: 500
+    writeInterval: 100
     output:
       output_dir: "experiments/re_vs_cd/outputs/{{ case_name }}/gridfoam/{{ re_param }}"
       base_name: {{ case_name }}

@@ -102,7 +102,7 @@ class DdtScheme(StrEnum):
 class GradScheme(StrEnum):
     """
     Type of the gradient scheme.
-    - LINEAR: Linear scheme.
+    - LINEAR: linear scheme with face-centre offset correction
     - LEASTSQUARE: Least-squares scheme.
     """
 

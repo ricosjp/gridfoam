@@ -5,6 +5,7 @@ from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.fv import fvc
+from gridfoam.fv.fvc.interpolate import single_face_skew_correction
 from gridfoam.meta.enums import DivScheme
 
 DivSchemeFunc = Callable[
@@ -124,11 +125,12 @@ def linear(
     lower = -phi.single_data * w
     diag_N = -phi.single_data * (1.0 - w)
 
-    # Pure central differencing has zero deferred-correction source.
-    shape = (phi.num_single_sided, field.num_components)
-    source_face = torch.zeros(
-        shape, dtype=phi.grid.dtype, device=phi.grid.device
-    )  # [F_single k]
+    # Face-centre offset (skewness) correction as an explicit deferred source.
+    grad_data = fvc.grad(field).data
+    skew = single_face_skew_correction(
+        field, grad_data, phi.single_mask, owner, neighbour, w
+    )
+    source_face = -phi.single_data * skew  # [F_single k]
 
     return upper, lower, diag_O, diag_N, source_face
 
@@ -293,14 +295,26 @@ def _apply_tvd_scheme(
     psi_O = field.data[owner]  # [F_single k]
     psi_N = field.data[neighbour]  # [F_single k]
 
-    psi_linear = w * psi_O + (1.0 - w) * psi_N  # [F_single k]
     psi_upwind = torch.where(phi.single_data > 0, psi_O, psi_N)  # [F_single k]
 
     # 3. Compute gradients and OpenFOAM-style NVDTVD/NVDVTVDV r.
     n_cells = grid.num_cells
+    grad_flat = fvc.grad(field).data  # [n_cells, k * 3]
+
+    # Face-centre offset (skewness) correction of the high-order linear
+    # target. The correction ``grad_f & (C_f - C_w)`` keeps the linear face
+    # value second-order accurate on hanging-node (2:1) octree interfaces and
+    # vanishes on uniform meshes.
+    psi_linear = (
+        w * psi_O
+        + (1.0 - w) * psi_N
+        + single_face_skew_correction(
+            field, grad_flat, phi.single_mask, owner, neighbour, w
+        )
+    )  # [F_single k]
 
     if field.num_components == 1:
-        grad_data = fvc.grad(field).data  # [n_cells, 3]
+        grad_data = grad_flat  # [n_cells, 3]
         grad_O = grad_data[owner]  # [F_single, 3]
         grad_N = grad_data[neighbour]  # [F_single, 3]
         flux_mask = phi.single_data[:, 0] > 0  # [F_single]
@@ -325,9 +339,7 @@ def _apply_tvd_scheme(
         )  # [F_single, 1]
 
     else:
-        grad_data = fvc.grad(field).data.reshape(
-            n_cells, field.num_components, 3
-        )
+        grad_data = grad_flat.reshape(n_cells, field.num_components, 3)
         grad_t_O = grad_data[owner]  # [F_single k 3]
         grad_t_N = grad_data[neighbour]  # [F_single k 3]
         flux_mask = phi.single_data > 0  # [F_single 1]
