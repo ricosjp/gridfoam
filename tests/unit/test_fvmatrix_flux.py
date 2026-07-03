@@ -8,7 +8,7 @@ from gridfoam.algorithms.pressure_correction import correct_phi_inconsistent
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.fvc.reconstruction import single_internal_mask
+from gridfoam.fv.fvc.interpolate import single_internal_mask
 from gridfoam.meta.enums import FieldRole
 
 

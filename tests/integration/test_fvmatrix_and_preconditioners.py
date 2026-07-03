@@ -12,7 +12,7 @@ from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.fvc.reconstruction import single_internal_mask
+from gridfoam.fv.fvc.interpolate import single_internal_mask
 from gridfoam.meta.enums import FieldRole, PreconditionerType
 from gridfoam.solvers.preconditioners import create_preconditioner
 

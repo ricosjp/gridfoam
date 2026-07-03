@@ -3,11 +3,17 @@ from __future__ import annotations
 import pathlib
 
 import torch
+from tests.conftest import default_properties
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc
+from gridfoam.fv.fvc.interpolate import (
+    interpolate,
+    linear_internal_face_values,
+)
+from gridfoam.fv.schemes.grad import _gauss_assemble
 from gridfoam.meta.config import (
     ControlConfig,
     DomainConfig,
@@ -30,7 +36,6 @@ from gridfoam.meta.enums import (
     PrecisionType,
     SolverType,
 )
-from tests.conftest import default_properties
 
 
 def _refined_3d_grid(grad_scheme: GradScheme) -> IGridBase:
@@ -110,3 +115,27 @@ def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells():
         atol=1e-12,
         rtol=1e-12,
     )
+
+
+def test_linear_grad_corrects_interface_error_on_refined_mesh():
+    grid = _refined_3d_grid(GradScheme.LINEAR)
+    field, expected_vec = _linear_scalar_field(grid)
+    interior = _interior_mask(grid)
+    expected = expected_vec.to(grid.device)
+
+    # Uncorrected single-pass Green-Gauss reference.
+    psi_f = interpolate(field)
+    uncorrected = _gauss_assemble(
+        field, psi_f, linear_internal_face_values(field)
+    )
+
+    # Standard LINEAR scheme applies the hierarchy-interface correction.
+    corrected = fvc.grad(field).data
+
+    uncorrected_err = torch.linalg.vector_norm(
+        uncorrected[interior] - expected
+    ).item()
+    corrected_err = torch.linalg.vector_norm(
+        corrected[interior] - expected
+    ).item()
+    assert corrected_err < uncorrected_err

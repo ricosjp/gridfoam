@@ -8,16 +8,18 @@ from gridfoam.core.field import CellField
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv.fvc.grad import grad
-from gridfoam.fv.fvc.interpolate import interpolate
-from gridfoam.fv.fvc.reconstruction import (
+from gridfoam.fv.fvc.interpolate import (
+    interpolate,
     linear_internal_face_values,
+    single_face_linear_weights,
     single_internal_mask,
 )
 from gridfoam.fv.fvc.sn_grad import sn_grad
+from gridfoam.fv.schemes.grad import corrected_linear_internal_face_values
 from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
 from gridfoam.meta.enums import FieldRole, GradScheme
 
-grad_module = importlib.import_module("gridfoam.fv.fvc.grad")
+grad_schemes_module = importlib.import_module("gridfoam.fv.schemes.grad")
 
 
 def _refined_config(*, grad_scheme: GradScheme | None = None) -> GridfoamConfig:
@@ -85,6 +87,44 @@ def test_linear_internal_face_values_is_exact_on_uniform_mesh():
     torch.testing.assert_close(linear, expected, atol=1e-12, rtol=1e-12)
 
 
+def test_corrected_linear_face_values_match_linear_on_uniform_mesh():
+    grid = create_grid(small_gridfoam_config())
+    field, gradient = _linear_scalar_field(grid)
+    grad_data = gradient.expand(grid.num_cells, -1)
+
+    linear = linear_internal_face_values(field)
+    corrected = corrected_linear_internal_face_values(field, grad_data)
+
+    torch.testing.assert_close(corrected, linear, atol=1e-12, rtol=1e-12)
+
+
+def test_corrected_linear_face_values_improve_where_face_offset_is_nonzero():
+    grid = _refined_grid()
+    field, gradient = _linear_scalar_field(grid)
+    single_mask = single_internal_mask(grid)
+    owner, neighbour, w = single_face_linear_weights(grid, single_mask)
+    centroid = (
+        w * grid.cell_centers[owner] + (1.0 - w) * grid.cell_centers[neighbour]
+    )
+    offset = grid.face_centers[single_mask] - centroid
+    offset_faces = torch.linalg.vector_norm(offset, dim=1) > 0.0
+    if not bool(offset_faces.any().item()):
+        return
+
+    linear = linear_internal_face_values(field)
+    grad_data = gradient.expand(grid.num_cells, -1)
+    corrected = corrected_linear_internal_face_values(field, grad_data)
+    expected = (grid.face_centers[single_mask] @ gradient + 7.0).reshape(-1, 1)
+
+    linear_err = (
+        (linear[offset_faces] - expected[offset_faces]).abs().max().item()
+    )
+    corrected_err = (
+        (corrected[offset_faces] - expected[offset_faces]).abs().max().item()
+    )
+    assert corrected_err < linear_err
+
+
 def test_interpolate_uses_linear_internal_face_values():
     grid = create_grid(small_gridfoam_config())
     field, _ = _linear_scalar_field(grid)
@@ -102,7 +142,9 @@ def test_sn_grad_default_linear_scheme_does_not_use_leastsquare(
     def fail_leastsquare(_field: CellField) -> torch.Tensor:
         raise AssertionError("leastSquare reconstruction should not be used")
 
-    monkeypatch.setattr(grad_module, "least_square_grad_data", fail_leastsquare)
+    monkeypatch.setattr(
+        grad_schemes_module, "_least_square_grad_data", fail_leastsquare
+    )
 
     grid = _refined_grid()
     field, _ = _linear_scalar_field(grid)
