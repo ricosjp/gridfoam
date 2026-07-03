@@ -1,4 +1,4 @@
-"""Load example YAML and validate ``GridfoamConfig``."""
+"""Validate loading example YAML configs into ``GridfoamConfig``."""
 
 from __future__ import annotations
 
@@ -11,7 +11,8 @@ from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
 
 
 def test_example_cavity_config_loads():
-    repo = Path(__file__).resolve().parents[2]
+    # The shipped cavity example must parse without validation errors.
+    repo = Path(__file__).resolve().parents[3]
     config_path = (
         repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
     )
@@ -24,6 +25,7 @@ def test_example_cavity_config_loads():
 
 
 def test_refinement_region_config_validates_box():
+    # A well-formed refinement box must retain name and level.
     region = RefinementRegionConfig(
         name="wake",
         min=[0.0, -0.1, -0.1],
@@ -36,6 +38,7 @@ def test_refinement_region_config_validates_box():
 
 
 def test_refinement_region_config_rejects_invalid_box():
+    # Degenerate boxes (min == max on an axis) must fail validation.
     try:
         RefinementRegionConfig(
             min=[0.0, 0.0, 0.0],

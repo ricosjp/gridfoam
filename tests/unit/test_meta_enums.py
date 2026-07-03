@@ -15,20 +15,24 @@ from gridfoam.meta.enums import (
 
 
 def test_device_type_to_torch_device_cpu():
+    # CPU device enum maps to ``torch.device("cpu")``.
     assert DeviceType.CPU.to_torch_device() == torch.device("cpu")
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_device_type_to_torch_device_cuda():
+    # CUDA device enum maps to ``torch.device("cuda")`` when available.
     assert DeviceType.CUDA.to_torch_device() == torch.device("cuda")
 
 
 def test_norm_type_to_norm_order():
+    # Norm enums convert to the order expected by ``torch.linalg.norm``.
     assert NormType.L_2.to_norm_order() == 2
     assert NormType.L_inf.to_norm_order() == float("inf")
 
 
 def test_precision_type_to_torch_dtype():
+    # Precision enums map to the corresponding torch dtypes.
     assert PrecisionType.FLOAT32.to_torch_dtype() is torch.float32
     assert PrecisionType.FLOAT64.to_torch_dtype() is torch.float64
 
@@ -47,4 +51,5 @@ def test_precision_type_to_torch_dtype():
 def test_domain_boundary_patch_to_direction(
     patch: DomainBoundaryPatch, direction: Direction
 ):
+    # Each domain boundary patch maps to the matching fluxel Direction.
     assert patch.to_direction() == direction

@@ -1,3 +1,5 @@
+"""Unit tests for ``CellField`` initialization from config conditions."""
+
 from __future__ import annotations
 
 import pathlib
@@ -91,6 +93,7 @@ def _gridfoam_config_with_conditions() -> GridfoamConfig:
 
 
 def test_cellfield_initializes_from_conditions_internal() -> None:
+    # Fields listed in config conditions must be filled from internal values.
     grid = create_grid(_gridfoam_config_with_conditions())
     U = CellField(grid, "U", FieldRole.LOCAL, num_components=3)
     p = CellField(grid, "p", FieldRole.LOCAL, num_components=1)
@@ -102,6 +105,7 @@ def test_cellfield_initializes_from_conditions_internal() -> None:
 
 
 def test_cellfield_without_conditions_stays_zero() -> None:
+    # Fields absent from conditions must start at zero.
     grid = create_grid(_gridfoam_config_with_conditions())
     field = CellField(grid, "k", FieldRole.LOCAL, num_components=1)
 
@@ -109,6 +113,7 @@ def test_cellfield_without_conditions_stays_zero() -> None:
 
 
 def test_cellfield_rejects_mismatched_internal_length() -> None:
+    # Internal value count must match num_components.
     grid = create_grid(_gridfoam_config_with_conditions())
 
     with pytest.raises(ValueError, match="internal has 1 value"):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from gridfoam.algorithms.residual import (
+from gridfoam.algorithms.utils.residual import (
     continuity_residual,
     field_initial_residual,
     residual_satisfied,
@@ -19,6 +19,7 @@ from gridfoam.meta.enums import FieldRole
 def test_field_initial_residual_zero_for_exact_solution(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # Residual must be zero when the field satisfies the Laplacian system.
     grid = small_axis_projected_grid
     p = CellField(grid, "p_res", role=FieldRole.LOCAL, num_components=1)
     mat = fvm.laplacian(1.0, p)
@@ -30,6 +31,7 @@ def test_field_initial_residual_zero_for_exact_solution(
 def test_continuity_residual_matches_div_norm(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # Continuity residual must be a non-negative scalar from div(phi).
     grid = small_axis_projected_grid
     phi = FaceField(grid, "phi_res", role=FieldRole.LOCAL, num_components=1)
     phi.single_data = torch.randn_like(phi.single_data)
@@ -38,16 +40,17 @@ def test_continuity_residual_matches_div_norm(
 
 
 def test_residual_satisfied_absolute_and_relative():
+    # Convergence check must pass under absolute-only or relative thresholds.
     assert residual_satisfied(1e-9, 1e-6, 0.0, 1.0)
     assert not residual_satisfied(1e-3, 1e-6, 0.0, 1.0)
     assert residual_satisfied(1e-7, 1e-6, 0.1, 1e-3)
-    assert not residual_satisfied(2e-4, 1e-6, 0.1, 1e-3)
     assert not residual_satisfied(2e-4, 1e-6, 0.1, 1e-3)
 
 
 def test_fvmatrix_residual_nonzero_for_mismatch(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # A field that does not satisfy Ax=b must yield a positive residual.
     grid = small_axis_projected_grid
     p = CellField(grid, "p_bad", role=FieldRole.LOCAL, num_components=1)
     mat = FvMatrix(p)

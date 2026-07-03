@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from gridfoam.algorithms.pressure_correction import correct_phi_inconsistent
+from gridfoam.algorithms.utils.pressure_correction import correct_phi_inconsistent
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
@@ -15,6 +15,8 @@ from gridfoam.meta.enums import FieldRole
 def test_fvmatrix_flux_matches_sn_grad_laplacian(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # Laplacian matrix flux must equal gamma_f * |Sf| * snGrad(psi) on
+    # single internal faces (gamma = 1).
     grid = small_axis_projected_grid
     psi = CellField(grid, "psi_flux", role=FieldRole.LOCAL, num_components=1)
     torch.manual_seed(0)
@@ -35,7 +37,8 @@ def test_fvmatrix_flux_matches_sn_grad_laplacian(
 def test_negative_laplacian_flux_matches_pressure_equation_correction(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
-    """(-pEqn).flux matches snGrad-based inconsistent correction."""
+    # (-pEqn).flux must match the snGrad-based inconsistent phi correction
+    # used in pressure-correction algorithms.
     grid = small_axis_projected_grid
     p = CellField(grid, "p_neg_flux", role=FieldRole.LOCAL, num_components=1)
     rAU = CellField(grid, "rAU_neg_flux", role=FieldRole.LOCAL, num_components=1)
@@ -65,6 +68,8 @@ def test_negative_laplacian_flux_matches_pressure_equation_correction(
 def test_fvmatrix_flux_zero_on_immersed_coefficients(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # Immersed-boundary faces must have zero upper coefficients and finite
+    # flux output on the remaining single internal faces.
     grid = small_axis_projected_grid
     if not torch.any(grid.ap_is_immersed_faces):
         return
@@ -77,4 +82,3 @@ def test_fvmatrix_flux_zero_on_immersed_coefficients(
     single_mask = single_internal_mask(grid)
     assert flux.shape[0] == int(single_mask.sum().item())
     assert torch.all(torch.isfinite(flux))
-

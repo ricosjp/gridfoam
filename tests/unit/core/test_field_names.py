@@ -1,3 +1,7 @@
+"""Unit tests for field-name parsing and construction helpers."""
+
+from __future__ import annotations
+
 import pytest
 
 import gridfoam.algorithms.simple  # noqa: F401 — establish import order
@@ -18,6 +22,7 @@ from gridfoam.core.name import (
     ],
 )
 def test_make_field_name(name: str, phase: str | None, expected: str) -> None:
+    # Phase suffix is appended as ``base.phase`` when phase is given.
     assert make_field_name(name, phase=phase) == expected
 
 
@@ -30,19 +35,23 @@ def test_make_field_name(name: str, phase: str | None, expected: str) -> None:
     ],
 )
 def test_parse_field_name(key: str, expected: FieldNameParts) -> None:
+    # Dotted keys split into base name and optional phase.
     assert parse_field_name(key) == expected
 
 
 def test_make_field_name_rejects_dots_in_name() -> None:
+    # Base names must not contain dots (reserved for phase separator).
     with pytest.raises(ValueError, match="name"):
         make_field_name("phi.water")
 
 
 def test_make_field_name_rejects_dots_in_phase() -> None:
+    # Phase labels must not contain dots.
     with pytest.raises(ValueError, match="phase"):
         make_field_name("phi", phase="a.b")
 
 
 def test_parse_field_name_rejects_invalid_key() -> None:
+    # Keys starting with a dot are invalid.
     with pytest.raises(ValueError, match="invalid field name"):
         parse_field_name(".water")

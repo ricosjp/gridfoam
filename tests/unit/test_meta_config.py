@@ -14,6 +14,7 @@ from gridfoam.meta.enums import (
 
 
 def test_fvschemes_regularizes_div_scheme_keys():
+    # Extra whitespace around div-scheme keys is stripped on validation.
     cfg = fvSchemesConfig(
         divSchemes={
             "default  ,  linear": DivScheme.LINEAR,
@@ -25,6 +26,7 @@ def test_fvschemes_regularizes_div_scheme_keys():
 
 
 def test_fvschemes_accepts_grad_scheme_values():
+    # Grad-scheme values may be supplied as strings and coerced to enums.
     cfg = fvSchemesConfig(
         gradSchemes=cast(
             "dict[str, GradScheme]",
@@ -41,6 +43,7 @@ def test_fvschemes_accepts_grad_scheme_values():
 
 
 def test_solver_config_defaults():
+    # Default solver settings match OpenFOAM-style baseline values.
     sc = SolverConfig(method=SolverType.CG)
     assert sc.preconditioner is PreconditionerType.NONE
     assert sc.tolerance == 1e-6
@@ -48,6 +51,7 @@ def test_solver_config_defaults():
 
 
 def test_residual_control_entry_and_adjust_phi_defaults():
+    # Residual-control entries and fvSolution defaults parse correctly.
     from gridfoam.meta.config import (
         ResidualControlEntry,
         SIMPLEAlgorithm,

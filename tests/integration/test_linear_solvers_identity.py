@@ -23,6 +23,7 @@ from gridfoam.solvers.factory import create_solver
 def _identity_linear_system(
     grid: IGridBase, *, name: str, k: int
 ) -> tuple[Equation, Float[torch.Tensor, " C K"]]:
+    """Build ``I x = b`` as an ``Equation`` with random right-hand side."""
     p = CellField(grid, name, role=FieldRole.LOCAL, num_components=k)
     fv_matrix = FvMatrix(p)
     fv_matrix.diag.fill_(1.0)
@@ -37,6 +38,7 @@ def _identity_linear_system(
 
 
 def test_cg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
+    # CG without preconditioning must solve a scalar identity system.
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_cg", k=1)
     cfg = SolverConfig(
@@ -53,6 +55,7 @@ def test_cg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
 
 
 def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
+    # BiCGSTAB must solve a 2-component identity system.
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_bicg", k=2)
     cfg = SolverConfig(
@@ -70,6 +73,7 @@ def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
 
 
 def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
+    # PyAMG bridge must solve a scalar identity system on the test mesh.
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_amg", k=1)
     cfg = SolverConfig(
@@ -86,6 +90,7 @@ def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
 def test_equation_factory_returns_named_container(
     small_axis_projected_grid: AxisProjectedGrid,
 ):
+    # ``equation()`` must wrap field and matrix with the field's name.
     grid = small_axis_projected_grid
     p = CellField(grid, "p_eq", role=FieldRole.LOCAL, num_components=1)
     fv_matrix = FvMatrix(p)

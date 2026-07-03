@@ -16,21 +16,25 @@ from gridfoam.solvers.pyamg_bridge import PyamgBridgeSolver
 
 
 def test_create_solver_returns_cg():
+    # CG method maps to ``CGSolver``.
     cfg = SolverConfig(method=SolverType.CG)
     assert isinstance(create_solver(cfg), CGSolver)
 
 
 def test_create_solver_returns_bicgstab():
+    # BiCGSTAB method maps to ``BiCGSTABSolver``.
     cfg = SolverConfig(method=SolverType.BiCGSTAB)
     assert isinstance(create_solver(cfg), BiCGSTABSolver)
 
 
 def test_create_solver_returns_pyamg():
+    # PyAMG method maps to ``PyamgBridgeSolver``.
     cfg = SolverConfig(method=SolverType.PyAMG)
     assert isinstance(create_solver(cfg), PyamgBridgeSolver)
 
 
 def test_create_solver_unknown_method_raises():
+    # Invalid method values must be rejected by runtime type checking.
     cfg = MagicMock()
     cfg.method = "not_a_solver"
     with pytest.raises(BeartypeCallHintParamViolation):
