@@ -3,14 +3,14 @@ import logging
 import torch
 
 from gridfoam.algorithms.base import AlgorithmBase
-from gridfoam.algorithms.pressure_correction import (
+from gridfoam.algorithms.utils.pressure_correction import (
     correct_phi,
     correct_velocity,
     finalize_pressure_correction,
     solve_pressure_poisson,
 )
-from gridfoam.algorithms.residual import continuity_residual
-from gridfoam.algorithms.utils import needs_reference_value
+from gridfoam.algorithms.utils.reference_value import needs_reference_value
+from gridfoam.algorithms.utils.residual import continuity_residual
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     get_or_create_cellfield,
