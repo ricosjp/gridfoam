@@ -11,12 +11,12 @@ import importlib
 
 import torch
 from pytest import MonkeyPatch
+from tests.helpers import linear_scalar_field, refined_grid
 
 from gridfoam.core.field import CellField
 from gridfoam.fv.fvc.grad import grad
 from gridfoam.fv.fvc.sn_grad import sn_grad
 from gridfoam.meta.enums import GradScheme
-from tests.helpers import linear_scalar_field, refined_grid
 
 grad_schemes_module = importlib.import_module("gridfoam.fv.schemes.grad")
 

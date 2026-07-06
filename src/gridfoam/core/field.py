@@ -102,7 +102,8 @@ class CellField(GeometricField):
         """
         if len(init_value) != self.num_components:
             raise ValueError(
-                f"Field {self.name!r}: internal has {len(init_value)} value(s), "
+                f"Field {self.name!r}: internal has "
+                f"{len(init_value)} value(s), "
                 f"expected {self.num_components}"
             )
         self._data[:] = torch.tensor(

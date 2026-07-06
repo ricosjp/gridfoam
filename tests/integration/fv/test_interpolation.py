@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import torch
 from tests.conftest import small_gridfoam_config
+from tests.helpers import linear_scalar_field, refined_grid
 
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv.fvc.interpolate import (
@@ -18,7 +19,6 @@ from gridfoam.fv.fvc.interpolate import (
     single_internal_mask,
 )
 from gridfoam.fv.schemes.grad import corrected_linear_internal_face_values
-from tests.helpers import linear_scalar_field, refined_grid
 
 
 def test_linear_internal_face_values_is_exact_on_uniform_mesh():

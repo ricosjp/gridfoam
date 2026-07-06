@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import torch
 
-from gridfoam.algorithms.utils.pressure_correction import correct_phi_inconsistent
+from gridfoam.algorithms.utils.pressure_correction import (
+    correct_phi_inconsistent,
+)
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
@@ -41,8 +43,12 @@ def test_negative_laplacian_flux_matches_pressure_equation_correction(
     # used in pressure-correction algorithms.
     grid = small_axis_projected_grid
     p = CellField(grid, "p_neg_flux", role=FieldRole.LOCAL, num_components=1)
-    rAU = CellField(grid, "rAU_neg_flux", role=FieldRole.LOCAL, num_components=1)
-    phi = FaceField(grid, "phi_neg_flux", role=FieldRole.LOCAL, num_components=1)
+    rAU = CellField(
+        grid, "rAU_neg_flux", role=FieldRole.LOCAL, num_components=1
+    )
+    phi = FaceField(
+        grid, "phi_neg_flux", role=FieldRole.LOCAL, num_components=1
+    )
 
     torch.manual_seed(1)
     p.data = torch.randn_like(p.data)

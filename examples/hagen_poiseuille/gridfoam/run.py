@@ -8,6 +8,7 @@ from gridfoam.runner import manual_step
 
 logger = logging.getLogger(__name__)
 
+
 def configure_run_logger() -> None:
     formatter = logging.Formatter("%(message)s")
     logger.handlers.clear()
@@ -42,6 +43,7 @@ def main() -> None:
             assert U is not None
             max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
             logger.info("step=%4d max|U|=%.4e", step_data.step, max_u)
+
 
 if __name__ == "__main__":
     main()

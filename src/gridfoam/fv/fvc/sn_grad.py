@@ -123,6 +123,8 @@ def corrected_internal_sn_grad_values(
     move_N.scatter_(1, axis_idx, 0.0)
 
     psi_O = field.data[owner] + torch.sum(grad_O * move_O[:, None, :], dim=2)
-    psi_N = field.data[neighbour] + torch.sum(grad_N * move_N[:, None, :], dim=2)
+    psi_N = field.data[neighbour] + torch.sum(
+        grad_N * move_N[:, None, :], dim=2
+    )
 
     return (psi_N - psi_O) / mag_d

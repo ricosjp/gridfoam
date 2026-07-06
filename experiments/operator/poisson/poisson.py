@@ -185,8 +185,12 @@ def solve_poisson_case(
     if save_vtu:
         p_exact_name = make_field_name("p_exact")
         diff_name = make_field_name("diff")
-        p_exact_field = get_or_create_cellfield(grid, p_exact_name, FieldRole.LOCAL, 1)
-        diff_field = get_or_create_cellfield(grid, diff_name, FieldRole.LOCAL, 1)
+        p_exact_field = get_or_create_cellfield(
+            grid, p_exact_name, FieldRole.LOCAL, 1
+        )
+        diff_field = get_or_create_cellfield(
+            grid, diff_name, FieldRole.LOCAL, 1
+        )
         p_exact_field.export = True
         diff_field.export = True
 

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import pathlib
 
-from gridfoam.algorithms.simple import SIMPLE
-from gridfoam.core.grid.factory import create_grid
 from tests.helpers import simple_convergence_config
 
+from gridfoam.algorithms.simple import SIMPLE
+from gridfoam.core.grid.factory import create_grid
 
-def test_simple_has_converged_with_loose_residual_control(tmp_path: pathlib.Path):
+
+def test_simple_has_converged_with_loose_residual_control(
+    tmp_path: pathlib.Path,
+):
     # With very loose residualControl thresholds, one SIMPLE step must mark
     # the algorithm as converged immediately.
     grid = create_grid(simple_convergence_config(tmp_path))

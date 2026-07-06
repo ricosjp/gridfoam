@@ -323,7 +323,7 @@ ResidualControlValue = ResidualControlEntry | float
 
 
 def normalize_residual_control(
-  value: dict[FieldName, ResidualControlValue],
+    value: dict[FieldName, ResidualControlValue],
 ) -> dict[FieldName, ResidualControlEntry]:
     """
     Convert shorthand float tolerances to ``ResidualControlEntry`` objects.
@@ -377,7 +377,8 @@ class SIMPLEAlgorithm(BaseModel, frozen=True):
         default_factory=RelaxationFactorsConfig
     )
     """
-    relaxationFactors : RelaxationFactorsConfig, default=RelaxationFactorsConfig()
+    relaxationFactors : RelaxationFactorsConfig,
+        default=RelaxationFactorsConfig()
         Relaxation factors for the equations.
     """
     pRefCell: int | None = Field(default=None, ge=0)

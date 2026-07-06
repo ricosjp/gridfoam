@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 
 import torch
+from tests.helpers import potential_flow_config
 
 from gridfoam.core.field import get_or_create_facefield
 from gridfoam.core.grid.factory import create_grid
@@ -12,7 +13,6 @@ from gridfoam.fv import fvc
 from gridfoam.fv.flux import correct_flux
 from gridfoam.meta.enums import FieldRole
 from gridfoam.pre.potential_flow import PotentialFlow
-from tests.helpers import potential_flow_config
 
 
 def test_potential_flow_reduces_divergence(tmp_path: pathlib.Path):

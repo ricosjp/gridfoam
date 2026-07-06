@@ -282,8 +282,6 @@ def test_cube_low_re_drag_with_simple(
         end_time=20.0,
     )
     grid = create_grid(config)
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
 
     turb = Laminar(grid=grid)
     assert grid.sim_config.post_processing is not None

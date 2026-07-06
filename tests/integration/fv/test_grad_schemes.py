@@ -9,19 +9,19 @@ over uncorrected Green-Gauss assembly.
 from __future__ import annotations
 
 import torch
+from tests.helpers import (
+    interior_mask,
+    linear_scalar_field,
+    refined_3d_grid,
+)
 
 from gridfoam.fv import fvc
 from gridfoam.fv.fvc.interpolate import (
     interpolate,
     linear_internal_face_values,
 )
-from gridfoam.fv.schemes.grad import _gauss_assemble
+from gridfoam.fv.schemes.grad import gauss_assemble
 from gridfoam.meta.enums import GradScheme
-from tests.helpers import (
-    interior_mask,
-    linear_scalar_field,
-    refined_3d_grid,
-)
 
 
 def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells():
@@ -50,7 +50,7 @@ def test_linear_grad_corrects_interface_error_on_refined_mesh():
     expected = expected_vec.to(grid.device)
 
     psi_f = interpolate(field)
-    uncorrected = _gauss_assemble(
+    uncorrected = gauss_assemble(
         field, psi_f, linear_internal_face_values(field)
     )
     corrected = fvc.grad(field).data

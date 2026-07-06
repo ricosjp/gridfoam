@@ -24,7 +24,7 @@ GradSchemeFunc = Callable[[CellField], Float[torch.Tensor, " C 3"]]
 # =============================================================================
 # Green-Gauss assembly
 # =============================================================================
-def _gauss_assemble(
+def gauss_assemble(
     field: CellField,
     psi_f: FaceField,
     internal_single_data: Float[torch.Tensor, " F_single k"],
@@ -115,8 +115,7 @@ def corrected_linear_internal_face_values(
     psi_linear = w * field.data[owner] + (1.0 - w) * field.data[neighbour]
 
     centroid = (
-        w * grid.cell_centers[owner]
-        + (1.0 - w) * grid.cell_centers[neighbour]
+        w * grid.cell_centers[owner] + (1.0 - w) * grid.cell_centers[neighbour]
     )
     grad_face = w * grad_data[owner] + (1.0 - w) * grad_data[neighbour]
     face_offset = grid.face_centers[single_mask] - centroid
@@ -225,9 +224,9 @@ def linear(field: CellField) -> Float[torch.Tensor, " C 3"]:
     """
     psi_f = interpolate(field)
     linear_faces = linear_internal_face_values(field)
-    provisional = _gauss_assemble(field, psi_f, linear_faces)
+    provisional = gauss_assemble(field, psi_f, linear_faces)
     corrected = corrected_linear_internal_face_values(field, provisional)
-    return _gauss_assemble(field, psi_f, corrected)
+    return gauss_assemble(field, psi_f, corrected)
 
 
 def leastsquare(field: CellField) -> Float[torch.Tensor, " C 3"]:

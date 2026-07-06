@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-import gridfoam.algorithms.simple  # noqa: F401 — establish import order
 from gridfoam.core.name import (
     FieldNameParts,
     make_field_name,

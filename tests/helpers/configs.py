@@ -88,7 +88,7 @@ def refined_config(
 
 
 def refined_3d_config(*, grad_scheme: GradScheme) -> GridfoamConfig:
-    """3-D refined mesh used to exercise hierarchy-interface gradient schemes."""
+    """3-D refined mesh for hierarchy-interface gradient schemes."""
     return GridfoamConfig(
         fluxel=FluxelConfig(
             domain=DomainConfig(lower=[0.0, 0.0, 0.0], upper=[1.0, 1.0, 1.0]),
@@ -132,7 +132,7 @@ def refined_3d_config(*, grad_scheme: GradScheme) -> GridfoamConfig:
 
 
 def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
-    """Tiny cavity with loose residual control for one-step convergence checks."""
+    """Tiny cavity with loose residual control for convergence checks."""
     return GridfoamConfig(
         fluxel=FluxelConfig(
             domain=DomainConfig(

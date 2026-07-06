@@ -65,7 +65,10 @@ def test_residual_control_entry_and_adjust_phi_defaults():
 
     algo = SIMPLEAlgorithm(
         type=AlgorithmType.SIMPLE,
-        residualControl={"p": 1e-8, "U": {"tolerance": 1e-6, "rel_tolerance": 0.1}},
+        residualControl={
+            "p": 1e-8,
+            "U": ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.1),
+        },
         consistent=True,
     )
     assert algo.consistent is True

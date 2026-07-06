@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from tests.helpers.configs import refined_3d_config, refined_config
+
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.meta.enums import GradScheme
-
-from tests.helpers.configs import refined_3d_config, refined_config
 
 
 def refined_grid(*, grad_scheme: GradScheme | None = None) -> IGridBase:

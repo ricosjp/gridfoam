@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import pyvista as pv
 import torch
+from tests.conftest import default_properties
 
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
@@ -24,8 +25,8 @@ from gridfoam.meta.config import (
     OutputConfig,
     PostProcessingConfig,
     RelaxationFactorsConfig,
-    SimulatorConfig,
     SIMPLEAlgorithm,
+    SimulatorConfig,
     SolverConfig,
     fvSchemesConfig,
     fvSolutionConfig,
@@ -39,7 +40,6 @@ from gridfoam.meta.enums import (
     PrecisionType,
     SolverType,
 )
-from tests.conftest import default_properties
 
 
 @pytest.fixture
