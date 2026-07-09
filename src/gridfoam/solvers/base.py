@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import torch
 from jaxtyping import Float
@@ -7,6 +8,49 @@ from jaxtyping import Float
 from gridfoam.core.equation import Equation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SolveStats:
+    """
+    Statistics from a single linear-system solve.
+
+    Parameters
+    ----------
+    solver : str
+        Solver type name (for example ``"cg"``).
+    initial_residual : float
+        Normalized initial residual norm.
+    final_residual : float
+        Normalized final residual norm.
+    iterations : int
+        Number of solver iterations performed.
+    converged : bool
+        Whether convergence criteria were met.
+    """
+
+    solver: str
+    initial_residual: float
+    final_residual: float
+    iterations: int
+    converged: bool
+
+
+@dataclass(frozen=True)
+class SolveResult:
+    """
+    Solution tensor and associated solver statistics.
+
+    Parameters
+    ----------
+    solution : torch.Tensor
+        Computed field values with shape ``[C, k]``.
+    stats : tuple[SolveStats, ...]
+        Per-component solver statistics in equation component order.
+    """
+
+    solution: Float[torch.Tensor, " C k"]
+    stats: tuple[SolveStats, ...]
 
 
 class LinearSolver(ABC):
@@ -18,9 +62,9 @@ class LinearSolver(ABC):
     def solve(
         self,
         eq: Equation,
-    ) -> Float[torch.Tensor, " C k"]:
+    ) -> SolveResult:
         """
-        Solve ``A x = b`` and return updated ``x``.
+        Solve ``A x = b`` and return the solution with statistics.
 
         Parameters
         ----------
@@ -29,8 +73,8 @@ class LinearSolver(ABC):
 
         Returns
         -------
-        Float[torch.Tensor, " C k"]
-            Computed solution tensor.
+        SolveResult
+            Computed solution and solver statistics.
         """
         pass
 

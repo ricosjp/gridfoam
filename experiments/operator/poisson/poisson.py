@@ -177,7 +177,7 @@ def solve_poisson_case(
 
     poisson_mat = assemble_poisson_matrix(p)
     poisson_eq = equation(p, poisson_mat)
-    p.data = p_solver.solve(poisson_eq)
+    p.data = p_solver.solve(poisson_eq).solution
 
     p_ref = p_exact(x, y, z).unsqueeze(-1)
     errors = compute_errors(p.data, p_ref)

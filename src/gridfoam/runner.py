@@ -12,6 +12,7 @@ from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import ControlConfig, GridfoamConfig, ManualAlgorithm
+from gridfoam.post.diagnostics import DiagnosticsCollector
 from gridfoam.post.forces import ForceEvaluator
 from gridfoam.pre.potential_flow import PotentialFlow
 
@@ -73,25 +74,42 @@ def manual_step(config_path: Path) -> Iterator[StepData]:
     n_steps = int(
         grid.sim_config.control.endTime / grid.sim_config.control.deltaT
     )
-    for step in range(1, n_steps + 1):
-        yield StepData(
-            step=step,
-            control=grid.sim_config.control,
-            algorithm=algorithm,
-            ugrid=ugrid,
-        )
+    diagnostics = DiagnosticsCollector.from_config(
+        grid,
+        grid.sim_config.post_processing,
+        output_dir,
+        n_steps=n_steps,
+        delta_t=grid.sim_config.control.deltaT,
+        phase=phase,
+    )
+    if diagnostics is not None:
+        algorithm.attach_diagnostics(diagnostics)
 
-    post_processing = grid.sim_config.post_processing
-    if post_processing is not None:
-        if post_processing.forceCoeff is not None:
-            force_evaluator = ForceEvaluator(grid, phase=phase)
-            force_evaluator.evaluate(
-                grid,
-                time=float(grid.sim_config.control.endTime),
-                turbulence=algorithm.turbulence,
+    try:
+        for step in range(1, n_steps + 1):
+            yield StepData(
+                step=step,
+                control=grid.sim_config.control,
+                algorithm=algorithm,
+                ugrid=ugrid,
             )
-            force_evaluator.write_csv(output_dir / "coefficients.csv")
-            force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
+
+        post_processing = grid.sim_config.post_processing
+        if post_processing is not None:
+            if post_processing.forceCoeff is not None:
+                force_evaluator = ForceEvaluator(grid, phase=phase)
+                force_evaluator.evaluate(
+                    grid,
+                    time=float(grid.sim_config.control.endTime),
+                    turbulence=algorithm.turbulence,
+                )
+                force_evaluator.write_csv(output_dir / "coefficients.csv")
+                force_evaluator.save_surface_mesh(
+                    output_dir / "surface_mesh.vtu"
+                )
+    finally:
+        if diagnostics is not None:
+            diagnostics.close()
 
 
 def _algorithm_converged(algorithm: AlgorithmBase) -> bool:

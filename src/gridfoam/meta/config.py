@@ -715,11 +715,47 @@ class ConditionConfig(BaseModel, frozen=True):
         yield from self.boundary.values()
 
 
+class ContinuityErrorConfig(BaseModel, frozen=True):
+    phi: str = "phi"
+    """
+    phi : str, default="phi"
+        Name of the face flux field used for continuity error evaluation.
+    """
+    writeInterval: int = Field(default=1, ge=1)
+    """
+    writeInterval : int, default=1
+        Record every N algorithm steps (always records the final step).
+    """
+
+
+class SolverInfoConfig(BaseModel, frozen=True):
+    fields: list[str] | None = None
+    """
+    fields : list[str] | None, default=None
+        Field names to log solver statistics for. Defaults to ``["U", "p"]``.
+    """
+    writeInterval: int = Field(default=1, ge=1)
+    """
+    writeInterval : int, default=1
+        Record every N algorithm steps (always records the final step).
+    """
+
+
 class PostProcessingConfig(BaseModel, frozen=True):
     forceCoeff: ForceCoeffConfig | None = None
     """
     forceCoeff : ForceCoeffConfig
         Force coefficients configuration.
+    """
+    continuityError: ContinuityErrorConfig | None = None
+    """
+    continuityError : ContinuityErrorConfig | None, default=None
+        Continuity error CSV output configuration.
+    """
+    solverInfo: SolverInfoConfig | None = None
+    """
+    solverInfo : SolverInfoConfig | None, default=None
+        Linear solver statistics CSV output configuration.
     """
 
 

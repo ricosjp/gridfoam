@@ -28,6 +28,7 @@ from gridfoam.meta.config import PIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
+from gridfoam.solvers.base import SolveStats
 from gridfoam.solvers.factory import create_solver
 from gridfoam.solvers.resolver import resolve_solver
 
@@ -174,6 +175,7 @@ class PIMPLE(AlgorithmBase):
             self.n_correctors,
         )
 
+        solve_stats: dict[str, tuple[SolveStats, ...]] = {}
         self._outer_converged = False
         # =========================================================
         # PIMPLE outer loop
@@ -207,7 +209,9 @@ class PIMPLE(AlgorithmBase):
                 )
 
             momentum_eq = equation(self.U, UEqn_mat)
-            self.U.data = self.solvers[momentum_eq.name].solve(momentum_eq)
+            u_result = self.solvers[momentum_eq.name].solve(momentum_eq)
+            self.U.data = u_result.solution
+            solve_stats[self.U.name] = u_result.stats
 
             # =========================================================
             # PISO corrector loop (pressure-velocity coupling)
@@ -238,7 +242,7 @@ class PIMPLE(AlgorithmBase):
                 p_solver = resolve_solver(
                     self.solvers, self.p.name, is_final=is_final
                 )
-                p_eqn_mat = solve_pressure_poisson(
+                p_eqn_mat, p_stats = solve_pressure_poisson(
                     self.p,
                     self.rAU,
                     div_phi,
@@ -248,6 +252,7 @@ class PIMPLE(AlgorithmBase):
                     p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
                     p_ref_value=self.p_ref_value if self.p_needs_ref else None,
                 )
+                solve_stats[self.p.name] = p_stats
 
                 if self.p.name in self._residual_control and is_final:
                     self._record_residual(
@@ -296,4 +301,5 @@ class PIMPLE(AlgorithmBase):
                 break
 
         self.U.update_history()
+        self._finalize_diagnostics(self.phi, solve_stats)
         logger.info("PIMPLE step end")

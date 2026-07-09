@@ -50,8 +50,8 @@ def test_cg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
         norm_type=NormType.L_2,
     )
     solver = create_solver(cfg)
-    x = solver.solve(eq)
-    assert torch.allclose(x, b, atol=1e-6, rtol=1e-6)
+    result = solver.solve(eq)
+    assert torch.allclose(result.solution, b, atol=1e-6, rtol=1e-6)
 
 
 def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
@@ -68,8 +68,8 @@ def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
         max_restart=5,
     )
     solver = create_solver(cfg)
-    x = solver.solve(eq)
-    assert torch.allclose(x, b, atol=1e-5, rtol=1e-5)
+    result = solver.solve(eq)
+    assert torch.allclose(result.solution, b, atol=1e-5, rtol=1e-5)
 
 
 def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
@@ -83,8 +83,8 @@ def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
         max_iter=200,
     )
     solver = create_solver(cfg)
-    x = solver.solve(eq)
-    assert torch.allclose(x, b, atol=1e-5, rtol=1e-5)
+    result = solver.solve(eq)
+    assert torch.allclose(result.solution, b, atol=1e-5, rtol=1e-5)
 
 
 def test_equation_factory_returns_named_container(

@@ -18,7 +18,7 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
 from gridfoam.fv.flux import correct_flux, set_phi_from_matrix_flux
-from gridfoam.solvers.base import LinearSolver
+from gridfoam.solvers.base import LinearSolver, SolveStats
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def solve_pressure_poisson(
     p_needs_ref: bool,
     p_ref_cell: int | None = None,
     p_ref_value: float | None = None,
-) -> FvMatrix:
+) -> tuple[FvMatrix, tuple[SolveStats, ...]]:
     """
     Solve the pressure Poisson equation with non-orthogonal correctors.
 
@@ -61,11 +61,12 @@ def solve_pressure_poisson(
 
     Returns
     -------
-    FvMatrix
-        Final pressure-equation matrix in negative Laplacian form
-        (``-laplacian(rAU, p)``).
+    tuple[FvMatrix, tuple[SolveStats, ...]]
+        Final pressure-equation matrix and per-component statistics from the
+        last solve.
     """
     p_eqn_mat: FvMatrix | None = None
+    last_stats: tuple[SolveStats, ...] | None = None
     for corr in range(n_non_orthogonal_correctors + 1):
         p_eqn_mat = -fvm.laplacian(rAU.data, p)
         p_eqn_mat.source = p_eqn_mat.source - div_phi
@@ -78,7 +79,9 @@ def solve_pressure_poisson(
             set_reference_value(p_eqn_mat, p_ref_cell, p_ref_value)
 
         pressure_eq = equation(p, p_eqn_mat)
-        p.data = solver.solve(pressure_eq)
+        solve_result = solver.solve(pressure_eq)
+        p.data = solve_result.solution
+        last_stats = solve_result.stats
 
         if corr < n_non_orthogonal_correctors:
             logger.debug(
@@ -88,7 +91,8 @@ def solve_pressure_poisson(
             )
 
     assert p_eqn_mat is not None
-    return p_eqn_mat
+    assert last_stats is not None
+    return p_eqn_mat, last_stats
 
 
 def correct_phi_inconsistent(

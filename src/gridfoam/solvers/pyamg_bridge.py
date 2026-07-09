@@ -10,7 +10,7 @@ from scipy.sparse import csr_array
 
 from gridfoam.core.equation import Equation
 from gridfoam.meta.config import SolverConfig
-from gridfoam.solvers.base import LinearSolver
+from gridfoam.solvers.base import LinearSolver, SolveResult, SolveStats
 
 
 class _PyamgSolveFunction(torch.autograd.Function):
@@ -193,13 +193,13 @@ class PyamgBridgeSolver(LinearSolver):
     def solve(
         self,
         eq: Equation,
-    ) -> Float[torch.Tensor, " C k"]:
+    ) -> SolveResult:
         A = eq.fv_matrix
         x = eq.target.data
         owner = A.grid.owner
         neighbour = A.grid.neighbour
 
-        return cast(
+        solution = cast(
             torch.Tensor,
             _PyamgSolveFunction.apply(
                 A.diag,
@@ -211,5 +211,17 @@ class PyamgBridgeSolver(LinearSolver):
                 neighbour,
                 self.rtol,
                 self.max_iter,
+            ),
+        )
+        return SolveResult(
+            solution=solution,
+            stats=(
+                SolveStats(
+                    solver="pyamg",
+                    initial_residual=0.0,
+                    final_residual=0.0,
+                    iterations=0,
+                    converged=True,
+                ),
             ),
         )

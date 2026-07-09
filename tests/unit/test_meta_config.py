@@ -79,3 +79,21 @@ def test_residual_control_entry_and_adjust_phi_defaults():
         solvers={"p": SolverConfig(method=SolverType.CG)},
     )
     assert fv.adjustPhi is True
+
+
+def test_post_processing_diagnostics_config_parses() -> None:
+    from gridfoam.meta.config import (
+        ContinuityErrorConfig,
+        PostProcessingConfig,
+        SolverInfoConfig,
+    )
+
+    cfg = PostProcessingConfig(
+        continuityError=ContinuityErrorConfig(),
+        solverInfo=SolverInfoConfig(fields=["U", "p"], writeInterval=2),
+    )
+    assert cfg.continuityError is not None
+    assert cfg.continuityError.phi == "phi"
+    assert cfg.solverInfo is not None
+    assert cfg.solverInfo.fields == ["U", "p"]
+    assert cfg.solverInfo.writeInterval == 2

@@ -131,6 +131,10 @@ simulator:
       type: laminar
   # Post processing settings
   post_processing:
+    continuityError:
+      phi: "phi"
+    solverInfo:
+      fields: [U, p]
     forceCoeff:
       patches: [_default]
       rho: 1.0

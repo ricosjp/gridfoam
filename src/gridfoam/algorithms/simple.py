@@ -28,6 +28,7 @@ from gridfoam.meta.config import SIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
+from gridfoam.solvers.base import SolveStats
 from gridfoam.solvers.factory import create_solver
 from gridfoam.solvers.resolver import resolve_solver
 
@@ -159,6 +160,7 @@ class SIMPLE(AlgorithmBase):
     def step(self):
         grid = self.grid
         logger.info("SIMPLE step start")
+        solve_stats: dict[str, tuple[SolveStats, ...]] = {}
 
         # =========================================================
         # Momentum predictor
@@ -197,7 +199,9 @@ class SIMPLE(AlgorithmBase):
 
         # Solve the momentum predictor equation (obtain U*)
         momentum_eq = equation(self.U, UEqn_mat)
-        self.U.data = self.solvers[momentum_eq.name].solve(momentum_eq)
+        u_result = self.solvers[momentum_eq.name].solve(momentum_eq)
+        self.U.data = u_result.solution
+        solve_stats[self.U.name] = u_result.stats
 
         # =========================================================
         # Pressure equation assembly (HbyA and rAU)
@@ -227,7 +231,7 @@ class SIMPLE(AlgorithmBase):
         # solve pressure Poisson equation (uses pFinal when configured)
         div_phi = fvc.div(self.phi).data
         p_solver = resolve_solver(self.solvers, self.p.name, is_final=True)
-        p_eqn_mat = solve_pressure_poisson(
+        p_eqn_mat, p_stats = solve_pressure_poisson(
             self.p,
             self.rAU,
             div_phi,
@@ -237,6 +241,7 @@ class SIMPLE(AlgorithmBase):
             p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
             p_ref_value=self.p_ref_value if self.p_needs_ref else None,
         )
+        solve_stats[self.p.name] = p_stats
 
         if self.p.name in self._residual_control:
             self._record_residual(
@@ -279,4 +284,5 @@ class SIMPLE(AlgorithmBase):
         # Turbulence model update
         # =========================================================
         self.turbulence.correct(self.U, self.phi)
+        self._finalize_diagnostics(self.phi, solve_stats)
         logger.info("SIMPLE step end")

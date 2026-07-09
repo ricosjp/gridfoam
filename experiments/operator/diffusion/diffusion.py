@@ -102,7 +102,7 @@ def main() -> None:
     for step in range(1, n_steps + 1):
         TEqn_mat = fvm.ddt(T) - fvm.laplacian(alpha, T)
         temperature_eq = equation(T, TEqn_mat)
-        T.data = T_solver.solve(temperature_eq)
+        T.data = T_solver.solve(temperature_eq).solution
         T.update_history()
 
         if step % write_interval == 0 or step == n_steps:

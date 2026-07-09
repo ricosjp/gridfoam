@@ -164,7 +164,8 @@ class PotentialFlow:
                 set_reference_value(phi_eqn_mat, phi_ref_cell, phi_ref_value)
 
             potential_eq = equation(Phi, phi_eqn_mat)
-            Phi.data = potential_solver.solve(potential_eq)
+            solve_result = potential_solver.solve(potential_eq)
+            Phi.data = solve_result.solution
 
         assert phi_eqn_mat is not None
         # phi -= laplacian(Phi).flux(Phi) on single-sided internal faces

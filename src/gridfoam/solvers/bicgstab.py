@@ -8,6 +8,8 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.meta.config import SolverConfig
 from gridfoam.solvers.base import (
     LinearSolver,
+    SolveResult,
+    SolveStats,
     is_converged,
     residual_threshold,
 )
@@ -28,6 +30,7 @@ class BiCGSTABSolver(LinearSolver):
     """
 
     def __init__(self, config: SolverConfig):
+        self.solver_name = config.method.value
         self.precon_type = config.preconditioner
         self.atol = config.tolerance
         self.rtol = config.rel_tolerance
@@ -39,7 +42,7 @@ class BiCGSTABSolver(LinearSolver):
     def solve(
         self,
         eq: Equation,
-    ) -> Float[torch.Tensor, " C k"]:
+    ) -> SolveResult:
         A = eq.fv_matrix
         b = A.source
         x = eq.target.data
@@ -54,16 +57,22 @@ class BiCGSTABSolver(LinearSolver):
         # Preconditioner
         precon = create_preconditioner(self.precon_type, A)
 
-        x_res = []
+        x_res: list[torch.Tensor] = []
+        stats_list: list[SolveStats] = []
         for c in range(k):
-            x_res.append(
-                self._solve_single(A, b[:, c : c + 1], x[:, c : c + 1], precon)
+            x_c, stats = self._solve_single(
+                A, b[:, c : c + 1], x[:, c : c + 1], precon
             )
+            x_res.append(x_c)
+            stats_list.append(stats)
 
         # Concatenate solved components back to [C, k].
         x_out = torch.cat(x_res, dim=1)
         logger.info("BiCGSTAB solve end eq=%s", eq.name)
-        return x_out
+        return SolveResult(
+            solution=x_out,
+            stats=tuple(stats_list),
+        )
 
     def _solve_single(
         self,
@@ -71,7 +80,7 @@ class BiCGSTABSolver(LinearSolver):
         b: Float[torch.Tensor, " C 1"],
         x: Float[torch.Tensor, " C 1"],
         precon: Preconditioner,
-    ) -> Float[torch.Tensor, " C 1"]:
+    ) -> tuple[Float[torch.Tensor, " C 1"], SolveStats]:
         """
         BiCGSTAB loop for a single scalar component.
 
@@ -90,22 +99,32 @@ class BiCGSTABSolver(LinearSolver):
 
         ref_norm = torch.maximum(norm_b, norm_r0)
         thresh = residual_threshold(self.atol, self.rtol, ref_norm)
+        initial_residual = norm_r0.item()
 
         logger.debug(
             "BiCGSTAB init residual=%.3e threshold=%.3e",
-            norm_r0.item(),
+            initial_residual,
             thresh.item(),
         )
 
         if is_converged(thresh, norm_r0):
             logger.debug(
                 "BiCGSTAB converged at iteration=0 residual=%.3e",
-                norm_r0.item(),
+                initial_residual,
             )
-            return x
+            return x, SolveStats(
+                solver=self.solver_name,
+                initial_residual=initial_residual,
+                final_residual=initial_residual,
+                iterations=0,
+                converged=True,
+            )
 
         restart_count = 0
         r_hat, p, rho_old = self._restart_state(r)
+        converged = False
+        final_residual = initial_residual
+        iter_idx = 0
 
         for iter_idx in range(1, self.max_iter + 1):
             # Apply right preconditioner: y = M^{-1} p
@@ -131,11 +150,12 @@ class BiCGSTABSolver(LinearSolver):
             norm_s: torch.Tensor = torch.linalg.vector_norm(
                 s, dim=0, ord=self.norm_order
             )
+            final_residual = norm_s.item()
             if iter_idx % self.log_interval == 0:
                 logger.debug(
                     "BiCGSTAB iter=%d residual_s=%.3e threshold=%.3e",
                     iter_idx,
-                    norm_s.item(),
+                    final_residual,
                     thresh.item(),
                 )
             if is_converged(thresh, norm_s):
@@ -143,8 +163,9 @@ class BiCGSTABSolver(LinearSolver):
                 logger.debug(
                     "BiCGSTAB converged via s iter=%d residual=%.3e",
                     iter_idx,
-                    norm_s.item(),
+                    final_residual,
                 )
+                converged = True
                 break
 
             # Apply right preconditioner: z = M^{-1} s
@@ -181,12 +202,14 @@ class BiCGSTABSolver(LinearSolver):
             norm_r: torch.Tensor = torch.linalg.vector_norm(
                 r, dim=0, ord=self.norm_order
             )
+            final_residual = norm_r.item()
             if is_converged(thresh, norm_r):
                 logger.debug(
                     "BiCGSTAB converged iter=%d residual=%.3e",
                     iter_idx,
-                    norm_r.item(),
+                    final_residual,
                 )
+                converged = True
                 break
 
             rho_new = torch.sum(r_hat * r)
@@ -210,7 +233,13 @@ class BiCGSTABSolver(LinearSolver):
                 self.max_iter,
             )
 
-        return x
+        return x, SolveStats(
+            solver=self.solver_name,
+            initial_residual=initial_residual,
+            final_residual=final_residual,
+            iterations=iter_idx,
+            converged=converged,
+        )
 
     def _can_restart(
         self,

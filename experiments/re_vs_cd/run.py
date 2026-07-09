@@ -16,6 +16,7 @@ from gridfoam.algorithms.factory import create_algorithm
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import GridfoamConfig, ManualAlgorithm
+from gridfoam.post.diagnostics import DiagnosticsCollector
 from gridfoam.post.forces.coeffs import ForceCoeffs
 from gridfoam.post.forces.evaluator import ForceEvaluator
 
@@ -238,41 +239,54 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
 
     ugrid = to_unstructured_grid(grid)
 
-    n_steps = int(
-        grid.sim_config.control.endTime / grid.sim_config.control.deltaT
-    )
-
     post_processing = grid.sim_config.post_processing
     assert post_processing is not None
     assert post_processing.forceCoeff is not None
     force_evaluator = ForceEvaluator(grid, phase=phase)
 
-    for step in range(1, n_steps + 1):
-        algorithm.step()
-        if step % write_interval == 0 or step == n_steps:
-            save_export_fields_as_vtu(
-                grid,
-                str(output_dir / f"{base_name}_{step:04d}.vtu"),
-                ugrid=ugrid,
-            )
-            U = grid.get_cellfield("U")
-            assert U is not None
-            max_u = torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
-            force_evaluator.evaluate(
-                grid,
-                time=float(step),
-                turbulence=algorithm.turbulence,
-            )
-            cd = force_evaluator.history[-1].Cd.item()
-            logger.info(
-                "step=%4d max|U|=%.4e Cd=%.6e",
-                step,
-                max_u,
-                cd,
-            )
+    diagnostics = DiagnosticsCollector.from_config(
+        grid,
+        post_processing,
+        output_dir,
+        n_steps=n_steps,
+        delta_t=deltaT,
+        phase=phase,
+    )
+    if diagnostics is not None:
+        algorithm.attach_diagnostics(diagnostics)
 
-    force_evaluator.write_csv(output_dir / "coefficients.csv")
-    force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
+    try:
+        for step in range(1, n_steps + 1):
+            algorithm.step()
+            if step % write_interval == 0 or step == n_steps:
+                save_export_fields_as_vtu(
+                    grid,
+                    str(output_dir / f"{base_name}_{step:04d}.vtu"),
+                    ugrid=ugrid,
+                )
+                U = grid.get_cellfield("U")
+                assert U is not None
+                max_u = (
+                    torch.linalg.vector_norm(U.data, ord=2, dim=1).max().item()
+                )
+                force_evaluator.evaluate(
+                    grid,
+                    time=float(step),
+                    turbulence=algorithm.turbulence,
+                )
+                cd = force_evaluator.history[-1].Cd.item()
+                logger.info(
+                    "step=%4d max|U|=%.4e Cd=%.6e",
+                    step,
+                    max_u,
+                    cd,
+                )
+
+        force_evaluator.write_csv(output_dir / "coefficients.csv")
+        force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
+    finally:
+        if diagnostics is not None:
+            diagnostics.close()
 
     return force_evaluator.history[-1].Cd.item()
 
