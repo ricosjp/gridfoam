@@ -1,0 +1,106 @@
+# gridfoam config file
+version: 0.0.1
+
+# Fluxel config (mesh generation)
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [2.0, 0.5, 0.1]
+  root_resolution: [8, 2, 1]
+  target_level: 0
+  n_leaf_refinement: 1
+  mesh_path: null
+  ibm_type: axis_projected
+  refinement_regions:
+    - name: inlet
+      min: [0.0, 0.0, 0.0]
+      max: [0.6, 0.5, 0.1]
+      level: 2
+    - name: mid_channel
+      min: [0.6, 0.05, 0.0]
+      max: [1.4, 0.45, 0.1]
+      level: 1
+    - name: outlet
+      min: [1.4, 0.0, 0.0]
+      max: [2.0, 0.5, 0.1]
+      level: 2
+
+# Simulator config (simulation settings)
+# Steady scalar-transport demo: U is fixed (pre-converged channel flow).
+# control.deltaT/endTime are unused because fvSolution.algorithm is manual.
+simulator:
+  control:
+    deltaT: 1.0
+    endTime: 1.0
+    writeInterval: 1
+    output:
+      output_dir: "examples/optimize/inlet_temperature/outputs"
+      base_name: "inlet_temperature"
+      overwrite_file: true
+    precision: float64
+  fvSchemes:
+    divSchemes:
+      default: upwind
+  fvSolution:
+    algorithm:
+      type: manual
+    solvers:
+      U:
+        method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-8
+        rel_tolerance: 1e-5
+        max_iter: 500
+        norm_type: l_2
+      T:
+        method: pyamg
+        # method: bicgstab
+        preconditioner: jacobi
+        tolerance: 1e-10
+        rel_tolerance: 1e-8
+        max_iter: 3000
+        norm_type: l_2
+  conditions:
+    U:
+      internal: [1.0, 0.0, 0.0]
+      boundary:
+        inlet:
+          type: dirichlet
+          patches: [x_minus]
+          value: [1.0, 0.0, 0.0]
+        outlet:
+          type: inlet_outlet
+          patches: [x_plus]
+          value: [0.0, 0.0, 0.0]
+        slip_wall:
+          type: slip
+          patches: [y_minus, y_plus]
+          value: [0.0, 0.0, 0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+    T:
+      internal: [0.0]
+      boundary:
+        inlet:
+          type: dirichlet
+          patches: [x_minus]
+          value: [0.0]
+        outlet:
+          type: neumann
+          patches: [x_plus]
+          value: [0.0]
+        slip_wall:
+          type: slip
+          patches: [y_minus, y_plus]
+          value: [0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+  properties:
+    transport:
+      type: newtonian
+      nu: 0.1
+    turbulence:
+      type: laminar
+  device: cpu
