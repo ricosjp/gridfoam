@@ -132,6 +132,9 @@ simulator:
       type: laminar
   # Post processing settings
   post_processing:
+    continuityError: {}          # writes continuity_error.csv
+    solverInfo:                  # writes solver_info.csv
+      fields: [U, p]
     forceCoeff:
       patches: [_default]
       rho: 1.0
