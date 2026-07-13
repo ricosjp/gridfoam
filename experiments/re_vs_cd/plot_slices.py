@@ -174,22 +174,80 @@ def _read_gridfoam_mesh(
     return pv.read(path)
 
 
-def _prepare_slice(mesh: pv.DataSet, plane: SlicePlane) -> pv.DataSet:
-    if mesh.n_cells == 0:
-        raise ValueError("Cannot slice an empty mesh.")
+def _rename_fields(mesh: pv.DataSet, prefix: str) -> None:
+    """Prefix all point/cell data arrays to avoid name collisions."""
+    for data in (mesh.point_data, mesh.cell_data):
+        for name in list(data.keys()):
+            data[f"{prefix}{name}"] = data.pop(name)
 
-    prepared = mesh.cell_data_to_point_data(pass_cell_data=True)
-    sliced = prepared.slice(normal=plane.normal, origin=plane.origin)
-    if "U" not in sliced.point_data and "U" not in sliced.cell_data:
-        raise KeyError("Field 'U' was not found in slice output.")
 
-    U = (
-        sliced.point_data["U"]
-        if "U" in sliced.point_data
-        else sliced.cell_data["U"]
-    )
-    sliced.point_data["U_mag"] = np.linalg.norm(U, axis=1)
-    return sliced
+def _map_fields(source: pv.DataSet, target: pv.DataSet) -> None:
+    """Interpolate source fields onto target cell centers."""
+    probed = target.cell_centers().sample(source)
+    for name in source.cell_data.keys():
+        if name in probed.point_data:
+            target.cell_data[name] = np.asarray(probed.point_data[name])
+
+
+def _vector_field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
+    if field in mesh.point_data:
+        values = np.asarray(mesh.point_data[field])
+    elif field in mesh.cell_data:
+        values = np.asarray(mesh.cell_data[field])
+    else:
+        raise KeyError(f"Field {field!r} was not found in slice output.")
+    if values.ndim == 1:
+        return values.reshape(-1, 1)
+    return values.reshape(values.shape[0], -1)
+
+
+def _scalar_field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
+    values = _field_values(mesh, field)
+    if values.ndim == 2 and values.shape[1] == 1:
+        return values.reshape(-1)
+    return values.reshape(-1)
+
+
+def _build_comparison_slice(
+    gridfoam_mesh: pv.DataSet,
+    openfoam_mesh: pv.DataSet,
+    plane: SlicePlane,
+) -> pv.DataSet:
+    gridfoam = gridfoam_mesh.copy(deep=True)
+    openfoam = openfoam_mesh.copy(deep=True)
+    _rename_fields(gridfoam, "gf_")
+    _rename_fields(openfoam, "of_")
+    _map_fields(gridfoam, openfoam)
+
+    sliced = openfoam.slice(normal=plane.normal, origin=plane.origin)
+    if sliced.n_cells == 0:
+        raise ValueError(
+            "Slice produced an empty mesh for "
+            f"origin={plane.origin}, normal={plane.normal}"
+        )
+
+    prepared = sliced.cell_data_to_point_data(pass_cell_data=True)
+    if "gf_p" not in prepared.point_data and "gf_p" not in prepared.cell_data:
+        raise KeyError("Field 'gf_p' was not found in comparison slice.")
+    if "of_p" not in prepared.point_data and "of_p" not in prepared.cell_data:
+        raise KeyError("Field 'of_p' was not found in comparison slice.")
+    if "gf_U" not in prepared.point_data and "gf_U" not in prepared.cell_data:
+        raise KeyError("Field 'gf_U' was not found in comparison slice.")
+    if "of_U" not in prepared.point_data and "of_U" not in prepared.cell_data:
+        raise KeyError("Field 'of_U' was not found in comparison slice.")
+
+    gf_p = _scalar_field_values(prepared, "gf_p")
+    of_p = _scalar_field_values(prepared, "of_p")
+    gf_u_mag = np.linalg.norm(_vector_field_values(prepared, "gf_U"), axis=1)
+    of_u_mag = np.linalg.norm(_vector_field_values(prepared, "of_U"), axis=1)
+
+    prepared.point_data["gf_p"] = gf_p
+    prepared.point_data["of_p"] = of_p
+    prepared.point_data["p_diff"] = np.abs(gf_p - of_p)
+    prepared.point_data["gf_U_mag"] = gf_u_mag
+    prepared.point_data["of_U_mag"] = of_u_mag
+    prepared.point_data["U_mag_diff"] = np.abs(gf_u_mag - of_u_mag)
+    return prepared
 
 
 def _field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
@@ -252,36 +310,43 @@ def _plot_case(
     show_edges: bool,
     zoom: float,
 ) -> Path:
-    gridfoam = _prepare_slice(
+    comparison = _build_comparison_slice(
         _read_gridfoam_mesh(case_name, re_value, time),
-        plane,
-    )
-    openfoam = _prepare_slice(
         _read_openfoam_mesh(_openfoam_output_dir(case_name, re_value), time),
         plane,
     )
 
     re_label = _re_label(re_value)
     if save_slices:
-        gridfoam.save(
-            output_dir / f"{case_name}_re_{re_label}_{plane.name}_gridfoam.vtp"
+        comparison_path = output_dir / (
+            f"{case_name}_re_{re_label}_{plane.name}_comparison.vtp"
         )
-        openfoam.save(
-            output_dir / f"{case_name}_re_{re_label}_{plane.name}_openfoam.vtp"
-        )
+        comparison.save(comparison_path)
 
-    p_range = _field_range([gridfoam, openfoam], "p")
-    u_range = _field_range([gridfoam, openfoam], "U_mag")
+    p_range = _field_range([comparison], "gf_p")
+    p_range = (
+        min(p_range[0], _field_range([comparison], "of_p")[0]),
+        max(p_range[1], _field_range([comparison], "of_p")[1]),
+    )
+    u_range = _field_range([comparison], "gf_U_mag")
+    u_range = (
+        min(u_range[0], _field_range([comparison], "of_U_mag")[0]),
+        max(u_range[1], _field_range([comparison], "of_U_mag")[1]),
+    )
+    p_diff_range = _field_range([comparison], "p_diff")
+    u_diff_range = _field_range([comparison], "U_mag_diff")
 
     pv.OFF_SCREEN = True
     plotter = pv.Plotter(
-        off_screen=True, shape=(2, 2), window_size=(1800, 1300)
+        off_screen=True, shape=(2, 3), window_size=(2400, 1300)
     )
     panels = [
-        (0, 0, gridfoam, "p", "gridfoam p", p_range, "coolwarm"),
-        (0, 1, openfoam, "p", "OpenFOAM p", p_range, "coolwarm"),
-        (1, 0, gridfoam, "U_mag", "gridfoam |U|", u_range, "viridis"),
-        (1, 1, openfoam, "U_mag", "OpenFOAM |U|", u_range, "viridis"),
+        (0, 0, comparison, "gf_p", "gridfoam p", p_range, "coolwarm"),
+        (0, 1, comparison, "of_p", "OpenFOAM p", p_range, "coolwarm"),
+        (0, 2, comparison, "p_diff", "|Δp|", p_diff_range, "magma"),
+        (1, 0, comparison, "gf_U_mag", "gridfoam |U|", u_range, "viridis"),
+        (1, 1, comparison, "of_U_mag", "OpenFOAM |U|", u_range, "viridis"),
+        (1, 2, comparison, "U_mag_diff", "|Δ|U||", u_diff_range, "magma"),
     ]
     for row, col, mesh, field, title, clim, cmap in panels:
         plotter.subplot(row, col)
@@ -298,7 +363,7 @@ def _plot_case(
     plotter.link_views()
     plotter.renderer.add_axes()
     for row in range(2):
-        for col in range(2):
+        for col in range(3):
             plotter.subplot(row, col)
             plotter.camera.zoom(zoom)
 
