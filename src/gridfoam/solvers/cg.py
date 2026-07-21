@@ -85,10 +85,6 @@ class CGSolver(LinearSolver):
 
         Expects ``x`` with shape ``[C, 1]``.
         """
-        norm_b: torch.Tensor = torch.linalg.vector_norm(
-            b, dim=0, ord=self.norm_order
-        )
-
         # Initial residual r = b - A x
         r = b - A.multiply(x)
 
@@ -96,8 +92,7 @@ class CGSolver(LinearSolver):
             r, dim=0, ord=self.norm_order
         )
 
-        ref_norm = torch.maximum(norm_b, norm_r0)
-        thresh = residual_threshold(self.atol, self.rtol, ref_norm)
+        thresh = residual_threshold(self.atol, self.rtol, norm_r0)
         initial_residual = norm_r0.item()
 
         logger.debug(
