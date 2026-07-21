@@ -349,8 +349,10 @@ def _plot_comparison(
     re_value: float,
     output_dir: Path,
 ) -> Path | None:
-    """Plot side-by-side comparison of solvers with shared axes for a given Re."""
-    data: dict[str, tuple[ContinuitySeries | None, SolverInfoSeries | None]] = {}
+    """Plot side-by-side solver comparison with shared axes for a given Re."""
+    data: dict[
+        str, tuple[ContinuitySeries | None, SolverInfoSeries | None]
+    ] = {}
     for solver in solvers:
         c, s = _load_run_data(case_name, solver, re_value)
         if c is not None or s is not None:
@@ -398,7 +400,9 @@ def _plot_comparison(
     for field_name in all_field_names:
         for col, solver in enumerate(solver_list):
             solver_info = data[solver][1]
-            field = _find_field(solver_info, field_name) if solver_info else None
+            field = (
+                _find_field(solver_info, field_name) if solver_info else None
+            )
             if field is not None and solver_info is not None:
                 steps = _step_indices(len(solver_info.time))
                 _plot_solver_residuals(axes[row, col], steps, field)
@@ -408,7 +412,9 @@ def _plot_comparison(
 
         for col, solver in enumerate(solver_list):
             solver_info = data[solver][1]
-            field = _find_field(solver_info, field_name) if solver_info else None
+            field = (
+                _find_field(solver_info, field_name) if solver_info else None
+            )
             if field is not None and solver_info is not None:
                 steps = _step_indices(len(solver_info.time))
                 _plot_solver_iterations(axes[row, col], steps, field)
@@ -418,7 +424,9 @@ def _plot_comparison(
 
     re_label = _re_label(re_value)
     fig.suptitle(f"{case_name} comparison (Re={re_label})")
-    output = output_dir / f"{case_name}_comparison_re_{re_label}_diagnostics.png"
+    output = (
+        output_dir / f"{case_name}_comparison_re_{re_label}_diagnostics.png"
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=200)
     plt.close(fig)
@@ -430,13 +438,13 @@ def _share_axes(axes_row: np.ndarray) -> None:
     xlims = [ax.get_xlim() for ax in axes_row if ax.lines]
     ylims = [ax.get_ylim() for ax in axes_row if ax.lines]
     if xlims:
-        xmin = min(l[0] for l in xlims)
-        xmax = max(l[1] for l in xlims)
+        xmin = min(lim[0] for lim in xlims)
+        xmax = max(lim[1] for lim in xlims)
         for ax in axes_row:
             ax.set_xlim(xmin, xmax)
     if ylims:
-        ymin = min(l[0] for l in ylims)
-        ymax = max(l[1] for l in ylims)
+        ymin = min(lim[0] for lim in ylims)
+        ymax = max(lim[1] for lim in ylims)
         for ax in axes_row:
             ax.set_ylim(ymin, ymax)
 
