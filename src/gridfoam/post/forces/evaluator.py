@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from gridfoam.core.field import get_or_create_cellfield
+from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
@@ -41,10 +41,27 @@ class ForceEvaluator:
 
         U_name = make_field_name("U", phase=phase)
         p_name = make_field_name("p", phase=phase)
-        self.U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
-        self.p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+        # Reuse the solver's existing U/p fields regardless of their role
+        # (SIMPLE registers U as LOCAL, PIMPLE as TRANSIENT). Fall back to
+        # creating LOCAL fields when they do not exist yet.
+        self.U = self._resolve_field(grid, U_name, 3)
+        self.p = self._resolve_field(grid, p_name, 1)
 
         self.history: list[ForceCoeffs] = []
+
+    @staticmethod
+    def _resolve_field(
+        grid: IGridBase,
+        name: str,
+        num_components: int,
+    ) -> CellField:
+        """Return the existing cell field or create a LOCAL one if absent."""
+        field = grid.get_cellfield(name)
+        if field is not None:
+            return field
+        return get_or_create_cellfield(
+            grid, name, FieldRole.LOCAL, num_components
+        )
 
     def evaluate(
         self,
