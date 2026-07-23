@@ -187,6 +187,7 @@ class PyamgBridgeSolver(LinearSolver):
     """
 
     def __init__(self, config: SolverConfig):
+        self.atol = config.tolerance
         self.rtol = config.rel_tolerance
         self.max_iter = config.max_iter
 

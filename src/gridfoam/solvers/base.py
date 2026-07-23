@@ -58,6 +58,9 @@ class LinearSolver(ABC):
     Abstract base class for linear solvers.
     """
 
+    atol: float
+    rtol: float
+
     @abstractmethod
     def solve(
         self,
