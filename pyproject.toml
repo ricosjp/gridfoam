@@ -35,6 +35,8 @@ dependencies = [
     "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
     "fluxel",
     "pyamg>=5.3.0",
+    "beartype",
+    "jaxtyping",
 ]
 
 [project.optional-dependencies]
@@ -62,8 +64,6 @@ test = [
 lint = [
     "ruff",
     "basedpyright",
-    "jaxtyping",
-    "beartype"
 ]
 docs = [
     "sphinx",
