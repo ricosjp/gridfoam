@@ -1,4 +1,3 @@
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -6,8 +5,8 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.equation import Equation
-
-logger = logging.getLogger(__name__)
+from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.solvers.adjoint import attach_implicit_adjoint
 
 
 @dataclass(frozen=True)
@@ -56,12 +55,14 @@ class SolveResult:
 class LinearSolver(ABC):
     """
     Abstract base class for linear solvers.
+
+    ``solve`` always detaches the primal solve and attaches an implicit
+    adjoint so gradients flow through LDU coefficients and the source.
     """
 
     atol: float
     rtol: float
 
-    @abstractmethod
     def solve(
         self,
         eq: Equation,
@@ -79,7 +80,27 @@ class LinearSolver(ABC):
         SolveResult
             Computed solution and solver statistics.
         """
-        pass
+        A = eq.fv_matrix
+        with torch.no_grad():
+            result = self._solve_primal(eq)
+        solution = attach_implicit_adjoint(
+            A,
+            result.solution,
+            solve_transpose=self.solve_transpose,
+        )
+        return SolveResult(solution=solution, stats=result.stats)
+
+    @abstractmethod
+    def _solve_primal(self, eq: Equation) -> SolveResult:
+        """Solve ``A x = b`` without attaching an adjoint."""
+
+    @abstractmethod
+    def solve_transpose(
+        self,
+        A_T: FvMatrix,
+        rhs: Float[torch.Tensor, " C k"],
+    ) -> Float[torch.Tensor, " C k"]:
+        """Solve ``A_T y = rhs`` (used by the implicit adjoint)."""
 
 
 def is_converged(

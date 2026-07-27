@@ -13,6 +13,7 @@ from gridfoam.solvers.base import (
     is_converged,
     residual_threshold,
 )
+from gridfoam.solvers.krylov import solve_transpose_components
 from gridfoam.solvers.preconditioners import (
     Preconditioner,
     create_preconditioner,
@@ -38,7 +39,7 @@ class CGSolver(LinearSolver):
         self.norm_order = config.norm_type.to_norm_order()
         self.log_interval = config.log_interval
 
-    def solve(
+    def _solve_primal(
         self,
         eq: Equation,
     ) -> SolveResult:
@@ -71,6 +72,18 @@ class CGSolver(LinearSolver):
         return SolveResult(
             solution=x_out,
             stats=tuple(stats_list),
+        )
+
+    def solve_transpose(
+        self,
+        A_T: FvMatrix,
+        rhs: Float[torch.Tensor, " C k"],
+    ) -> Float[torch.Tensor, " C k"]:
+        return solve_transpose_components(
+            A_T,
+            rhs,
+            precon_type=self.precon_type,
+            solve_single=self._solve_single,
         )
 
     def _solve_single(
