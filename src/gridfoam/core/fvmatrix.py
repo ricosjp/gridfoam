@@ -227,6 +227,24 @@ class FvMatrix:
 
         return res
 
+    def as_transpose(self) -> FvMatrix:
+        """
+        Return a shallow view whose :meth:`multiply` computes ``A^T x``.
+
+        Shares storage with ``self`` and swaps ``upper`` / ``lower`` so the
+        same Krylov / AMG path can solve the transpose system for the
+        implicit adjoint.
+        """
+        view = FvMatrix.__new__(FvMatrix)
+        view._field = self._field
+        view._grid = self._grid
+        view._diag = self._diag
+        view._upper = self._lower
+        view._lower = self._upper
+        view._source = self._source
+        view._face_flux_correction = self._face_flux_correction
+        return view
+
     def _single_internal_mask(self) -> torch.Tensor:
         """Boolean mask selecting single-sided internal faces."""
         grid = self.grid
