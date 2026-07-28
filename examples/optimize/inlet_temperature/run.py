@@ -11,6 +11,10 @@ Design variable
 
 Objective
     (outlet_mean_temperature - target_outlet_mean_temperature) ** 2
+
+Gradient modes (``--grad-mode``)
+    adjoint : detach the Krylov solve and backprop via the implicit adjoint.
+    unrolled : differentiate through BiCGSTAB iterations (comparison only).
 """
 
 from __future__ import annotations
@@ -37,9 +41,9 @@ from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvm
 from gridfoam.fv.flux import correct_flux
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
-from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole
+from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, SolverType
 from gridfoam.runner import manual_run
-from gridfoam.solvers.base import LinearSolver
+from gridfoam.solvers.base import GradientMode, LinearSolver
 from gridfoam.solvers.factory import create_solver
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -53,7 +57,7 @@ from examples.optimize._common import (  # noqa: E402
 )
 
 TARGET_OUTLET_MEAN_TEMPERATURE = 0.004
-INLET_TEMPERATURE_INIT = 0.2
+INLET_TEMPERATURE_INIT = 2.0
 N_OPT_STEPS = 100
 LEARNING_RATE = 0.10
 FD_EPS = 1e-3
@@ -322,11 +326,39 @@ def parse_args() -> argparse.Namespace:
         help=f"Optimizer learning rate (default: {LEARNING_RATE}).",
     )
     parser.add_argument(
+        "--grad-mode",
+        choices=("adjoint", "unrolled"),
+        default="adjoint",
+        help=(
+            "How to differentiate the linear solve: implicit adjoint "
+            "(default) or unrolled autograd through BiCGSTAB iterations."
+        ),
+    )
+    parser.add_argument(
         "--check-grad",
         action="store_true",
         help="Run a finite-difference gradient check before optimization.",
     )
     return parser.parse_args()
+
+
+def create_temperature_solver(
+    grid,
+    field_name: str,
+    grad_mode: GradientMode,
+) -> LinearSolver:
+    """Create the temperature solver and configure its gradient mode."""
+    solver_cfg = grid.sim_config.fvSolution.solvers[field_name]
+    if grad_mode == "unrolled" and solver_cfg.method is not SolverType.BiCGSTAB:
+        msg = (
+            "grad_mode='unrolled' is only supported with BiCGSTAB "
+            f"(configured: {solver_cfg.method.value})."
+        )
+        raise ValueError(msg)
+
+    solver = create_solver(solver_cfg)
+    solver.grad_mode = grad_mode
+    return solver
 
 
 def main() -> None:
@@ -336,18 +368,27 @@ def main() -> None:
     config_path = Path(__file__).resolve().parent / "config.yaml"
     grid = manual_run(config_path)
 
-    output_dir = Path(grid.sim_config.control.output.output_dir)
+    T_name = make_field_name("T")
+    t_solver_cfg = grid.sim_config.fvSolution.solvers[T_name]
+    output_dir = (
+        Path(grid.sim_config.control.output.output_dir)
+        / f"{t_solver_cfg.method.value}-{args.grad_mode}"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     configure_run_logger(str(output_dir / "run.log"))
 
     logger.info("hierarchical mesh: num_cells=%d", grid.num_cells)
+    logger.info(
+        "temperature solver: method=%s grad_mode=%s",
+        t_solver_cfg.method.value,
+        args.grad_mode,
+    )
     logger.info(
         "target outlet mean temperature=%.4f",
         TARGET_OUTLET_MEAN_TEMPERATURE,
     )
 
     U_name = make_field_name("U")
-    T_name = make_field_name("T")
     phi_name = make_field_name("phi")
 
     U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
@@ -358,7 +399,7 @@ def main() -> None:
     logger.info("using fixed converged flow field (U, phi)")
 
     alpha = grid.sim_config.properties.transport.nu
-    T_solver = create_solver(grid.sim_config.fvSolution.solvers[T_name])
+    T_solver = create_temperature_solver(grid, T_name, args.grad_mode)
 
     if args.check_grad:
         check_gradient_fd(
@@ -380,10 +421,11 @@ def main() -> None:
     history = OptimizationHistory()
 
     logger.info(
-        "optimization start (steps=%d, lr=%.3f, init inlet_temperature=%.4f)",
+        "optimization start (steps=%d, lr=%.3f, init=%.4f, grad_mode=%s)",
         args.n_opt,
         args.lr,
         INLET_TEMPERATURE_INIT,
+        args.grad_mode,
     )
     for step in range(1, args.n_opt + 1):
         optimizer.zero_grad()

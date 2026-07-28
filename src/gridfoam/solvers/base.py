@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from jaxtyping import Float
@@ -7,6 +8,8 @@ from jaxtyping import Float
 from gridfoam.core.equation import Equation
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.solvers.adjoint import attach_implicit_adjoint
+
+GradientMode = Literal["adjoint", "unrolled"]
 
 
 @dataclass(frozen=True)
@@ -56,12 +59,14 @@ class LinearSolver(ABC):
     """
     Abstract base class for linear solvers.
 
-    ``solve`` always detaches the primal solve and attaches an implicit
-    adjoint so gradients flow through LDU coefficients and the source.
+    By default ``solve`` detaches the primal solve and attaches an implicit
+    adjoint. Set ``grad_mode="unrolled"`` to differentiate through the
+    primal iterations instead (Krylov solvers only).
     """
 
     atol: float
     rtol: float
+    grad_mode: GradientMode = "adjoint"
 
     def solve(
         self,
@@ -80,6 +85,9 @@ class LinearSolver(ABC):
         SolveResult
             Computed solution and solver statistics.
         """
+        if self.grad_mode == "unrolled":
+            return self._solve_primal(eq)
+
         A = eq.fv_matrix
         with torch.no_grad():
             result = self._solve_primal(eq)
