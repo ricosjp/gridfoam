@@ -37,6 +37,7 @@ from gridfoam.core.field import (
     get_or_create_cellfield,
     get_or_create_facefield,
 )
+from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvm
 from gridfoam.fv.flux import correct_flux
@@ -343,7 +344,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def create_temperature_solver(
-    grid,
+    grid: IGridBase,
     field_name: str,
     grad_mode: GradientMode,
 ) -> LinearSolver:
