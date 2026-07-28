@@ -1,0 +1,28 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+forceCoeffs1
+{
+    type            forceCoeffs;
+    libs            (forces);
+
+    writeControl    timeStep;
+    timeInterval    1;
+    log             yes;
+
+    patches         (cylinder);
+    rho             rhoInf;
+    rhoInf          1;
+
+    // Cylinder axis is along z, so the transverse (shedding) force acts in y.
+    dragDir         (1 0 0);
+    liftDir         (0 1 0);
+    pitchAxis       (0 0 1);
+    CofR            (0 0 0);
+
+    magUInf         1.0;
+    lRef            1.0;
+    Aref            8.0;
+}
