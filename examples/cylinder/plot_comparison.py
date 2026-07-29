@@ -333,7 +333,9 @@ def main() -> None:
         frames = [frame for frame in frames if frame.step in wanted]
         missing = wanted - {frame.step for frame in frames}
         if missing:
-            msg = f"Requested steps not found in both solvers: {sorted(missing)}"
+            msg = (
+                f"Requested steps not found in both solvers: {sorted(missing)}"
+            )
             raise FileNotFoundError(msg)
 
     prepared: list[FrameData] = []
