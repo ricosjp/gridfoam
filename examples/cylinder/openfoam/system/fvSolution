@@ -54,8 +54,16 @@ PIMPLE
 
     residualControl
     {
-        U 1e-5;
-        p 1e-5;
+        U
+        {
+            tolerance   1e-5;
+            relTol      0;
+        }
+        p
+        {
+            tolerance   1e-5;
+            relTol      0;
+        }
     }
 }
 
