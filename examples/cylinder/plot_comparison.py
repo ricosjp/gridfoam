@@ -217,9 +217,9 @@ def _add_panel(
             "height": 0.6,
         },
     )
-    plotter.add_axes(viewport=(0.0, 0.0, 0.2, 0.2))
-    plotter.view_xy()
-    plotter.enable_parallel_projection()
+    plotter.renderer.add_axes(viewport=(0.0, 0.0, 0.2, 0.2))
+    plotter.renderer.view_xy()
+    plotter.renderer.enable_parallel_projection()
     plotter.add_text(
         title,
         position="upper_left",
@@ -252,7 +252,7 @@ def plot_frame(
         shape=(1, 3),
         window_size=list(WINDOW_SIZE),
     )
-    plotter.set_background(BACKGROUND)
+    plotter.renderers.set_background(BACKGROUND)
 
     panels = (
         (
@@ -323,7 +323,9 @@ def main() -> None:
     parser.add_argument(
         "--global-clim",
         action="store_true",
-        help="Use min/max over all selected frames for stable animation scales.",
+        help=(
+            "Use min/max over all selected frames for stable animation scales."
+        ),
     )
     args = parser.parse_args()
 
