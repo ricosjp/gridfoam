@@ -14,7 +14,7 @@ from gridfoam.fv.boundary_ops import (
     iter_boundary_batches,
 )
 from gridfoam.fv.fvc.grad import grad
-from gridfoam.fv.fvc.interpolate import single_internal_mask
+from gridfoam.fv.kernels.face_interpolation import single_internal_mask
 
 
 def sn_grad(field: CellField) -> FaceField:

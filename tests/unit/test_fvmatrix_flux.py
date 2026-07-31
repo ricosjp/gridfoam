@@ -10,7 +10,7 @@ from gridfoam.algorithms.utils.pressure_correction import (
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.fvc.interpolate import single_internal_mask
+from gridfoam.fv.kernels.face_interpolation import single_internal_mask
 from gridfoam.meta.enums import FieldRole
 
 

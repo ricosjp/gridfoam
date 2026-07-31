@@ -5,7 +5,11 @@ from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.fv import fvc
-from gridfoam.fv.fvc.interpolate import single_face_skew_correction
+from gridfoam.fv.kernels.face_interpolation import (
+    correct_internal_values,
+    linear_internal_face_values,
+    single_face_linear_weights,
+)
 from gridfoam.meta.enums import DivScheme
 
 DivSchemeFunc = Callable[
@@ -102,18 +106,7 @@ def linear(
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
     grid = field.grid
-    owner = grid.owner[phi.single_mask]
-    neighbour = grid.neighbour[phi.single_mask]
-
-    # Compute linear interpolation weight w at each face:
-    # phi_f = w * phi_O + (1 - w) * phi_N.
-    axis_idx = grid.axis[phi.single_mask, None]
-    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
-    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[phi.single_mask]
-
-    d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
-    d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
-    w = d_fN / d_ON
+    _, _, w = single_face_linear_weights(grid, phi.single_mask)
 
     # Flux contribution to owner equation:
     # +flux * (w * phi_O + (1 - w) * phi_N)
@@ -125,12 +118,13 @@ def linear(
     lower = -phi.single_data * w
     diag_N = -phi.single_data * (1.0 - w)
 
-    # Face-centre offset (skewness) correction as an explicit deferred source.
-    grad_data = fvc.grad(field).data
-    skew = single_face_skew_correction(
-        field, grad_data, phi.single_mask, owner, neighbour, w
+    # Face-centre offset correction as an explicit deferred source.
+    base_values = linear_internal_face_values(field)
+    grad_data = fvc.grad(field).data.reshape(
+        grid.num_cells, field.num_components, 3
     )
-    source_face = -phi.single_data * skew  # [F_single k]
+    corrected = correct_internal_values(field, base_values, grad_data)
+    source_face = -phi.single_data * (corrected - base_values)
 
     return upper, lower, diag_O, diag_N, source_face
 
@@ -271,8 +265,8 @@ def _apply_tvd_scheme(
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
     grid = field.grid
-    owner = grid.owner[phi.single_mask]
-    neighbour = grid.neighbour[phi.single_mask]
+    owner, neighbour, w = single_face_linear_weights(grid, phi.single_mask)
+    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
 
     # 1. Build stable upwind matrix coefficients.
     pos_flux = torch.clamp(phi.single_data, min=0.0)
@@ -284,14 +278,6 @@ def _apply_tvd_scheme(
     diag_N = -neg_flux  # [F_single 1]
 
     # 2. Gather linear, upwind, and downwind face states.
-    axis_idx = grid.axis[phi.single_mask, None]
-    d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
-    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[phi.single_mask]
-
-    d_ON_mag = torch.abs(d_ON_vec.gather(1, axis_idx))  # [F_single 1]
-    d_fN_mag = torch.abs(d_fN_vec.gather(1, axis_idx))  # [F_single 1]
-    w = d_fN_mag / d_ON_mag
-
     psi_O = field.data[owner]  # [F_single k]
     psi_N = field.data[neighbour]  # [F_single k]
 
@@ -300,23 +286,13 @@ def _apply_tvd_scheme(
     # 3. Compute gradients and OpenFOAM-style NVDTVD/NVDVTVDV r.
     n_cells = grid.num_cells
     grad_flat = fvc.grad(field).data  # [n_cells, k * 3]
-
-    # Face-centre offset (skewness) correction of the high-order linear
-    # target. The correction ``grad_f & (C_f - C_w)`` keeps the linear face
-    # value second-order accurate on hanging-node (2:1) octree interfaces and
-    # vanishes on uniform meshes.
-    psi_linear = (
-        w * psi_O
-        + (1.0 - w) * psi_N
-        + single_face_skew_correction(
-            field, grad_flat, phi.single_mask, owner, neighbour, w
-        )
-    )  # [F_single k]
+    grad_tensor = grad_flat.reshape(n_cells, field.num_components, 3)
+    base_values = w * psi_O + (1.0 - w) * psi_N
+    psi_linear = correct_internal_values(field, base_values, grad_tensor)
 
     if field.num_components == 1:
-        grad_data = grad_flat  # [n_cells, 3]
-        grad_O = grad_data[owner]  # [F_single, 3]
-        grad_N = grad_data[neighbour]  # [F_single, 3]
+        grad_O = grad_tensor[owner, 0]  # [F_single, 3]
+        grad_N = grad_tensor[neighbour, 0]  # [F_single, 3]
         flux_mask = phi.single_data[:, 0] > 0  # [F_single]
         # Select upwind gradient.
         grad_U = torch.where(
@@ -339,9 +315,8 @@ def _apply_tvd_scheme(
         )  # [F_single, 1]
 
     else:
-        grad_data = grad_flat.reshape(n_cells, field.num_components, 3)
-        grad_t_O = grad_data[owner]  # [F_single k 3]
-        grad_t_N = grad_data[neighbour]  # [F_single k 3]
+        grad_t_O = grad_tensor[owner]  # [F_single k 3]
+        grad_t_N = grad_tensor[neighbour]  # [F_single k 3]
         flux_mask = phi.single_data > 0  # [F_single 1]
         # Select upwind gradient tensor.
         grad_t_u = torch.where(

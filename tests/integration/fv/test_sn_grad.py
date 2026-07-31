@@ -1,8 +1,7 @@
 """
 Integration tests for surface-normal gradient (``sn_grad``) reconstruction.
 
-Exercises scheme selection, least-squares accuracy at octree interfaces, and
-reuse of a cached ``grad`` field.
+Exercises scheme selection and least-squares accuracy at octree interfaces.
 """
 
 from __future__ import annotations
@@ -24,14 +23,11 @@ grad_schemes_module = importlib.import_module("gridfoam.fv.schemes.grad")
 def test_sn_grad_default_linear_scheme_does_not_use_leastsquare(
     monkeypatch: MonkeyPatch,
 ):
-    # Default LINEAR ``sn_grad`` must not call least-squares reconstruction
-    # (it should use corrected-linear face values instead).
+    # Default LINEAR ``sn_grad`` must not call least-squares reconstruction.
     def fail_leastsquare(_field: CellField) -> torch.Tensor:
         raise AssertionError("leastSquare reconstruction should not be used")
 
-    monkeypatch.setattr(
-        grad_schemes_module, "_least_square_grad_data", fail_leastsquare
-    )
+    monkeypatch.setattr(grad_schemes_module, "leastsquare", fail_leastsquare)
 
     grid = refined_grid()
     field, _ = linear_scalar_field(grid)
@@ -54,8 +50,8 @@ def test_sn_grad_is_exact_with_leastsquare_grad_scheme_on_octree_interfaces():
 
 
 def test_sn_grad_reuses_cached_grad_field():
-    # A prior ``grad`` call must populate the cache so ``sn_grad`` avoids
-    # recomputing cell-centre gradients while staying exact.
+    # A prior ``grad`` call populates the registry Face/CellField objects.
+    # ``sn_grad`` must still recover the analytic normal derivative.
     grid = refined_grid(grad_scheme=GradScheme.LEASTSQUARE)
     field_direct, gradient = linear_scalar_field(grid)
 
