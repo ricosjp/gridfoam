@@ -371,10 +371,10 @@ def main() -> None:
 
     T_name = make_field_name("T")
     t_solver_cfg = grid.sim_config.fvSolution.solvers[T_name]
-    output_dir = (
-        Path(grid.sim_config.control.output.output_dir)
-        / f"{t_solver_cfg.method.value}-{args.grad_mode}-{INLET_TEMPERATURE_INIT}"
+    run_tag = (
+        f"{t_solver_cfg.method.value}-{args.grad_mode}-{INLET_TEMPERATURE_INIT}"
     )
+    output_dir = Path(grid.sim_config.control.output.output_dir) / run_tag
     output_dir.mkdir(parents=True, exist_ok=True)
     configure_run_logger(str(output_dir / "run.log"))
 

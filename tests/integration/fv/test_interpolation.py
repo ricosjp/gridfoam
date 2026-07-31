@@ -23,7 +23,7 @@ from gridfoam.meta.enums import FieldRole
 
 
 def test_linear_internal_face_values_is_exact_on_uniform_mesh():
-    """Base linear interpolation is exact for a linear field on a uniform mesh."""
+    """Linear interpolation is exact for a linear field on a uniform mesh."""
     grid = create_grid(small_gridfoam_config())
     field, gradient = linear_scalar_field(grid)
     single_mask = single_internal_mask(grid)
