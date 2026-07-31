@@ -53,8 +53,8 @@ simulator:
         max_iter: 500
         norm_type: l_2
       T:
-        method: pyamg
-        # method: bicgstab
+        # method: pyamg
+        method: bicgstab
         preconditioner: jacobi
         tolerance: 1e-10
         rel_tolerance: 1e-8
