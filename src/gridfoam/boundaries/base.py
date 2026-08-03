@@ -21,15 +21,34 @@ class BoundaryCondition(ABC):
 
     Any boundary condition is reduced to three tensors:
     blend fraction, reference value, and reference gradient.
+
+    Attributes
+    ----------
+    type : BoundaryConditionType
+        Serialized boundary-condition type.
     """
 
     @property
     @abstractmethod
     def type(self) -> BoundaryConditionType:
+        """Serialized boundary-condition type."""
         pass
 
     @abstractmethod
     def component(self, c: int) -> BoundaryCondition:
+        """
+        Return a scalar boundary condition for component ``c``.
+
+        Parameters
+        ----------
+        c : int
+            Zero-based component index.
+
+        Returns
+        -------
+        BoundaryCondition
+            Scalar view of this condition for component ``c``.
+        """
         pass
 
     @abstractmethod
@@ -63,12 +82,11 @@ class BoundaryCondition(ABC):
             Float[torch.Tensor, " F_patch k"],
             Float[torch.Tensor, " F_patch k"],
         ]
-            Tuple ``(fraction, ref_value, ref_grad)``.
-            - ``fraction``: [F_patch, 1], 1.0 for Dirichlet
-              and 0.0 for Neumann.
-            - ``ref_value``: [F_patch, k], fixed value
-              for Dirichlet contribution.
-            - ``ref_grad``: [F_patch, k], fixed normal gradient
-              for Neumann contribution.
+        - ``fraction``: ``[F_patch, 1]``, 1.0 for Dirichlet
+            and 0.0 for Neumann.
+        - ``ref_value``: ``[F_patch, k]``, fixed value
+            for Dirichlet contribution.
+        - ``ref_grad``: ``[F_patch, k]``, fixed normal gradient
+            for Neumann contribution.
         """
         pass

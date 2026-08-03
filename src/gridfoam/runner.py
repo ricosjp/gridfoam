@@ -44,6 +44,19 @@ class StepData:
 
 
 def manual_run(config_path: Path) -> IGridBase:
+    """
+    Load configuration and construct the computational grid.
+
+    Parameters
+    ----------
+    config_path : pathlib.Path
+        Path to the YAML configuration file.
+
+    Returns
+    -------
+    IGridBase
+        Constructed grid for the configured case.
+    """
     with open(config_path) as f:
         raw_yaml = yaml.safe_load(f)
     config = GridfoamConfig.model_validate(raw_yaml)
@@ -52,6 +65,28 @@ def manual_run(config_path: Path) -> IGridBase:
 
 
 def manual_step(config_path: Path) -> Iterator[StepData]:
+    """
+    Yield per-step simulation state without advancing the algorithm.
+
+    The caller is responsible for calling ``algorithm.step()`` on each
+    yielded ``StepData``. Optional potential-flow initialization and
+    end-of-run force evaluation are handled here.
+
+    Parameters
+    ----------
+    config_path : pathlib.Path
+        Path to the YAML configuration file.
+
+    Yields
+    ------
+    StepData
+        Step index, control settings, algorithm, and unstructured grid.
+
+    Raises
+    ------
+    ValueError
+        If the configured algorithm type is ``MANUAL``.
+    """
     grid = manual_run(config_path)
 
     phase = None
@@ -125,6 +160,17 @@ def _algorithm_converged(algorithm: AlgorithmBase) -> bool:
 
 
 def all_run(config_path: Path) -> None:
+    """
+    Run a full simulation from a YAML configuration file.
+
+    Advances the algorithm each step, stops early when residual control
+    reports convergence, and writes VTU output at the configured interval.
+
+    Parameters
+    ----------
+    config_path : pathlib.Path
+        Path to the YAML configuration file.
+    """
     for step_data in manual_step(config_path):
         step_data.algorithm.step()
         if _algorithm_converged(step_data.algorithm):

@@ -70,17 +70,15 @@ class FieldRole(StrEnum):
     """
     Tells the framework whether a field owns **time history**.
 
-    Members
-    -------
-    TRANSIENT
-        Primary evolving unknown: a **previous time level** is kept so
+    - ``TRANSIENT``:
+        Primary evolving unknown: a previous time level is kept so
         transient terms can use both the new and the old value.
         Example: velocity, temperature, etc.
-    LOCAL
+    - ``LOCAL``:
         Supporting information (coefficients, intermediates, or other solved
         quantities). It does not use that history slot on this field.
         Example: pressure, flux, etc.
-    MONITOR
+    - ``MONITOR``:
         For monitoring or visualizing (plots, line probes, etc.).
         The next time step does not depend on storing or advancing this field.
     """

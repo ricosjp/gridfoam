@@ -9,6 +9,26 @@ from gridfoam.meta.enums import AlgorithmType
 def create_algorithm(
     grid: IGridBase, phase: str | None = None
 ) -> AlgorithmBase:
+    """
+    Create a pressure--velocity algorithm from ``fvSolution`` configuration.
+
+    Parameters
+    ----------
+    grid : IGridBase
+        Computational grid whose ``sim_config`` selects the algorithm type.
+    phase : str or None, optional
+        Optional phase name used when constructing field names.
+
+    Returns
+    -------
+    AlgorithmBase
+        Constructed SIMPLE, PISO, or PIMPLE instance.
+
+    Raises
+    ------
+    ValueError
+        If the configured algorithm type is ``MANUAL``.
+    """
     match grid.sim_config.fvSolution.algorithm.type:
         case AlgorithmType.SIMPLE:
             return SIMPLE(grid, phase=phase)

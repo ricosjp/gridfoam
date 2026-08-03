@@ -17,6 +17,8 @@ from gridfoam.algorithms.utils.residual import (
 )
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
+    CellField,
+    FaceField,
     get_or_create_cellfield,
     get_or_create_facefield,
 )
@@ -28,7 +30,7 @@ from gridfoam.meta.config import PIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
-from gridfoam.solvers.base import SolveStats
+from gridfoam.solvers.base import LinearSolver, SolveStats
 from gridfoam.solvers.factory import create_solver
 from gridfoam.solvers.resolver import resolve_solver
 
@@ -51,7 +53,78 @@ class PIMPLE(AlgorithmBase):
         Computational grid.
     phase : str | None, optional
         Phase name. Default is None.
+
+    Attributes
+    ----------
+    U : CellField
+        Velocity field with shape ``[C, 3]`` (``FieldRole.TRANSIENT``).
+    p : CellField
+        Pressure field with shape ``[C, 1]``.
+    phi : FaceField
+        Volumetric face flux.
+    rAU : CellField
+        Reciprocal of the momentum diagonal, ``1/A(U)``.
+    HbyA : CellField
+        Explicit momentum contribution ``H(U)/A(U)``.
+    solvers : dict[str, LinearSolver]
+        Linear solvers keyed by field name from ``fvSolution``.
+    n_outer_correctors : int
+        Number of PIMPLE outer correctors.
+    n_correctors : int
+        Number of inner PISO pressure--velocity correctors.
+    n_non_orthogonal_correctors : int
+        Number of non-orthogonal pressure correctors.
+    consistent : bool
+        Whether SIMPLEC-style consistent flux correction is enabled.
+    adjust_phi_enabled : bool
+        Whether ``adjustPhi`` continuity adjustment is enabled.
+    p_needs_ref : bool
+        Whether pressure requires a reference cell/value.
+    p_ref_cell : int
+        Reference pressure cell index when ``p_needs_ref`` is True.
+    p_ref_value : float
+        Reference pressure value when ``p_needs_ref`` is True.
+    grid : IGridBase
+        Computational grid owned by the algorithm.
+    turbulence : TurbulenceModel
+        Turbulence model used to evaluate effective viscosity.
     """
+
+    U: CellField
+    """Velocity field with shape ``[C, 3]`` (``FieldRole.TRANSIENT``)."""
+
+    p: CellField
+    """Pressure field with shape ``[C, 1]``."""
+
+    phi: FaceField
+    """Volumetric face flux."""
+
+    rAU: CellField
+    """Reciprocal of the momentum diagonal, ``1/A(U)``."""
+
+    HbyA: CellField
+    """Explicit momentum contribution ``H(U)/A(U)``."""
+
+    solvers: dict[str, LinearSolver]
+    """Linear solvers keyed by field name from ``fvSolution``."""
+
+    n_outer_correctors: int
+    """Number of PIMPLE outer correctors."""
+
+    n_correctors: int
+    """Number of inner PISO pressure--velocity correctors."""
+
+    n_non_orthogonal_correctors: int
+    """Number of non-orthogonal pressure correctors."""
+
+    consistent: bool
+    """Whether SIMPLEC-style consistent flux correction is enabled."""
+
+    adjust_phi_enabled: bool
+    """Whether ``adjustPhi`` continuity adjustment is enabled."""
+
+    p_needs_ref: bool
+    """Whether pressure requires a reference cell/value."""
 
     def __init__(
         self,
@@ -113,10 +186,12 @@ class PIMPLE(AlgorithmBase):
 
     @property
     def grid(self) -> IGridBase:
+        """Computational grid owned by the algorithm."""
         return self._grid
 
     @property
     def turbulence(self) -> TurbulenceModel:
+        """Turbulence model used to evaluate effective viscosity."""
         return self._turbulence
 
     def has_converged(self) -> bool:

@@ -8,14 +8,30 @@ class Equation:
 
     Parameters
     ----------
+    target : CellField
+        Target cell-centered field to solve/update.
+    fv_matrix : FvMatrix
+        Assembled finite-volume matrix.
+        The right-hand-side known term ``b`` is stored in ``fv_matrix.source``.
+
+    Attributes
+    ----------
     name : str
         Name of the field to be solved.
     target : CellField
         Target cell-centered field to solve/update.
     fv_matrix : FvMatrix
         Assembled finite-volume matrix.
-        The right-hand-side known term ``b`` is stored in ``fv_matrix.source``.
     """
+
+    name: str
+    """Name of the field to be solved."""
+
+    target: CellField
+    """Target cell-centered field to solve/update."""
+
+    fv_matrix: FvMatrix
+    """Assembled finite-volume matrix."""
 
     def __init__(self, target: CellField, fv_matrix: FvMatrix):
         self.name = target.name

@@ -7,10 +7,22 @@ _PHASE_SEPARATOR = "."
 
 @dataclass(frozen=True, slots=True)
 class FieldNameParts:
-    """Parsed ``(base, phase)`` components of a field name."""
+    """
+    Parsed ``(base, phase)`` components of a field name.
+
+    Attributes
+    ----------
+    base : str
+        Base field name without a phase suffix.
+    phase : str or None
+        Optional phase qualifier, or ``None`` for single-phase names.
+    """
 
     base: str
+    """Base field name without a phase suffix."""
+
     phase: str | None
+    """Optional phase qualifier, or ``None`` for single-phase names."""
 
 
 def make_field_name(base: str, *, phase: str | None = None) -> str:

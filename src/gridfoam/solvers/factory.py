@@ -8,7 +8,22 @@ from gridfoam.solvers.pyamg_bridge import PyamgBridgeSolver
 
 def create_solver(config: SolverConfig) -> LinearSolver:
     """
-    Create a solver based on the given name.
+    Create a linear solver from ``fvSolution`` solver configuration.
+
+    Parameters
+    ----------
+    config : SolverConfig
+        Solver configuration selecting the method and tolerances.
+
+    Returns
+    -------
+    LinearSolver
+        Constructed CG, BiCGSTAB, or PyAMG solver instance.
+
+    Raises
+    ------
+    ValueError
+        If ``config.method`` is unknown.
     """
     match config.method:
         case SolverType.CG:

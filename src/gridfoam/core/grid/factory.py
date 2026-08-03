@@ -9,6 +9,25 @@ from gridfoam.meta.enums import IbmType
 
 
 def create_grid(config: GridfoamConfig) -> IGridBase:
+    """
+    Build a computational grid from a validated configuration.
+
+    Parameters
+    ----------
+    config : GridfoamConfig
+        Top-level gridfoam configuration including ``fluxel`` and
+        ``simulator`` settings.
+
+    Returns
+    -------
+    IGridBase
+        Constructed grid implementation for the configured IBM type.
+
+    Raises
+    ------
+    ValueError
+        If ``config.fluxel.ibm_type`` is unsupported.
+    """
     fluxel_config = config.fluxel
     domain_bbox = fluxel.BoundingBox(
         fluxel_config.domain.lower,

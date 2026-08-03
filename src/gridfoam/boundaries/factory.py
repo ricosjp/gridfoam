@@ -25,6 +25,28 @@ def _to_tensor(
 def create_boundary_condition(
     bc_config: BoundaryConditionConfig, dtype: torch.dtype, device: torch.device
 ) -> BoundaryCondition:
+    """
+    Construct a boundary condition from configuration.
+
+    Parameters
+    ----------
+    bc_config : BoundaryConditionConfig
+        Boundary-condition configuration entry from YAML.
+    dtype : torch.dtype
+        Floating-point dtype used for prescribed values.
+    device : torch.device
+        Device used for prescribed values.
+
+    Returns
+    -------
+    BoundaryCondition
+        Concrete boundary-condition implementation.
+
+    Raises
+    ------
+    ValueError
+        If ``bc_config.type`` is unsupported or a required value is missing.
+    """
     bc_type = bc_config.type
 
     if bc_type == BoundaryConditionType.DIRICHLET:

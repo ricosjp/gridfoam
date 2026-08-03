@@ -5,6 +5,24 @@ from gridfoam.models.transport.newtonian import NewtonianTransport
 
 
 def create_transport_model(grid: IGridBase) -> TransportModel:
+    """
+    Create a transport model from ``properties.transport`` configuration.
+
+    Parameters
+    ----------
+    grid : IGridBase
+        Computational grid whose simulator configuration selects the model.
+
+    Returns
+    -------
+    TransportModel
+        Constructed transport-model instance.
+
+    Raises
+    ------
+    ValueError
+        If the configured transport model type is unsupported.
+    """
     type = grid.sim_config.properties.transport.type
     match type:
         case TransportModelType.NEWTONIAN:

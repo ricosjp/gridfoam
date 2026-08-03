@@ -21,6 +21,25 @@ class FvMatrix:
     ----------
     field : CellField
         Target field solved by this matrix equation.
+
+    Attributes
+    ----------
+    field : CellField
+        Target field solved by this matrix equation.
+    grid : IGridBase
+        Computational grid of ``field``.
+    num_components : int
+        Number of components ``k`` in the target field.
+    diag : torch.Tensor
+        Diagonal coefficients with shape ``[C, 1]``.
+    upper : torch.Tensor
+        Upper off-diagonal coefficients with shape ``[F, 1]``.
+    lower : torch.Tensor
+        Lower off-diagonal coefficients with shape ``[F, 1]``.
+    source : torch.Tensor
+        Right-hand-side source with shape ``[C, k]``.
+    face_flux_correction : torch.Tensor or None
+        Optional explicit face-flux correction on single-sided faces.
     """
 
     def __init__(self, field: CellField):
@@ -47,14 +66,17 @@ class FvMatrix:
 
     @property
     def field(self) -> CellField:
+        """Target field solved by this matrix equation."""
         return self._field
 
     @property
     def grid(self) -> IGridBase:
+        """Computational grid of ``field``."""
         return self._grid
 
     @property
     def num_components(self) -> int:
+        """Number of components ``k`` in the target field."""
         return self.field.num_components
 
     @property

@@ -17,7 +17,7 @@ class SolveStats:
     """
     Statistics from a single linear-system solve.
 
-    Parameters
+    Attributes
     ----------
     solver : str
         Solver type name (for example ``"cg"``).
@@ -32,10 +32,19 @@ class SolveStats:
     """
 
     solver: str
+    """Solver type name (for example ``"cg"``)."""
+
     initial_residual: float
+    """Normalized initial residual norm."""
+
     final_residual: float
+    """Normalized final residual norm."""
+
     iterations: int
+    """Number of solver iterations performed."""
+
     converged: bool
+    """Whether convergence criteria were met."""
 
 
 @dataclass(frozen=True)
@@ -43,7 +52,7 @@ class SolveResult:
     """
     Solution tensor and associated solver statistics.
 
-    Parameters
+    Attributes
     ----------
     solution : torch.Tensor
         Computed field values with shape ``[C, k]``.
@@ -52,7 +61,10 @@ class SolveResult:
     """
 
     solution: Float[torch.Tensor, " C k"]
+    """Computed field values with shape ``[C, k]``."""
+
     stats: tuple[SolveStats, ...]
+    """Per-component solver statistics in equation component order."""
 
 
 class LinearSolver(ABC):
@@ -62,11 +74,25 @@ class LinearSolver(ABC):
     By default ``solve`` detaches the primal solve and attaches an implicit
     adjoint. Set ``grad_mode="unrolled"`` to differentiate through the
     primal iterations instead (Krylov solvers only).
+
+    Attributes
+    ----------
+    atol : float
+        Absolute residual tolerance.
+    rtol : float
+        Relative residual tolerance.
+    grad_mode : {"adjoint", "unrolled"}
+        Differentiation mode for ``solve``.
     """
 
     atol: float
+    """Absolute residual tolerance."""
+
     rtol: float
+    """Relative residual tolerance."""
+
     grad_mode: GradientMode = "adjoint"
+    """Differentiation mode for ``solve``."""
 
     def solve(
         self,

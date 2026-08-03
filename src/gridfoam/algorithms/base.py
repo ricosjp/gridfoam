@@ -10,6 +10,13 @@ from gridfoam.solvers.base import SolveStats
 class AlgorithmBase(ABC):
     """
     Abstract base class for CFD algorithms (macro solvers).
+
+    Attributes
+    ----------
+    grid : IGridBase
+        Computational grid owned by the algorithm.
+    turbulence : TurbulenceModel
+        Turbulence model used to evaluate effective viscosity.
     """
 
     _diagnostics: DiagnosticsCollector | None = None
@@ -18,24 +25,18 @@ class AlgorithmBase(ABC):
     @property
     @abstractmethod
     def grid(self) -> IGridBase:
-        """
-        Return the computational grid.
-        """
+        """Computational grid owned by the algorithm."""
         pass
 
     @property
     @abstractmethod
     def turbulence(self) -> TurbulenceModel:
-        """
-        Return the turbulence model.
-        """
+        """Turbulence model used to evaluate effective viscosity."""
         pass
 
     @abstractmethod
     def step(self):
-        """
-        Advance the simulation by one algorithm step.
-        """
+        """Advance the simulation by one algorithm step."""
         pass
 
     def attach_diagnostics(self, diagnostics: DiagnosticsCollector) -> None:

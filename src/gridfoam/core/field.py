@@ -18,42 +18,84 @@ class GeometricField(ABC):
     Abstract base class for geometric fields on a mesh.
 
     Holds common metadata such as name, grid, component count, and role.
+
+    Attributes
+    ----------
+    grid : IGridBase
+        Computational grid that owns this field.
+    name : str
+        Field name, optionally with a phase suffix.
+    role : FieldRole
+        Temporal role of the field.
+    num_components : int
+        Number of field components ``k``.
+    dimension : dict[str, int] or None
+        Optional physical-dimension map.
+    export : bool
+        Whether the field is written to output.
     """
 
     @property
     @abstractmethod
     def grid(self) -> IGridBase:
+        """Computational grid that owns this field."""
         pass
 
     @property
     @abstractmethod
     def name(self) -> str:
+        """Field name, optionally with a phase suffix."""
         pass
 
     @property
     @abstractmethod
     def role(self) -> FieldRole:
+        """Temporal role of the field."""
         pass
 
     @property
     @abstractmethod
     def num_components(self) -> int:
+        """Number of field components ``k``."""
         pass
 
     @property
     @abstractmethod
     def dimension(self) -> dict[str, int] | None:
+        """Optional physical-dimension map."""
         pass
 
     @property
     @abstractmethod
     def export(self) -> bool:
+        """Whether the field is written to output."""
         pass
 
 
 class CellField(GeometricField):
     """
     Cell-centered field class.
+
+    Attributes
+    ----------
+    grid : IGridBase
+        Computational grid that owns this field.
+    name : str
+        Field name, optionally with a phase suffix.
+    role : FieldRole
+        Temporal role of the field.
+    num_components : int
+        Number of field components ``k``.
+    dimension : dict[str, int] or None
+        Optional physical-dimension map from configuration.
+    export : bool
+        Whether the field is written to output.
+    bcs : dict[PatchName, BoundaryCondition]
+        Boundary conditions keyed by patch name.
+    data : torch.Tensor
+        Cell values with shape ``[C, k]``.
+    old_data : torch.Tensor
+        Previous time-level values with shape ``[C, k]``.
     """
 
     def __init__(
@@ -130,6 +172,7 @@ class CellField(GeometricField):
     # ================================
     @property
     def grid(self) -> IGridBase:
+        """Computational grid that owns this field."""
         return self._grid
 
     # ================================
@@ -137,22 +180,27 @@ class CellField(GeometricField):
     # ================================
     @property
     def name(self) -> str:
+        """Field name, optionally with a phase suffix."""
         return self._name
 
     @property
     def role(self) -> FieldRole:
+        """Temporal role of the field."""
         return self._role
 
     @property
     def num_components(self) -> int:
+        """Number of field components ``k``."""
         return self._num_components
 
     @property
     def dimension(self) -> dict[str, int] | None:
+        """Optional physical-dimension map from configuration."""
         return self._dimension
 
     @property
     def export(self) -> bool:
+        """Whether the field is written to output."""
         return self._export
 
     @export.setter
@@ -161,6 +209,7 @@ class CellField(GeometricField):
 
     @property
     def bcs(self) -> dict[PatchName, BoundaryCondition]:
+        """Boundary conditions keyed by patch name."""
         return self._bcs
 
     # ================================
@@ -168,6 +217,7 @@ class CellField(GeometricField):
     # ================================
     @property
     def data(self) -> Float[torch.Tensor, "C k"]:
+        """Cell values with shape ``[C, k]``."""
         return self._data
 
     @data.setter
@@ -176,12 +226,40 @@ class CellField(GeometricField):
 
     @property
     def old_data(self) -> Float[torch.Tensor, "C k"]:
+        """Previous time-level values with shape ``[C, k]``."""
         return self._old_data
 
 
 class FaceField(GeometricField):
     """
     Face-centered field class.
+
+    Attributes
+    ----------
+    grid : IGridBase
+        Computational grid that owns this field.
+    name : str
+        Field name, optionally with a phase suffix.
+    role : FieldRole
+        Temporal role of the field.
+    num_components : int
+        Number of field components ``k``.
+    dimension : dict[str, int] or None
+        Optional physical-dimension map.
+    export : bool
+        Whether the field is written to output.
+    num_single_sided : int
+        Number of ordinary single-sided internal faces.
+    single_mask : torch.Tensor
+        Boolean mask of single-sided internal faces, shape ``[F_internal]``.
+    single_data : torch.Tensor
+        Values on single-sided internal faces, shape ``[F_single, k]``.
+    immersed_upper : torch.Tensor
+        Upper-side immersed-face values, shape ``[F_immersed, k]``.
+    immersed_lower : torch.Tensor
+        Lower-side immersed-face values, shape ``[F_immersed, k]``.
+    domain_bnd_data : torch.Tensor
+        Domain-boundary face values, shape ``[F_bnd, k]``.
     """
 
     def __init__(
@@ -237,6 +315,7 @@ class FaceField(GeometricField):
     # ================================
     @property
     def grid(self) -> IGridBase:
+        """Computational grid that owns this field."""
         return self._grid
 
     # ================================
@@ -244,22 +323,27 @@ class FaceField(GeometricField):
     # ================================
     @property
     def name(self) -> str:
+        """Field name, optionally with a phase suffix."""
         return self._name
 
     @property
     def role(self) -> FieldRole:
+        """Temporal role of the field."""
         return self._role
 
     @property
     def num_components(self) -> int:
+        """Number of field components ``k``."""
         return self._num_components
 
     @property
     def dimension(self) -> dict[str, int] | None:
+        """Optional physical-dimension map."""
         return self._dimension
 
     @property
     def export(self) -> bool:
+        """Whether the field is written to output."""
         return self._export
 
     # ================================
@@ -267,14 +351,17 @@ class FaceField(GeometricField):
     # ================================
     @property
     def num_single_sided(self) -> int:
+        """Number of ordinary single-sided internal faces."""
         return self._num_single_sided
 
     @property
     def single_mask(self) -> Bool[torch.Tensor, " F_internal "]:
+        """Boolean mask of single-sided internal faces ``[F_internal]``."""
         return self._single_mask
 
     @property
     def single_data(self) -> Float[torch.Tensor, " F_single k"]:
+        """Values on single-sided internal faces ``[F_single, k]``."""
         return self._single_data
 
     @single_data.setter
@@ -283,6 +370,7 @@ class FaceField(GeometricField):
 
     @property
     def immersed_upper(self) -> Float[torch.Tensor, "F_immersed k"]:
+        """Upper-side immersed-face values, shape ``[F_immersed, k]``."""
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed upper data is not available for this grid."
@@ -299,6 +387,7 @@ class FaceField(GeometricField):
 
     @property
     def immersed_lower(self) -> Float[torch.Tensor, "F_immersed k"]:
+        """Lower-side immersed-face values, shape ``[F_immersed, k]``."""
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed lower data is not available for this grid."
@@ -315,6 +404,7 @@ class FaceField(GeometricField):
 
     @property
     def domain_bnd_data(self) -> Float[torch.Tensor, "F_bnd k"]:
+        """Domain-boundary face values, shape ``[F_bnd, k]``."""
         return self._domain_bnd_data
 
     @domain_bnd_data.setter
@@ -328,6 +418,30 @@ def get_or_create_cellfield(
     role: FieldRole,
     num_components: int,
 ) -> CellField:
+    """
+    Return an existing cell field or create and register a new one.
+
+    Parameters
+    ----------
+    grid : IGridBase
+        Computational grid that owns the field registry.
+    name : str
+        Field name, optionally with a phase suffix.
+    role : FieldRole
+        Temporal role required for the field.
+    num_components : int
+        Number of components ``k``.
+
+    Returns
+    -------
+    CellField
+        Existing or newly created cell-centered field.
+
+    Raises
+    ------
+    AssertionError
+        If an existing field has a mismatched ``role`` or ``num_components``.
+    """
     field = grid.get_cellfield(name)
     if field is None:
         field = CellField(
@@ -349,6 +463,34 @@ def get_or_create_facefield(
     dimension: dict[str, int] | None = None,
     export: bool = True,
 ) -> FaceField:
+    """
+    Return an existing face field or create and register a new one.
+
+    Parameters
+    ----------
+    grid : IGridBase
+        Computational grid that owns the field registry.
+    name : str
+        Field name, optionally with a phase suffix.
+    role : FieldRole
+        Temporal role required for the field.
+    num_components : int
+        Number of components ``k``.
+    dimension : dict[str, int] or None, optional
+        Optional physical-dimension map.
+    export : bool, optional
+        Whether the field is written to output. Default is ``True``.
+
+    Returns
+    -------
+    FaceField
+        Existing or newly created face-centered field.
+
+    Raises
+    ------
+    AssertionError
+        If an existing field has mismatched metadata.
+    """
     field = grid.get_facefield(name)
     if field is None:
         field = FaceField(
