@@ -86,20 +86,20 @@ coverage:
     - no-gpu
     - GenuineIntel
 
-# pages:
-#   stage: deploy
-#   script:
-#     - apt install -y xvfb libgl1-mesa-glx
-#     - make document
-#     - mkdir public
-#     - mv docs/build/* public/
-#   artifacts:
-#     paths:
-#       - public
-#   only:
-#     - main
-#     - develop
-#     - docs/sphinx-update
+pages:
+  stage: deploy
+  script:
+    - uv sync --group docs --extra cpu --extra graphlow
+    - make document
+    - mkdir public
+    - mv docs/build/* public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+  tags:
+    - no-gpu
 
 
 # .deploy:wheel:
