@@ -1,9 +1,12 @@
 .. _contributor-testing:
 
-Tests (unit and integration)
-============================
+Tests
+=====
 
-Tests live under ``tests/unit/`` and ``tests/integration/``. When unsure where a test belongs, ask whether you need a **real fluxel mesh or multi-component wiring**. If not, prefer unit tests; if yes, use integration tests.
+The default test run excludes tests marked ``benchmark``, ``profile``, and
+``slow``. When unsure where a test belongs, ask whether it needs a real fluxel
+mesh or several production components wired together. If not, prefer a unit
+test; if it does, use an integration test.
 
 Unit tests (``tests/unit/``)
 ------------------------------
@@ -41,6 +44,20 @@ Integration tests (``tests/integration/``)
 * Share a small grid via session-scoped fixtures (e.g. in ``tests/conftest.py``) to amortize mesh cost.
 * Keep narrow assertions in unit tests; integration tests should focus on **wiring** correctness.
 
+End-to-end tests (``tests/e2e/``)
+----------------------------------
+
+Use end-to-end tests for complete user-visible workflows, including configured
+simulation execution and post-processing output. Keep them few and focused;
+lower-level numerical behavior belongs in unit or integration tests.
+
+Profile tests (``tests/profile/``)
+----------------------------------
+
+Benchmarks and profiling scripts measure runtime or memory behavior. They are
+not part of the default correctness suite. Mark expensive pytest cases with the
+registered ``benchmark``, ``profile``, or ``slow`` markers as appropriate.
+
 Quick comparison
 ----------------
 
@@ -64,8 +81,50 @@ Quick comparison
 How to run
 ----------
 
-From the repository root, CPU tests with coverage::
+Run the complete default CPU suite with coverage:
+
+.. code-block:: console
+
+   $ make cpu-test
+
+Run a focused test while developing:
+
+.. code-block:: console
+
+   $ uv run pytest tests/unit/path/to/test_file.py
+   $ uv run pytest tests/unit/path/to/test_file.py::test_name
+
+Run the same static checks used by CI:
+
+.. code-block:: console
+
+   $ make lint
+
+The CPU CI job synchronizes the ``test`` dependency group with the ``cpu`` and
+``graphlow`` extras, then runs ``make cpu-test``.
+
+Differentiability tests
+-----------------------
+
+When a change affects matrix assembly, a linear solve, or another
+differentiable numerical path, test both the primal result and its gradient.
+Use double precision and a small deterministic problem for finite-difference
+or PyTorch gradient comparisons. Solver changes must preserve the default
+implicit-adjoint path; test ``grad_mode="unrolled"`` separately when it is
+supported.
+
+Assertions should check tensor shape, dtype, and device when these are part of
+the contract. Avoid detaching tensors in the implementation merely to make a
+test pass.
+
+Coverage
+--------
+
+The full test command is:
+
+.. code-block:: console
 
    make cpu-test
 
-This runs ``uv run pytest tests --cov=src --cov-report term-missing``.
+This runs pytest against ``tests`` with source coverage, missing-line output,
+and the five slowest durations.

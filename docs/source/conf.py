@@ -1,139 +1,88 @@
-# """
-# Sphinx configuration for gridfoam.
+"""
+Sphinx configuration for gridfoam.
 
-# Docstrings/comments in this file are intentionally kept minimal and organized
-# in sections for readability.
-# """
+Docstrings/comments in this file are intentionally kept minimal and organized
+in sections for readability.
+"""
 
-# from __future__ import annotations
+from __future__ import annotations
 
-# import pathlib
-# import sys
-# from sphinx_gallery.sorting import ExplicitOrder
+import os
+import pathlib
+import sys
 
-# # -- Paths -------------------------------------------------------------------
-# # Repository root (conf.py lives in docs/source/).
-# REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-# DOCS_SOURCE_DIR = pathlib.Path(__file__).resolve().parent
-# sys.path.insert(0, str(DOCS_SOURCE_DIR))
-# sys.path.insert(0, str(REPO_ROOT / "src"))
+# Disable runtime type checks during documentation imports.
+os.environ.setdefault("GRIDFOAM_RUNTIME_TYPE_CHECKS", "0")
 
-# # -- Project information -----------------------------------------------------
-# # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-# from importlib.metadata import version as _version
+# -- Paths -------------------------------------------------------------------
+# Repository root (conf.py lives in docs/source/).
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+DOCS_SOURCE_DIR = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(DOCS_SOURCE_DIR))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-# project = "gridfoam"
-# author = "RICOS"
-# copyright = "2026, RICOS"
-# version = release = _version("gridfoam")
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+from importlib.metadata import version as _version
 
-# # -- General configuration ---------------------------------------------------
-# # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-# extensions = [
-#     # Core
-#     "sphinx.ext.autodoc",
-#     "sphinx.ext.autosummary",
-#     "sphinx.ext.mathjax",
-#     # Docstring style
-#     "numpydoc",
-#     # Gallery
-#     "sphinx_gallery.gen_gallery",
-#     # UX
-#     "sphinx_copybutton",
-#     "sphinx_codeautolink",
-#     # Diagrams
-#     "sphinxcontrib.mermaid",
-# ]
+project = "gridfoam"
+author = "RICOS"
+copyright = "2026, RICOS"
+version = release = _version("gridfoam")
 
-# templates_path = ["_templates"]
-# exclude_patterns: list[str] = []
+# -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+extensions = [
+    # Core
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.mathjax",
+    # Docstring style
+    "numpydoc",
+    # UX
+    "sphinx_copybutton",
+    # Diagrams
+    "sphinxcontrib.mermaid",
+]
 
-# source_suffix = {
-#     ".rst": "restructuredtext",
-# }
+templates_path = ["_templates"]
+exclude_patterns: list[str] = []
 
-# # Autosummary / Numpydoc -----------------------------------------------------
-# autosummary_generate = True
-# autosummary_imported_members = False
-# numpydoc_show_class_members = False
-# autodoc_default_options = {
-#     "members": False,
-#     "inherited-members": False,
-# }
+source_suffix = {
+    ".rst": "restructuredtext",
+}
 
-# # -- Sphinx-Gallery ----------------------------------------------------------
-# # https://sphinx-gallery.github.io/
-# sphinx_gallery_conf = {
-#     # Input examples directory (outside docs/source).
-#     "examples_dirs": str(REPO_ROOT / "examples"),
-#     # Output gallery directory (inside docs/source).
-#     "gallery_dirs": "example_gallery/auto_examples",
-#     # Render basic examples before advanced ones.
-#     "subsection_order": ExplicitOrder(
-#         [
-#             "../../examples/basic",
-#             "../../examples/advanced",
-#         ]
-#     ),
-#     # Keep a deliberate teaching order within each section.
-#     "within_subsection_order": ExplicitOrder(
-#         [
-#             "cavity_flow.py",
-#             "cavity_with_baffle_flow.py",
-#             "hagen_poiseuille_flow.py",
-#             "motorBike_flow.py",
-#         ]
-#     ),
-#     # Execute all .py examples.
-#     "filename_pattern": r".*\.py",
-#     # Route graphlow examples through a wrapper scraper.
-#     "image_scrapers": ("pyvista",),
-#     # Avoid cluttering pages with timing.
-#     "show_memory": False,
-# }
+# Autosummary / Numpydoc -----------------------------------------------------
+autosummary_generate = True
+autosummary_imported_members = False
+numpydoc_show_class_members = False
+autodoc_default_options = {
+    "members": False,
+    "inherited-members": False,
+}
 
-# # -- pyvista (for gallery rendering) -----------------------------------------
-# # In headless CI (GitHub Actions, GitLab CI, etc.), run the doc build inside a
-# # virtual display, e.g. ``xvfb-run make document`` (install xvfb in the runner),
-# # or use VTK built with OSMesa so no display is needed.
-# import pyvista
+# -- Options for HTML output -------------------------------------------------
+# https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html
+html_theme = "pydata_sphinx_theme"
+html_title = "gridfoam"
 
-# pyvista.BUILDING_GALLERY = True
-# pyvista.OFF_SCREEN = True
-# pyvista.set_plot_theme("document")
-# pyvista.global_theme.window_size = [1024, 768]
-# pyvista.global_theme.font.size = 22
-# pyvista.global_theme.font.label_size = 22
-# pyvista.global_theme.font.title_size = 22
-# pyvista.global_theme.return_cpos = False
-# try:
-#     # Optional; avoid hard dependency on IPython for docs builds.
-#     pyvista.set_jupyter_backend(None)
-# except ImportError:
-#     pass
+html_logo = "_static/logo.webp"
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
-# # -- Options for HTML output -------------------------------------------------
-# # https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html
-# html_theme = "pydata_sphinx_theme"
-# html_title = "graphlow"
+# PyData theme options (minimal defaults; expand as needed).
+html_theme_options = {
+    "navbar_align": "content",
+    "logo": {
+        "text": "gridfoam",
+        "image_light": "_static/logo.webp",
+    },
+}
 
-# html_logo = "_static/logo.webp"
-# html_static_path = ["_static"]
-# html_css_files = ["custom.css"]
+# -- Copybutton --------------------------------------------------------------
+copybutton_prompt_text = r">>> |\.\.\. "
+copybutton_prompt_is_regexp = True
 
-# # PyData theme options (minimal defaults; expand as needed).
-# html_theme_options = {
-#     "navbar_align": "content",
-#     "logo": {
-#         "text": "graphlow",
-#         "image_light": "_static/logo.webp",
-#     },
-# }
-
-# # -- Copybutton --------------------------------------------------------------
-# copybutton_prompt_text = r">>> |\.\.\. "
-# copybutton_prompt_is_regexp = True
-
-# # -- Mermaid -----------------------------------------------------------------
-# # Render Mermaid in HTML (JS). For non-HTML builders, use mermaid-cli.
-# mermaid_output_format = "raw"
+# -- Mermaid -----------------------------------------------------------------
+# Render Mermaid in HTML (JS). For non-HTML builders, use mermaid-cli.
+mermaid_output_format = "raw"

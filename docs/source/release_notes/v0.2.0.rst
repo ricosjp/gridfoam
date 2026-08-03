@@ -1,0 +1,40 @@
+.. _release-v0-2-0:
+
+v0.2.0
+======
+
+Summary
+-------
+
+Version ``0.2.0`` is the current development release. It extends gridfoam into
+a differentiable finite-volume solver with YAML-driven configuration, immersed
+boundaries, and OpenFOAM-style pressure--velocity coupling.
+
+Added
+-----
+
+* YAML configuration validated by Pydantic models (:class:`~gridfoam.meta.config.GridfoamConfig`).
+* Fluxel-based hierarchical mesh generation with axis-projected IBM.
+* ``CellField``, ``FaceField``, and ``FvMatrix`` data contracts.
+* Finite-volume operators under ``gridfoam.fv`` (``fvc`` and ``fvm``).
+* Boundary conditions in value-fraction form (Dirichlet, Neumann, slip, empty,
+  inlet--outlet, fixed-flux pressure).
+* Linear solvers: CG, BiCGSTAB, and PyAMG with implicit adjoint support.
+* Pressure--velocity algorithms: SIMPLE, PISO, and PIMPLE.
+* Transport (Newtonian) and laminar turbulence models.
+* Potential-flow initialization, diagnostics collection, and force evaluation.
+* VTU export and a high-level :mod:`gridfoam.runner` API.
+* Bundled examples under ``examples/``.
+
+Changed
+-------
+
+* Package version bumped from ``0.1.0`` to ``0.2.0`` in ``pyproject.toml``.
+
+Dependencies
+------------
+
+* Python 3.12
+* PyTorch (optional ``cpu`` / ``cu118`` / ``cu124`` extras)
+* fluxel (local path dependency)
+* phlower-tensor, pyvista, pydantic, scipy, pyamg

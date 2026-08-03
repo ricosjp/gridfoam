@@ -27,13 +27,10 @@ cpu-test:
 gpu-test:
 	uv run pytest tests -m with_device --cov=src --cov-report term-missing --durations 5
 
-# For headless CI: install xvfb and run ``xvfb-run make document``.
 .PHONY: document
 document:
 	rm -rf docs/build || true
 	rm -rf docs/source/api_reference/generated/ || true
-	rm -rf docs/source/example_gallery/auto_examples || true
-	rm docs/source/sg_execution_times.rst || true
 	uv run sphinx-build docs/source docs/build -b html
 
 .PHONY: benchmark
