@@ -18,6 +18,20 @@ DEFAULT_OUTPUT_DIR = OUTPUTS_ROOT / "slice_plots"
 RE_DIR_PATTERN = re.compile(r"^re_(?P<re>.+)$")
 VTU_STEP_PATTERN = re.compile(r"(\d+)$")
 
+SourceName = str
+
+SOURCE_LABELS = {
+    "gridfoam": "gridfoam",
+    "openfoam": "OpenFOAM",
+    "openfoam_fine": "OpenFOAM fine",
+}
+
+COMPARE_PRESETS = {
+    "gridfoam-openfoam": ("gridfoam", "openfoam"),
+    "gridfoam-openfoam_fine": ("gridfoam", "openfoam_fine"),
+    "openfoam-openfoam_fine": ("openfoam", "openfoam_fine"),
+}
+
 
 class CaseConfig(BaseModel):
     name: str
@@ -69,8 +83,15 @@ def _gridfoam_output_dir(case_name: str, re_value: float) -> Path:
     return OUTPUTS_ROOT / case_name / "gridfoam" / f"re_{_re_label(re_value)}"
 
 
-def _openfoam_output_dir(case_name: str, re_value: float) -> Path:
-    return OUTPUTS_ROOT / case_name / "openfoam" / f"re_{_re_label(re_value)}"
+def _openfoam_output_dir(
+    case_name: str, re_value: float, *, mesh_level: str = "coarse"
+) -> Path:
+    solver_dir = (
+        "openfoam" if mesh_level == "coarse" else f"openfoam_{mesh_level}"
+    )
+    return (
+        OUTPUTS_ROOT / case_name / solver_dir / f"re_{_re_label(re_value)}"
+    )
 
 
 def _parse_vtu_step(path: Path) -> int | None:
@@ -174,6 +195,135 @@ def _read_gridfoam_mesh(
     return pv.read(path)
 
 
+def _read_source_mesh(
+    source: SourceName,
+    case_name: str,
+    re_value: float,
+    time: int | None,
+) -> pv.DataSet:
+    if source == "gridfoam":
+        return _read_gridfoam_mesh(case_name, re_value, time)
+    if source == "openfoam":
+        return _read_openfoam_mesh(
+            _openfoam_output_dir(case_name, re_value, mesh_level="coarse"),
+            time,
+        )
+    if source == "openfoam_fine":
+        return _read_openfoam_mesh(
+            _openfoam_output_dir(case_name, re_value, mesh_level="fine"),
+            time,
+        )
+    raise ValueError(f"Unknown source: {source!r}")
+
+
+def _list_source_times(
+    source: SourceName, case_name: str, re_value: float
+) -> list[int]:
+    if source == "gridfoam":
+        output_dir = _gridfoam_output_dir(case_name, re_value)
+        times = [
+            step
+            for path in output_dir.glob(f"{case_name}*.vtu")
+            if path.name != "surface_mesh.vtu"
+            and (step := _parse_vtu_step(path)) is not None
+        ]
+        return sorted(set(times))
+
+    if source == "openfoam":
+        case_dir = _openfoam_output_dir(
+            case_name, re_value, mesh_level="coarse"
+        )
+    elif source == "openfoam_fine":
+        case_dir = _openfoam_output_dir(
+            case_name, re_value, mesh_level="fine"
+        )
+    else:
+        raise ValueError(f"Unknown source: {source!r}")
+
+    if not case_dir.exists():
+        raise FileNotFoundError(f"OpenFOAM case was not found: {case_dir}")
+    times = [
+        int(path.name)
+        for path in case_dir.iterdir()
+        if path.is_dir() and path.name.isdigit() and int(path.name) > 0
+    ]
+    return sorted(set(times))
+
+
+def _average_fields(meshes: list[pv.DataSet], fields: tuple[str, ...]) -> pv.DataSet:
+    """Return a copy of the first mesh with selected cell fields averaged."""
+    if not meshes:
+        raise ValueError("Cannot average an empty mesh list.")
+
+    averaged = meshes[0].copy(deep=True)
+    n = len(meshes)
+    for field in fields:
+        if field not in averaged.cell_data:
+            raise KeyError(
+                f"Field {field!r} was not found while averaging meshes."
+            )
+        total = np.asarray(averaged.cell_data[field], dtype=np.float64)
+        for mesh in meshes[1:]:
+            if field not in mesh.cell_data:
+                raise KeyError(
+                    f"Field {field!r} was not found while averaging meshes."
+                )
+            values = np.asarray(mesh.cell_data[field], dtype=np.float64)
+            if values.shape != total.shape:
+                raise ValueError(
+                    f"Field {field!r} shape mismatch while averaging: "
+                    f"{total.shape} vs {values.shape}"
+                )
+            total += values
+        averaged.cell_data[field] = (total / n).astype(
+            np.asarray(averaged.cell_data[field]).dtype, copy=False
+        )
+    return averaged
+
+
+def _read_averaged_source_mesh(
+    source: SourceName,
+    case_name: str,
+    re_value: float,
+    times: list[int],
+) -> pv.DataSet:
+    if not times:
+        raise ValueError(f"No times available to average for source={source!r}")
+    meshes = [
+        _read_source_mesh(source, case_name, re_value, time) for time in times
+    ]
+    return _average_fields(meshes, fields=("p", "U"))
+
+
+def _select_average_times(
+    source: SourceName,
+    case_name: str,
+    re_value: float,
+    average_from: int,
+    average_to: int,
+) -> list[int]:
+    available = _list_source_times(source, case_name, re_value)
+    selected = [t for t in available if average_from <= t <= average_to]
+    if not selected:
+        raise ValueError(
+            f"No write times in [{average_from}, {average_to}] for "
+            f"{source}/{case_name}/re_{_re_label(re_value)}; "
+            f"available={available}"
+        )
+    return selected
+
+
+def _error_stats(values: np.ndarray) -> dict[str, float]:
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        raise ValueError("No finite values available for error statistics.")
+    return {
+        "mean_abs": float(np.mean(np.abs(finite))),
+        "rms": float(np.sqrt(np.mean(finite**2))),
+        "max_abs": float(np.max(np.abs(finite))),
+    }
+
+
 def _rename_fields(mesh: pv.DataSet, prefix: str) -> None:
     """Prefix all point/cell data arrays to avoid name collisions."""
     for data in (mesh.point_data, mesh.cell_data):
@@ -208,46 +358,50 @@ def _scalar_field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
     return values.reshape(-1)
 
 
-def _build_comparison_slice(
-    gridfoam_mesh: pv.DataSet,
-    openfoam_mesh: pv.DataSet,
-    plane: SlicePlane,
-) -> pv.DataSet:
-    gridfoam = gridfoam_mesh.copy(deep=True)
-    openfoam = openfoam_mesh.copy(deep=True)
-    _rename_fields(gridfoam, "gf_")
-    _rename_fields(openfoam, "of_")
-    _map_fields(gridfoam, openfoam)
+def _overlap_bounds_2d(
+    left: pv.DataSet, right: pv.DataSet, plane: SlicePlane
+) -> tuple[float, float, float, float]:
+    """Return in-plane overlap of two 3D volume bounds."""
+    lb = left.bounds
+    rb = right.bounds
+    if plane.name == "xy":
+        xmin = max(lb[0], rb[0])
+        xmax = min(lb[1], rb[1])
+        ymin = max(lb[2], rb[2])
+        ymax = min(lb[3], rb[3])
+    elif plane.name == "xz":
+        xmin = max(lb[0], rb[0])
+        xmax = min(lb[1], rb[1])
+        ymin = max(lb[4], rb[4])
+        ymax = min(lb[5], rb[5])
+    else:
+        raise ValueError(f"Unsupported plane: {plane.name!r}")
 
-    sliced = openfoam.slice(normal=plane.normal, origin=plane.origin)
-    if sliced.n_cells == 0:
+    if not (xmin < xmax and ymin < ymax):
         raise ValueError(
-            "Slice produced an empty mesh for "
-            f"origin={plane.origin}, normal={plane.normal}"
+            "No geometric overlap between volumes for uniform sampling."
         )
+    return xmin, xmax, ymin, ymax
 
-    prepared = sliced.cell_data_to_point_data(pass_cell_data=True)
-    if "gf_p" not in prepared.point_data and "gf_p" not in prepared.cell_data:
-        raise KeyError("Field 'gf_p' was not found in comparison slice.")
-    if "of_p" not in prepared.point_data and "of_p" not in prepared.cell_data:
-        raise KeyError("Field 'of_p' was not found in comparison slice.")
-    if "gf_U" not in prepared.point_data and "gf_U" not in prepared.cell_data:
-        raise KeyError("Field 'gf_U' was not found in comparison slice.")
-    if "of_U" not in prepared.point_data and "of_U" not in prepared.cell_data:
-        raise KeyError("Field 'of_U' was not found in comparison slice.")
 
-    gf_p = _scalar_field_values(prepared, "gf_p")
-    of_p = _scalar_field_values(prepared, "of_p")
-    gf_u_mag = np.linalg.norm(_vector_field_values(prepared, "gf_U"), axis=1)
-    of_u_mag = np.linalg.norm(_vector_field_values(prepared, "of_U"), axis=1)
-
-    prepared.point_data["gf_p"] = gf_p
-    prepared.point_data["of_p"] = of_p
-    prepared.point_data["p_diff"] = np.abs(gf_p - of_p)
-    prepared.point_data["gf_U_mag"] = gf_u_mag
-    prepared.point_data["of_U_mag"] = of_u_mag
-    prepared.point_data["U_mag_diff"] = np.abs(gf_u_mag - of_u_mag)
-    return prepared
+def _build_uniform_plane_grid(
+    plane: SlicePlane,
+    bounds_2d: tuple[float, float, float, float],
+    *,
+    nx: int,
+    ny: int,
+) -> pv.StructuredGrid:
+    xmin, xmax, ymin, ymax = bounds_2d
+    x = np.linspace(xmin, xmax, nx)
+    y = np.linspace(ymin, ymax, ny)
+    xx, yy = np.meshgrid(x, y, indexing="xy")
+    if plane.name == "xy":
+        zz = np.full_like(xx, plane.origin[2], dtype=np.float64)
+        return pv.StructuredGrid(xx, yy, zz)
+    if plane.name == "xz":
+        yy_const = np.full_like(xx, plane.origin[1], dtype=np.float64)
+        return pv.StructuredGrid(xx, yy_const, yy)
+    raise ValueError(f"Unsupported plane: {plane.name!r}")
 
 
 def _field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
@@ -258,6 +412,201 @@ def _field_values(mesh: pv.DataSet, field: str) -> np.ndarray:
     else:
         raise KeyError(f"Field {field!r} was not found in slice output.")
     return np.asarray(values).reshape(-1)
+
+
+def _masked_values(
+    sampled: pv.DataSet, field: str, valid_mask: np.ndarray
+) -> np.ndarray:
+    values = _field_values(sampled, field).astype(np.float64, copy=False)
+    out = values.copy()
+    out[~valid_mask] = np.nan
+    return out
+
+
+def _masked_vector_values(
+    sampled: pv.DataSet, field: str, valid_mask: np.ndarray
+) -> np.ndarray:
+    values = _vector_field_values(sampled, field).astype(np.float64, copy=False)
+    out = values.copy()
+    out[~valid_mask, :] = np.nan
+    return out
+
+
+def _has_field(mesh: pv.DataSet, field: str) -> bool:
+    return field in mesh.point_data or field in mesh.cell_data
+
+
+def _valid_point_mask(sampled: pv.DataSet, n_points: int) -> np.ndarray:
+    mask = sampled.point_data.get(
+        "vtkValidPointMask", np.ones(n_points, dtype=np.uint8)
+    )
+    return np.asarray(mask).astype(bool)
+
+
+def _sample_volume_on_plane(
+    volume: pv.DataSet, probe: pv.StructuredGrid
+) -> pv.DataSet:
+    """Sample a 3D volume at probe points by querying enclosing 3D cells.
+
+    Probe points lie on the comparison plane, but interpolation uses the
+    source cell that contains each 3D point rather than a 2D slice.
+    """
+    sampled = probe.sample(
+        volume,
+        pass_cell_data=False,
+        pass_point_data=True,
+        locator="cell_tree",
+    )
+    if not isinstance(sampled, pv.DataSet):
+        raise TypeError("3D sampling did not return a DataSet.")
+    return sampled
+
+
+def _has_disconnected_cell_points(mesh: pv.DataSet) -> bool:
+    """Return True if each cell stores its own unshared vertices."""
+    if mesh.n_cells == 0:
+        return False
+    return mesh.n_points >= 7 * mesh.n_cells
+
+
+def _drop_cell_fields(mesh: pv.DataSet, fields: tuple[str, ...]) -> None:
+    for field in fields:
+        if field in mesh.cell_data:
+            del mesh.cell_data[field]
+
+
+def _ensure_point_data(mesh: pv.DataSet, fields: tuple[str, ...]) -> pv.DataSet:
+    """Build shared-vertex point data so 3D probing interpolates smoothly.
+
+    gridfoam VTUs typically emit one disjoint hex per cell (8 points/cell).
+    Averaging cell data onto those duplicated vertices leaves a piecewise
+    constant field. Merge coincident points first, then interpolate.
+    """
+    prepared = mesh
+    disconnected = _has_disconnected_cell_points(prepared)
+    if disconnected:
+        # merge_points() keeps orphan vertex cells and drops arrays on
+        # gridfoam VTUs; clean() merges coincident points in-place.
+        prepared = prepared.clean(tolerance=1e-9)
+
+    missing_point_data = any(
+        field in prepared.cell_data and field not in prepared.point_data
+        for field in fields
+    )
+    if disconnected or missing_point_data:
+        converted = prepared.cell_data_to_point_data(pass_cell_data=False)
+        if not isinstance(converted, pv.DataSet):
+            raise TypeError("cell_data_to_point_data did not return a DataSet.")
+        prepared = converted
+    _drop_cell_fields(prepared, fields)
+    return prepared
+
+
+def _build_comparison_slice(
+    left_mesh: pv.DataSet,
+    right_mesh: pv.DataSet,
+    plane: SlicePlane,
+    *,
+    left_prefix: str = "left_",
+    right_prefix: str = "right_",
+    uniform_nx: int = 480,
+    uniform_ny: int = 180,
+) -> pv.DataSet:
+    left = left_mesh.copy(deep=True)
+    right = right_mesh.copy(deep=True)
+    _rename_fields(left, left_prefix)
+    _rename_fields(right, right_prefix)
+
+    left_p = f"{left_prefix}p"
+    right_p = f"{right_prefix}p"
+    left_u = f"{left_prefix}U"
+    right_u = f"{right_prefix}U"
+    left = _ensure_point_data(left, (left_p, left_u))
+    right = _ensure_point_data(right, (right_p, right_u))
+
+    bounds_2d = _overlap_bounds_2d(left, right, plane)
+    uniform = _build_uniform_plane_grid(
+        plane, bounds_2d, nx=uniform_nx, ny=uniform_ny
+    )
+    left_sampled = _sample_volume_on_plane(left, uniform)
+    right_sampled = _sample_volume_on_plane(right, uniform)
+
+    missing = [
+        field
+        for field, mesh in (
+            (left_p, left_sampled),
+            (right_p, right_sampled),
+            (left_u, left_sampled),
+            (right_u, right_sampled),
+        )
+        if not _has_field(mesh, field)
+    ]
+    if missing:
+        raise KeyError(
+            "Field(s) "
+            + ", ".join(repr(name) for name in missing)
+            + " were not found after 3D sampling."
+        )
+
+    left_valid = _valid_point_mask(left_sampled, uniform.n_points)
+    right_valid = _valid_point_mask(right_sampled, uniform.n_points)
+    valid = left_valid & right_valid
+
+    lp = _masked_values(left_sampled, left_p, valid)
+    rp = _masked_values(right_sampled, right_p, valid)
+    lu = _masked_vector_values(left_sampled, left_u, valid)
+    ru = _masked_vector_values(right_sampled, right_u, valid)
+    lu_mag = np.linalg.norm(lu, axis=1)
+    ru_mag = np.linalg.norm(ru, axis=1)
+
+    comparison = uniform.copy(deep=True)
+    comparison.point_data[left_p] = lp
+    comparison.point_data[right_p] = rp
+    comparison.point_data["p_diff"] = np.abs(lp - rp)
+    comparison.point_data[f"{left_prefix}U_mag"] = lu_mag
+    comparison.point_data[f"{right_prefix}U_mag"] = ru_mag
+    comparison.point_data["U_mag_diff"] = np.abs(lu_mag - ru_mag)
+    comparison.point_data["valid_mask"] = valid.astype(np.uint8)
+    return _extract_valid_region(comparison)
+
+
+def _extract_valid_region(mesh: pv.DataSet) -> pv.DataSet:
+    """Drop invalid probe points so body/boundary holes render as white."""
+    if "valid_mask" not in mesh.point_data:
+        return mesh
+    mask = np.asarray(mesh.point_data["valid_mask"]).reshape(-1).astype(bool)
+    if mask.size != mesh.n_points or bool(mask.all()):
+        return mesh
+    extracted = mesh.extract_points(
+        mask, adjacent_cells=False, include_cells=True
+    )
+    if extracted.n_cells == 0:
+        return mesh
+    return extracted
+
+
+def _comparison_clims(
+    mesh: pv.DataSet,
+) -> tuple[
+    tuple[float, float],
+    tuple[float, float],
+    tuple[float, float],
+    tuple[float, float],
+]:
+    """Return shared color limits for p, |U|, |Δp|, and |Δ|U||."""
+    p_range = _field_range([mesh], "left_p")
+    p_range = (
+        min(p_range[0], _field_range([mesh], "right_p")[0]),
+        max(p_range[1], _field_range([mesh], "right_p")[1]),
+    )
+    u_range = _field_range([mesh], "left_U_mag")
+    u_range = (
+        min(u_range[0], _field_range([mesh], "right_U_mag")[0]),
+        max(u_range[1], _field_range([mesh], "right_U_mag")[1]),
+    )
+    p_diff_max = _field_range([mesh], "p_diff")[1]
+    u_diff_max = _field_range([mesh], "U_mag_diff")[1]
+    return p_range, u_range, (0.0, p_diff_max), (0.0, u_diff_max)
 
 
 def _field_range(meshes: list[pv.DataSet], field: str) -> tuple[float, float]:
@@ -292,8 +641,17 @@ def _add_slice(
         clim=clim,
         show_edges=show_edges,
         line_width=0.3,
-        scalar_bar_args={"title": field, "vertical": True},
+        preference="point",
+        interpolate_before_map=True,
+        nan_color="white",
+        scalar_bar_args={
+            "title": field,
+            "vertical": True,
+            "fmt": "%.3f",
+            "n_labels": 5,
+        },
     )
+    plotter.set_background("white")
     plotter.add_text(title, font_size=11)
     getattr(plotter, plane.view)()
     plotter.renderer.enable_parallel_projection()
@@ -304,48 +662,128 @@ def _plot_case(
     *,
     re_value: float,
     time: int | None,
+    average_from: int | None,
+    average_to: int | None,
     plane: SlicePlane,
+    left_source: SourceName,
+    right_source: SourceName,
     output_dir: Path,
     save_slices: bool,
     show_edges: bool,
     zoom: float,
+    uniform_nx: int,
+    uniform_ny: int,
 ) -> Path:
+    average_tag = ""
+    if average_from is not None or average_to is not None:
+        if average_from is None or average_to is None:
+            raise ValueError(
+                "Both --average-from and --average-to must be set together."
+            )
+        if time is not None:
+            raise ValueError("Use either --time or --average-from/--average-to.")
+        if average_from > average_to:
+            raise ValueError(
+                f"--average-from ({average_from}) must be <= "
+                f"--average-to ({average_to})."
+            )
+        left_times = _select_average_times(
+            left_source, case_name, re_value, average_from, average_to
+        )
+        right_times = _select_average_times(
+            right_source, case_name, re_value, average_from, average_to
+        )
+        print(
+            f"{case_name} re={_re_label(re_value)}: "
+            f"averaging {left_source} times={left_times}, "
+            f"{right_source} times={right_times}"
+        )
+        left_mesh = _read_averaged_source_mesh(
+            left_source, case_name, re_value, left_times
+        )
+        right_mesh = _read_averaged_source_mesh(
+            right_source, case_name, re_value, right_times
+        )
+        average_tag = f"_avg_{average_from}_{average_to}"
+    else:
+        left_mesh = _read_source_mesh(left_source, case_name, re_value, time)
+        right_mesh = _read_source_mesh(right_source, case_name, re_value, time)
+
     comparison = _build_comparison_slice(
-        _read_gridfoam_mesh(case_name, re_value, time),
-        _read_openfoam_mesh(_openfoam_output_dir(case_name, re_value), time),
+        left_mesh,
+        right_mesh,
         plane,
+        left_prefix="left_",
+        right_prefix="right_",
+        uniform_nx=uniform_nx,
+        uniform_ny=uniform_ny,
     )
 
     re_label = _re_label(re_value)
+    left_label = SOURCE_LABELS[left_source]
+    right_label = SOURCE_LABELS[right_source]
+    compare_tag = f"{left_source}_vs_{right_source}"
+
+    p_stats = _error_stats(_field_values(comparison, "p_diff"))
+    u_stats = _error_stats(_field_values(comparison, "U_mag_diff"))
+    print(
+        f"{case_name} re={re_label} {compare_tag}{average_tag}: "
+        f"|Δp| mean={p_stats['mean_abs']:.6e} "
+        f"rms={p_stats['rms']:.6e} max={p_stats['max_abs']:.6e}; "
+        f"|Δ|U|| mean={u_stats['mean_abs']:.6e} "
+        f"rms={u_stats['rms']:.6e} max={u_stats['max_abs']:.6e}"
+    )
+
     if save_slices:
         comparison_path = output_dir / (
-            f"{case_name}_re_{re_label}_{plane.name}_comparison.vtp"
+            f"{case_name}_re_{re_label}_{plane.name}_{compare_tag}"
+            f"{average_tag}.vtp"
         )
         comparison.save(comparison_path)
 
-    p_range = _field_range([comparison], "gf_p")
-    p_range = (
-        min(p_range[0], _field_range([comparison], "of_p")[0]),
-        max(p_range[1], _field_range([comparison], "of_p")[1]),
+    p_range, u_range, p_diff_range, u_diff_range = _comparison_clims(
+        comparison
     )
-    u_range = _field_range([comparison], "gf_U_mag")
-    u_range = (
-        min(u_range[0], _field_range([comparison], "of_U_mag")[0]),
-        max(u_range[1], _field_range([comparison], "of_U_mag")[1]),
-    )
-    p_diff_range = _field_range([comparison], "p_diff")
-    u_diff_range = _field_range([comparison], "U_mag_diff")
+    if average_tag:
+        # Keep colorbars aligned with the instantaneous comparison plot.
+        p_range, u_range, p_diff_range, u_diff_range = _comparison_clims(
+            _build_comparison_slice(
+                _read_source_mesh(left_source, case_name, re_value, None),
+                _read_source_mesh(right_source, case_name, re_value, None),
+                plane,
+                left_prefix="left_",
+                right_prefix="right_",
+                uniform_nx=uniform_nx,
+                uniform_ny=uniform_ny,
+            )
+        )
 
     pv.OFF_SCREEN = True
     plotter = pv.Plotter(
         off_screen=True, shape=(2, 3), window_size=(2400, 1300)
     )
     panels = [
-        (0, 0, comparison, "gf_p", "gridfoam p", p_range, "coolwarm"),
-        (0, 1, comparison, "of_p", "OpenFOAM p", p_range, "coolwarm"),
+        (0, 0, comparison, "left_p", f"{left_label} p", p_range, "coolwarm"),
+        (0, 1, comparison, "right_p", f"{right_label} p", p_range, "coolwarm"),
         (0, 2, comparison, "p_diff", "|Δp|", p_diff_range, "magma"),
-        (1, 0, comparison, "gf_U_mag", "gridfoam |U|", u_range, "viridis"),
-        (1, 1, comparison, "of_U_mag", "OpenFOAM |U|", u_range, "viridis"),
+        (
+            1,
+            0,
+            comparison,
+            "left_U_mag",
+            f"{left_label} |U|",
+            u_range,
+            "viridis",
+        ),
+        (
+            1,
+            1,
+            comparison,
+            "right_U_mag",
+            f"{right_label} |U|",
+            u_range,
+            "viridis",
+        ),
         (1, 2, comparison, "U_mag_diff", "|Δ|U||", u_diff_range, "magma"),
     ]
     for row, col, mesh, field, title, clim, cmap in panels:
@@ -367,7 +805,19 @@ def _plot_case(
             plotter.subplot(row, col)
             plotter.camera.zoom(zoom)
 
-    output = output_dir / f"{case_name}_re_{re_label}_{plane.name}_p_U.png"
+    output = output_dir / (
+        f"{case_name}_re_{re_label}_{plane.name}_{compare_tag}"
+        f"{average_tag}_p_U.png"
+    )
+    # Keep the historical filename for the default instantaneous
+    # gridfoam vs OpenFOAM plot.
+    if (
+        left_source == "gridfoam"
+        and right_source == "openfoam"
+        and not average_tag
+    ):
+        output = output_dir / f"{case_name}_re_{re_label}_{plane.name}_p_U.png"
+
     plotter.screenshot(str(output))
     plotter.close()
     return output
@@ -376,8 +826,7 @@ def _plot_case(
 def _parse_args(case_names: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Plot gridfoam vs OpenFOAM slice comparisons from "
-            "experiments/re_vs_cd outputs."
+            "Plot slice comparisons from experiments/re_vs_cd outputs."
         )
     )
     parser.add_argument(
@@ -403,6 +852,33 @@ def _parse_args(case_names: list[str]) -> argparse.Namespace:
         help="Output time/step. Default: final available step.",
     )
     parser.add_argument(
+        "--average-from",
+        type=int,
+        default=None,
+        help=(
+            "Start iteration/time for field averaging (inclusive). "
+            "Must be used with --average-to."
+        ),
+    )
+    parser.add_argument(
+        "--average-to",
+        type=int,
+        default=None,
+        help=(
+            "End iteration/time for field averaging (inclusive). "
+            "Must be used with --average-from."
+        ),
+    )
+    parser.add_argument(
+        "--compare",
+        choices=tuple(COMPARE_PRESETS),
+        default="gridfoam-openfoam",
+        help=(
+            "Comparison pair. Fields are sampled onto a shared uniform "
+            "plane grid by querying enclosing 3D cells."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default=DEFAULT_OUTPUT_DIR,
         type=Path,
@@ -420,6 +896,18 @@ def _parse_args(case_names: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Show mesh edges in the slice plots.",
     )
+    parser.add_argument(
+        "--uniform-nx",
+        default=480,
+        type=int,
+        help="Uniform sampling resolution in the first in-plane axis.",
+    )
+    parser.add_argument(
+        "--uniform-ny",
+        default=180,
+        type=int,
+        help="Uniform sampling resolution in the second in-plane axis.",
+    )
     parser.add_argument("--zoom", default=1.0, type=float, help="Camera zoom.")
     return parser.parse_args()
 
@@ -429,6 +917,7 @@ def main() -> None:
     case_names = [case.name for case in parameters.case]
     args = _parse_args(case_names)
     plane = SLICE_PLANES[args.plane]
+    left_source, right_source = COMPARE_PRESETS[args.compare]
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     for case_name in args.cases:
@@ -436,11 +925,17 @@ def main() -> None:
             case_name,
             re_value=args.re,
             time=args.time,
+            average_from=args.average_from,
+            average_to=args.average_to,
             plane=plane,
+            left_source=left_source,
+            right_source=right_source,
             output_dir=args.output_dir,
             save_slices=args.save_slices,
             show_edges=args.show_edges,
             zoom=args.zoom,
+            uniform_nx=args.uniform_nx,
+            uniform_ny=args.uniform_ny,
         )
         print(output)
 
