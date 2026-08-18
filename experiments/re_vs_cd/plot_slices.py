@@ -89,9 +89,7 @@ def _openfoam_output_dir(
     solver_dir = (
         "openfoam" if mesh_level == "coarse" else f"openfoam_{mesh_level}"
     )
-    return (
-        OUTPUTS_ROOT / case_name / solver_dir / f"re_{_re_label(re_value)}"
-    )
+    return OUTPUTS_ROOT / case_name / solver_dir / f"re_{_re_label(re_value)}"
 
 
 def _parse_vtu_step(path: Path) -> int | None:
@@ -234,9 +232,7 @@ def _list_source_times(
             case_name, re_value, mesh_level="coarse"
         )
     elif source == "openfoam_fine":
-        case_dir = _openfoam_output_dir(
-            case_name, re_value, mesh_level="fine"
-        )
+        case_dir = _openfoam_output_dir(case_name, re_value, mesh_level="fine")
     else:
         raise ValueError(f"Unknown source: {source!r}")
 
@@ -250,7 +246,9 @@ def _list_source_times(
     return sorted(set(times))
 
 
-def _average_fields(meshes: list[pv.DataSet], fields: tuple[str, ...]) -> pv.DataSet:
+def _average_fields(
+    meshes: list[pv.DataSet], fields: tuple[str, ...]
+) -> pv.DataSet:
     """Return a copy of the first mesh with selected cell fields averaged."""
     if not meshes:
         raise ValueError("Cannot average an empty mesh list.")
@@ -681,7 +679,9 @@ def _plot_case(
                 "Both --average-from and --average-to must be set together."
             )
         if time is not None:
-            raise ValueError("Use either --time or --average-from/--average-to.")
+            raise ValueError(
+                "Use either --time or --average-from/--average-to."
+            )
         if average_from > average_to:
             raise ValueError(
                 f"--average-from ({average_from}) must be <= "
@@ -741,9 +741,7 @@ def _plot_case(
         )
         comparison.save(comparison_path)
 
-    p_range, u_range, p_diff_range, u_diff_range = _comparison_clims(
-        comparison
-    )
+    p_range, u_range, p_diff_range, u_diff_range = _comparison_clims(comparison)
     if average_tag:
         # Keep colorbars aligned with the instantaneous comparison plot.
         p_range, u_range, p_diff_range, u_diff_range = _comparison_clims(

@@ -426,9 +426,7 @@ def run_openfoam_cases(
                 if mesh_level != "coarse"
                 else f"openfoam_{case.name}_{Re:g}"
             )
-            context = openfoam_template_context(
-                case, Re, mesh_level=mesh_level
-            )
+            context = openfoam_template_context(case, Re, mesh_level=mesh_level)
             if use_mlflow:
                 with mlflow.start_run(nested=True, run_name=run_name):
                     run = mlflow.active_run()
@@ -451,9 +449,7 @@ def run_openfoam_cases(
                         }
                     )
 
-                    Cd = run_openfoam_case(
-                        case, Re, mesh_level=mesh_level
-                    )
+                    Cd = run_openfoam_case(case, Re, mesh_level=mesh_level)
                     mlflow.log_metrics({"Re": Re, "Cd": Cd})
             else:
                 print(f"  Run: {run_name}")
