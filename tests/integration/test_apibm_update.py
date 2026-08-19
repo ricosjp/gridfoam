@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import pyvista as pv
 import torch
+from fluxel import Axis, quaternion_from_axis_angle
 from tests.conftest import small_gridfoam_config
 
 from gridfoam.core.field import CellField, FaceField
@@ -56,6 +57,51 @@ def test_update_ib_keeps_topology_on_empty_ibm() -> None:
     assert grid.num_cells == n_cells
     assert grid.num_internal_faces == n_faces
     assert grid.ib_translation == pytest.approx([0.05, 0.0, 0.0])
+
+
+def test_update_ib_accepts_axis_angle() -> None:
+    config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
+    grid = create_grid(config)
+    assert isinstance(grid, AxisProjectedGrid)
+
+    grid.update_ib(
+        rotation_axis=Axis.Y,
+        rotation_angle=45.0,
+        degrees=True,
+        warn_outside_refinement=False,
+    )
+
+    expected = quaternion_from_axis_angle(Axis.Y, 45.0, degrees=True)
+    assert grid.ib_rotation_quaternion == pytest.approx(expected)
+
+
+def test_update_ib_accepts_keyword_quaternion() -> None:
+    config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
+    grid = create_grid(config)
+    assert isinstance(grid, AxisProjectedGrid)
+    q = quaternion_from_axis_angle(Axis.Y, 45.0, degrees=True)
+
+    grid.update_ib(rotation_quaternion=q, warn_outside_refinement=False)
+
+    assert grid.ib_rotation_quaternion == pytest.approx(q)
+
+
+def test_update_ib_rejects_mixed_rotation_args() -> None:
+    config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
+    grid = create_grid(config)
+    assert isinstance(grid, AxisProjectedGrid)
+    q = quaternion_from_axis_angle(Axis.Z, 90.0, degrees=True)
+
+    with pytest.raises(ValueError, match="not both"):
+        grid.update_ib(
+            rotation_quaternion=q,
+            rotation_axis=Axis.Z,
+            rotation_angle=90.0,
+            degrees=True,
+            warn_outside_refinement=False,
+        )
+    with pytest.raises(ValueError, match="together"):
+        grid.update_ib(rotation_axis=Axis.Z, warn_outside_refinement=False)
 
 
 def test_update_ib_resizes_facefield_immersed_buffers(tmp_path: Path) -> None:
@@ -112,10 +158,17 @@ def test_remesh_rebuilds_topology_for_uniform_mesh() -> None:
     cell = CellField(grid, "p", FieldRole.LOCAL, 1)
     cell.data[:] = 3.0
 
-    grid.remesh(warn_outside_refinement=False)
+    grid.remesh(
+        rotation_axis=Axis.Z,
+        rotation_angle=90.0,
+        degrees=True,
+        warn_outside_refinement=False,
+    )
 
+    expected = quaternion_from_axis_angle(Axis.Z, 90.0, degrees=True)
     assert cell.data.shape[0] == grid.num_cells
     assert torch.count_nonzero(cell.data) == 0
+    assert grid.ib_rotation_quaternion == pytest.approx(expected)
 
 
 def test_update_ib_moves_saved_surface_mesh(tmp_path: Path) -> None:

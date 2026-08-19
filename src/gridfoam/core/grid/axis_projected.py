@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import pathlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 from weakref import WeakValueDictionary
@@ -10,7 +10,12 @@ from weakref import WeakValueDictionary
 import graphlow as gl
 import numpy as np
 import torch
-from fluxel import ApibmSession, CfdAxisProjectedMesh
+from fluxel import (
+    ApibmSession,
+    Axis,
+    CfdAxisProjectedMesh,
+    quaternion_from_axis_angle,
+)
 from jaxtyping import Bool, Float, Int
 
 from gridfoam.core.grid.base import IGridBase
@@ -207,22 +212,39 @@ class AxisProjectedGrid(IGridBase):
     def update_ib(
         self,
         translation: list[float] | None = None,
+        rotation_axis: Axis | Sequence[float] | None = None,
+        rotation_angle: float | None = None,
+        *,
+        degrees: bool = False,
         rotation_quaternion: list[float] | None = None,
         warn_outside_refinement: bool = True,
     ) -> AxisProjectedGrid:
         """
         Recompute immersed-boundary data with a fixed background topology.
 
-        Pose arguments are absolute. Quaternion order is ``[w, x, y, z]``.
-        Omitted components keep the current pose. Registered face fields are
-        resized to the new immersed-face set; cell fields are unchanged.
+        Pose arguments are absolute. Rotation is specified by
+        ``rotation_axis`` and ``rotation_angle``. Pass
+        ``rotation_quaternion`` only when a unit quaternion is already
+        available. Omitted components keep the current pose. Registered
+        face fields are resized to the new immersed-face set; cell fields
+        are unchanged.
 
         Parameters
         ----------
         translation : list of float or None
             Absolute translation ``[tx, ty, tz]``.
+        rotation_axis : fluxel.Axis or sequence of float or None
+            Rotation axis. Pass ``Axis.X`` / ``Axis.Y`` / ``Axis.Z``, or a
+            3-vector. Must be given together with ``rotation_angle``.
+        rotation_angle : float or None
+            Rotation angle. Radians by default; set ``degrees=True`` for
+            degrees.
+        degrees : bool, default False
+            If True, ``rotation_angle`` is interpreted in degrees.
         rotation_quaternion : list of float or None
-            Absolute unit quaternion ``[w, x, y, z]``.
+            Absolute unit quaternion ``[w, x, y, z]``. Keyword-only escape
+            hatch, mutually exclusive with ``rotation_axis`` /
+            ``rotation_angle``.
         warn_outside_refinement : bool, default True
             If True, warn when the IB intersects cells below the target level.
 
@@ -233,7 +255,12 @@ class AxisProjectedGrid(IGridBase):
         """
         mesh = self._require_session().update_ib(
             translation=translation,
-            rotation_quaternion=rotation_quaternion,
+            rotation_quaternion=_resolve_rotation_quaternion(
+                rotation_quaternion,
+                rotation_axis,
+                rotation_angle,
+                degrees=degrees,
+            ),
             warn_outside_refinement=warn_outside_refinement,
         )
         self._load_ap_payload(mesh)
@@ -248,6 +275,10 @@ class AxisProjectedGrid(IGridBase):
             list[tuple[list[float], list[float], int]] | None
         ) = None,
         translation: list[float] | None = None,
+        rotation_axis: Axis | Sequence[float] | None = None,
+        rotation_angle: float | None = None,
+        *,
+        degrees: bool = False,
         rotation_quaternion: list[float] | None = None,
         warn_outside_refinement: bool = True,
     ) -> AxisProjectedGrid:
@@ -256,6 +287,9 @@ class AxisProjectedGrid(IGridBase):
 
         Topology, geometry, and IBM arrays are replaced. Registered fields
         are reallocated to the new sizes; previous field values are discarded.
+        Rotation is specified by ``rotation_axis`` and ``rotation_angle``.
+        Pass ``rotation_quaternion`` only when a unit quaternion is already
+        available.
 
         Parameters
         ----------
@@ -267,8 +301,18 @@ class AxisProjectedGrid(IGridBase):
             ``None`` keeps the current region list.
         translation : list of float or None
             Absolute translation ``[tx, ty, tz]``.
+        rotation_axis : fluxel.Axis or sequence of float or None
+            Rotation axis. Pass ``Axis.X`` / ``Axis.Y`` / ``Axis.Z``, or a
+            3-vector. Must be given together with ``rotation_angle``.
+        rotation_angle : float or None
+            Rotation angle. Radians by default; set ``degrees=True`` for
+            degrees.
+        degrees : bool, default False
+            If True, ``rotation_angle`` is interpreted in degrees.
         rotation_quaternion : list of float or None
-            Absolute unit quaternion ``[w, x, y, z]``.
+            Absolute unit quaternion ``[w, x, y, z]``. Keyword-only escape
+            hatch, mutually exclusive with ``rotation_axis`` /
+            ``rotation_angle``.
         warn_outside_refinement : bool, default True
             If True, warn when the IB intersects cells below the target level.
 
@@ -281,7 +325,12 @@ class AxisProjectedGrid(IGridBase):
             target_level=target_level,
             refinement_regions=refinement_regions,
             translation=translation,
-            rotation_quaternion=rotation_quaternion,
+            rotation_quaternion=_resolve_rotation_quaternion(
+                rotation_quaternion,
+                rotation_axis,
+                rotation_angle,
+                degrees=degrees,
+            ),
             warn_outside_refinement=warn_outside_refinement,
         )
         self._load_topology(mesh)
@@ -487,6 +536,33 @@ class AxisProjectedGrid(IGridBase):
     @property
     def ap_neighbour_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
         return self._ap_neighbour_bnd_anchor_id
+
+
+def _resolve_rotation_quaternion(
+    rotation_quaternion: list[float] | None,
+    rotation_axis: Axis | Sequence[float] | None,
+    rotation_angle: float | None,
+    *,
+    degrees: bool,
+) -> list[float] | None:
+    """Return a quaternion from explicit or axis-angle rotation arguments."""
+    has_quaternion = rotation_quaternion is not None
+    has_axis = rotation_axis is not None
+    has_angle = rotation_angle is not None
+    if has_quaternion and (has_axis or has_angle):
+        raise ValueError(
+            "Pass either rotation_quaternion or rotation_axis/"
+            "rotation_angle, not both."
+        )
+    if has_axis != has_angle:
+        raise ValueError(
+            "rotation_axis and rotation_angle must be provided together."
+        )
+    if rotation_axis is not None and rotation_angle is not None:
+        return quaternion_from_axis_angle(
+            rotation_axis, rotation_angle, degrees=degrees
+        )
+    return rotation_quaternion
 
 
 def _numpy_to_torch(
