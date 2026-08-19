@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Any
 from weakref import WeakValueDictionary
 
 import graphlow as gl
+import numpy as np
 import torch
-from fluxel import CfdAxisProjectedMesh
+from fluxel import ApibmSession, CfdAxisProjectedMesh
 from jaxtyping import Bool, Float, Int
 
 from gridfoam.core.grid.base import IGridBase
@@ -26,83 +27,79 @@ logger = logging.getLogger(__name__)
 
 
 class AxisProjectedGrid(IGridBase):
+    """
+    Axis-projected immersed-boundary grid.
+
+    Static meshes are built once from a fluxel CFD snapshot. Dynamic meshes
+    keep an :class:`fluxel.ApibmSession` so :meth:`update_ib` and
+    :meth:`remesh` can follow a moving boundary.
+    """
+
     def __init__(
         self,
         simulator_config: SimulatorConfig,
         fluxel_mesh: CfdAxisProjectedMesh,
         mesh_path: pathlib.Path | None = None,
+        session: ApibmSession | None = None,
     ):
         self._sim_config = simulator_config
+        self._session = session
         self._cellfields = WeakValueDictionary[str, CellField]()
         self._facefields = WeakValueDictionary[str, FaceField]()
         self._mesh_path = mesh_path
         self._surface_mesh_cache: gl.TensorMesh[Any] | None = None
+        self._surface_mesh_rest_points: torch.Tensor | None = None
 
-        mesh = fluxel_mesh
+        self._load_topology(fluxel_mesh)
+        self._load_ap_payload(fluxel_mesh)
+
+    def _require_session(self) -> ApibmSession:
+        """Return the fluxel session, or raise if this grid is static."""
+        if self._session is None:
+            raise RuntimeError(
+                "IBM updates require fluxel.motion=dynamic so the grid is "
+                "built with an ApibmSession."
+            )
+        return self._session
+
+    def _load_topology(self, mesh: CfdAxisProjectedMesh) -> None:
+        """Load background mesh topology and derived geometry tensors."""
         self._num_cells = mesh.n_cells
         self._num_internal_faces = mesh.internal_faces_owner.shape[0]
         self._num_domain_bnd_faces = mesh.domain_bnd_faces_owner.shape[0]
-        self._num_immersed_faces: int = mesh.ap_is_immersed_face.sum().item()
         self._patch_name_to_id = deepcopy(mesh.patch_name_to_id)
 
         # ================================
         # Indices
         # ================================
         # Internal Faces
-        self._owner = torch.from_numpy(mesh.internal_faces_owner).to(
-            device=self.device, dtype=torch.long
+        self._owner = _numpy_to_torch(
+            mesh.internal_faces_owner, device=self.device, dtype=torch.long
         )
-        self._neighbour = torch.from_numpy(mesh.internal_faces_neighbour).to(
-            device=self.device, dtype=torch.long
+        self._neighbour = _numpy_to_torch(
+            mesh.internal_faces_neighbour, device=self.device, dtype=torch.long
         )
-        self._axis = torch.from_numpy(mesh.internal_faces_axis).to(
-            device=self.device, dtype=torch.long
+        self._axis = _numpy_to_torch(
+            mesh.internal_faces_axis, device=self.device, dtype=torch.long
         )
 
         # Domain Boundary Faces
-        self._domain_bnd_owner = torch.from_numpy(
-            mesh.domain_bnd_faces_owner
-        ).to(device=self.device, dtype=torch.long)
-        self._domain_bnd_dir_id = torch.from_numpy(
-            mesh.domain_bnd_faces_dir
-        ).to(device=self.device, dtype=torch.long)
-
-        # Immersed Boundary Faces Mask [F,]
-        self._ap_is_immersed_faces = torch.from_numpy(
-            mesh.ap_is_immersed_face
-        ).to(device=self.device, dtype=torch.bool)
-
-        # Immersed Boundary Owner Patch IDs [F_immersed]
-        self._ap_owner_bnd_patch_id = torch.from_numpy(
-            mesh.ap_owner_bnd_patch_id
-        ).to(device=self.device, dtype=torch.long)
-
-        # Immersed Boundary Neighbour Patch IDs [F_immersed]
-        self._ap_neighbour_bnd_patch_id = torch.from_numpy(
-            mesh.ap_neighbour_bnd_patch_id
-        ).to(device=self.device, dtype=torch.long)
-
-        # Immersed Boundary Owner Face Anchor IDs [F_immersed]
-        self._ap_owner_bnd_anchor_id = torch.from_numpy(
-            mesh.ap_owner_bnd_anchor_id
-        ).to(device=self.device, dtype=torch.long)
-
-        # Immersed Boundary Neighbour Face Anchor IDs [F_immersed]
-        self._ap_neighbour_bnd_anchor_id = torch.from_numpy(
-            mesh.ap_neighbour_bnd_anchor_id
-        ).to(device=self.device, dtype=torch.long)
+        self._domain_bnd_owner = _numpy_to_torch(
+            mesh.domain_bnd_faces_owner, device=self.device, dtype=torch.long
+        )
+        self._domain_bnd_dir_id = _numpy_to_torch(
+            mesh.domain_bnd_faces_dir, device=self.device, dtype=torch.long
+        )
 
         # ================================
         # Geometry
         # ================================
         # Cell Centers
-        self._cell_centers = torch.from_numpy(mesh.cell_centers).to(
-            device=self.device,
-            dtype=self.dtype,
+        self._cell_centers = _numpy_to_torch(
+            mesh.cell_centers, device=self.device, dtype=self.dtype
         )
-        self._cell_sizes = torch.from_numpy(mesh.cell_sizes).to(
-            device=self.device,
-            dtype=self.dtype,
+        self._cell_sizes = _numpy_to_torch(
+            mesh.cell_sizes, device=self.device, dtype=self.dtype
         )
 
         # Cell Volumes
@@ -131,30 +128,167 @@ class AxisProjectedGrid(IGridBase):
             self._cell_sizes, self._domain_bnd_owner, self._domain_bnd_dir_id
         )
 
+    def _load_ap_payload(self, mesh: CfdAxisProjectedMesh) -> None:
+        """Load compressed axis-projected IBM arrays from ``mesh.ap``."""
+        ap = mesh.ap
+
+        # Immersed Boundary Faces Mask [F,]
+        self._ap_is_immersed_faces = _numpy_to_torch(
+            ap.is_immersed_face, device=self.device, dtype=torch.bool
+        )
+        self._num_immersed_faces = int(self._ap_is_immersed_faces.sum().item())
+
+        # Immersed Boundary Owner Patch IDs [F_immersed]
+        self._ap_owner_bnd_patch_id = _numpy_to_torch(
+            ap.owner_bnd_patch_id, device=self.device, dtype=torch.long
+        )
+
+        # Immersed Boundary Neighbour Patch IDs [F_immersed]
+        self._ap_neighbour_bnd_patch_id = _numpy_to_torch(
+            ap.neighbour_bnd_patch_id, device=self.device, dtype=torch.long
+        )
+
+        # Immersed Boundary Owner Face Anchor IDs [F_immersed]
+        self._ap_owner_bnd_anchor_id = _numpy_to_torch(
+            ap.owner_bnd_anchor_id, device=self.device, dtype=torch.long
+        )
+
+        # Immersed Boundary Neighbour Face Anchor IDs [F_immersed]
+        self._ap_neighbour_bnd_anchor_id = _numpy_to_torch(
+            ap.neighbour_bnd_anchor_id, device=self.device, dtype=torch.long
+        )
+
         # Immersed Boundary distances from owner to boundary [F_immersed 1]
-        self._ap_dist_owner_to_bnd = (
-            torch.from_numpy(mesh.ap_dist_owner_to_bnd)
-            .to(device=self.device, dtype=self.dtype)
-            .reshape(-1, 1)
-        )
+        self._ap_dist_owner_to_bnd = _numpy_to_torch(
+            ap.dist_owner_to_bnd, device=self.device, dtype=self.dtype
+        ).reshape(-1, 1)
+
         # Immersed Boundary Owner Weights [F_immersed 2]
-        self._ap_owner_weights = (
-            torch.from_numpy(mesh.ap_owner_weights)
-            .to(device=self.device, dtype=self.dtype)
-            .reshape(-1, 2)
-        )
+        self._ap_owner_weights = _numpy_to_torch(
+            ap.owner_weights, device=self.device, dtype=self.dtype
+        ).reshape(-1, 2)
+
         # Immersed Boundary distances from neighbour to boundary [F_immersed 1]
-        self._ap_dist_neighbour_to_bnd = (
-            torch.from_numpy(mesh.ap_dist_neighbour_to_bnd)
-            .to(device=self.device, dtype=self.dtype)
-            .reshape(-1, 1)
-        )
+        self._ap_dist_neighbour_to_bnd = _numpy_to_torch(
+            ap.dist_neighbour_to_bnd, device=self.device, dtype=self.dtype
+        ).reshape(-1, 1)
+
         # Immersed Boundary Neighbour Weights [F_immersed 2]
-        self._ap_neighbour_weights = (
-            torch.from_numpy(mesh.ap_neighbour_weights)
-            .to(device=self.device, dtype=self.dtype)
-            .reshape(-1, 2)
+        self._ap_neighbour_weights = _numpy_to_torch(
+            ap.neighbour_weights, device=self.device, dtype=self.dtype
+        ).reshape(-1, 2)
+
+    def _sync_registered_fields(self, *, topology_changed: bool) -> None:
+        """Resize registered fields after IBM or topology updates."""
+        for field in list(self._cellfields.values()):
+            field.sync_to_grid_topology(topology_changed=topology_changed)
+        for field in list(self._facefields.values()):
+            field.sync_to_grid_topology(topology_changed=topology_changed)
+
+    def _apply_ib_pose_to_surface_mesh(self) -> None:
+        """Apply the current IB rigid pose to the cached surface mesh."""
+        if (
+            self._surface_mesh_cache is None
+            or self._surface_mesh_rest_points is None
+        ):
+            return
+        rest = self._surface_mesh_rest_points
+        rotated = _rotate_points_by_quaternion(
+            rest, self.ib_rotation_quaternion
         )
+        translation = torch.tensor(
+            self.ib_translation, dtype=rest.dtype, device=rest.device
+        )
+        posed = rotated + translation
+        self._surface_mesh_cache.points = posed
+        # TensorMesh.save writes pvmesh.points, not the tensor.
+        self._surface_mesh_cache.pvmesh.points = posed.detach().cpu().numpy()
+
+    def update_ib(
+        self,
+        translation: list[float] | None = None,
+        rotation_quaternion: list[float] | None = None,
+        warn_outside_refinement: bool = True,
+    ) -> AxisProjectedGrid:
+        """
+        Recompute immersed-boundary data with a fixed background topology.
+
+        Pose arguments are absolute. Quaternion order is ``[w, x, y, z]``.
+        Omitted components keep the current pose. Registered face fields are
+        resized to the new immersed-face set; cell fields are unchanged.
+
+        Parameters
+        ----------
+        translation : list of float or None
+            Absolute translation ``[tx, ty, tz]``.
+        rotation_quaternion : list of float or None
+            Absolute unit quaternion ``[w, x, y, z]``.
+        warn_outside_refinement : bool, default True
+            If True, warn when the IB intersects cells below the target level.
+
+        Returns
+        -------
+        AxisProjectedGrid
+            This grid after the IBM payload has been refreshed.
+        """
+        mesh = self._require_session().update_ib(
+            translation=translation,
+            rotation_quaternion=rotation_quaternion,
+            warn_outside_refinement=warn_outside_refinement,
+        )
+        self._load_ap_payload(mesh)
+        self._apply_ib_pose_to_surface_mesh()
+        self._sync_registered_fields(topology_changed=False)
+        return self
+
+    def remesh(
+        self,
+        target_level: int | None = None,
+        refinement_regions: (
+            list[tuple[list[float], list[float], int]] | None
+        ) = None,
+        translation: list[float] | None = None,
+        rotation_quaternion: list[float] | None = None,
+        warn_outside_refinement: bool = True,
+    ) -> AxisProjectedGrid:
+        """
+        Rebuild the AMR background mesh and IBM payload for the current pose.
+
+        Topology, geometry, and IBM arrays are replaced. Registered fields
+        are reallocated to the new sizes; previous field values are discarded.
+
+        Parameters
+        ----------
+        target_level : int or None
+            New maximum octree refinement level around the surface.
+            ``None`` keeps the current target level.
+        refinement_regions : list of tuple or None
+            Optional region refinement requests as ``(min, max, level)``.
+            ``None`` keeps the current region list.
+        translation : list of float or None
+            Absolute translation ``[tx, ty, tz]``.
+        rotation_quaternion : list of float or None
+            Absolute unit quaternion ``[w, x, y, z]``.
+        warn_outside_refinement : bool, default True
+            If True, warn when the IB intersects cells below the target level.
+
+        Returns
+        -------
+        AxisProjectedGrid
+            This grid after AMR and IBM reconstruction.
+        """
+        mesh = self._require_session().remesh(
+            target_level=target_level,
+            refinement_regions=refinement_regions,
+            translation=translation,
+            rotation_quaternion=rotation_quaternion,
+            warn_outside_refinement=warn_outside_refinement,
+        )
+        self._load_topology(mesh)
+        self._load_ap_payload(mesh)
+        self._apply_ib_pose_to_surface_mesh()
+        self._sync_registered_fields(topology_changed=True)
+        return self
 
     def register_cellfield(self, field: CellField):
         self._cellfields[field.name] = field
@@ -213,7 +347,30 @@ class AxisProjectedGrid(IGridBase):
                 dtype=self.dtype,
                 device=self.device,
             )
+            self._surface_mesh_rest_points = (
+                self._surface_mesh_cache.points.detach().clone()
+            )
+            self._apply_ib_pose_to_surface_mesh()
         return self._surface_mesh_cache
+
+    @property
+    def is_dynamic(self) -> bool:
+        """Whether this grid keeps a fluxel session for IBM updates."""
+        return self._session is not None
+
+    @property
+    def ib_translation(self) -> list[float]:
+        """Current rigid translation ``[tx, ty, tz]`` applied to the IB mesh."""
+        if self._session is None:
+            return [0.0, 0.0, 0.0]
+        return list(self._session.translation)
+
+    @property
+    def ib_rotation_quaternion(self) -> list[float]:
+        """Current IB rotation as a unit quaternion ``[w, x, y, z]``."""
+        if self._session is None:
+            return [1.0, 0.0, 0.0, 0.0]
+        return list(self._session.rotation_quaternion)
 
     @property
     def dt(self) -> float:
@@ -330,6 +487,51 @@ class AxisProjectedGrid(IGridBase):
     @property
     def ap_neighbour_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
         return self._ap_neighbour_bnd_anchor_id
+
+
+def _numpy_to_torch(
+    array: np.ndarray,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Copy a NumPy array onto the grid device and dtype."""
+    return torch.from_numpy(array).to(device=device, dtype=dtype)
+
+
+def _rotate_points_by_quaternion(
+    points: Float[torch.Tensor, " N 3"],
+    quat: list[float],
+) -> Float[torch.Tensor, " N 3"]:
+    """
+    Rotate points by a unit quaternion ``[w, x, y, z]``.
+
+    Parameters
+    ----------
+    points : torch.Tensor
+        Point coordinates with shape ``[N, 3]``.
+    quat : list of float
+        Unit quaternion ``[w, x, y, z]``.
+
+    Returns
+    -------
+    torch.Tensor
+        Rotated points with shape ``[N, 3]``.
+    """
+    w, x, y, z = quat
+    xx, yy, zz = x * x, y * y, z * z
+    xy, xz, yz = x * y, x * z, y * z
+    wx, wy, wz = w * x, w * y, w * z
+    rot = torch.tensor(
+        [
+            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
+            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
+            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)],
+        ],
+        dtype=points.dtype,
+        device=points.device,
+    )
+    return points @ rot.T
 
 
 def _compute_face_centers(

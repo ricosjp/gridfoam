@@ -14,6 +14,19 @@ class IbmType(StrEnum):
     GHOST_CELL = "ghost_cell"
 
 
+class MeshMotion(StrEnum):
+    """
+    How the immersed boundary is allowed to move.
+
+    - STATIC: One-shot mesh build. IBM data cannot be updated later.
+    - DYNAMIC: Keep a fluxel session so IBM data can be refreshed when the
+      boundary translates or rotates.
+    """
+
+    STATIC = auto()
+    DYNAMIC = auto()
+
+
 class DeviceType(StrEnum):
     """
     Type of the device.

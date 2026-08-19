@@ -10,6 +10,7 @@ fluxel:
   target_level: 2
   n_leaf_refinement: 2
   ibm_type: axis_projected
+  motion: static
   refinement_regions:
     - name: refinement_box1
       min: [-3.0, -4.0, 0.0]

@@ -60,6 +60,28 @@ Optimization
      - ``uv run examples/optimize/inlet_temperature/run.py``
      - Differentiable optimization example; see config in the same directory.
 
+Moving immersed boundary
+------------------------
+
+These cases require ``fluxel.motion: dynamic``. Run them from the repository
+root.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Case
+     - Command
+     - Notes
+   * - ``update_ib``
+     - ``uv run examples/dynamic_motions/update_ib/run.py``
+     - Fixed background mesh; IBM data is refreshed as the body translates
+       inside a refined travel band.
+   * - ``remesh``
+     - ``uv run examples/dynamic_motions/remesh/run.py``
+     - AMR follows the body. ``U``, ``p``, and ``phi`` are mapped from the
+       previous mesh after each remesh.
+
 Outputs
 -------
 

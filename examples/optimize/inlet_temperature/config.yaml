@@ -11,6 +11,7 @@ fluxel:
   n_leaf_refinement: 1
   mesh_path: null
   ibm_type: axis_projected
+  motion: static
   refinement_regions:
     - name: inlet
       min: [0.0, 0.0, 0.0]

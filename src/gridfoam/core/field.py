@@ -138,6 +138,26 @@ class CellField(GeometricField):
 
         self.update_history()
 
+    def sync_to_grid_topology(self, *, topology_changed: bool = False) -> None:
+        """
+        Reallocate cell buffers when the grid cell count changes.
+
+        Parameters
+        ----------
+        topology_changed : bool, default False
+            If True, buffers are reallocated even when ``C`` is unchanged
+            and previous values are discarded.
+        """
+        n_cells = self.grid.num_cells
+        if (not topology_changed) and self._data.shape[0] == n_cells:
+            return
+        self._data = torch.zeros(
+            (n_cells, self.num_components),
+            dtype=self.grid.dtype,
+            device=self.grid.device,
+        )
+        self.update_history()
+
     def reset_data(self, init_value: list[float]):
         """
         Reset data to initial condition.
@@ -309,6 +329,52 @@ class FaceField(GeometricField):
 
         # Self-register in the grid field registry.
         grid.register_facefield(self)
+
+    def sync_to_grid_topology(self, *, topology_changed: bool = False) -> None:
+        """
+        Resize face buffers to match the current grid IBM / topology.
+
+        Parameters
+        ----------
+        topology_changed : bool, default False
+            If True, internal-face and domain-boundary counts may have
+            changed and all buffers are reallocated. If False, topology is
+            assumed fixed and single-sided values are preserved on faces
+            that remain non-immersed.
+        """
+        grid = self.grid
+        n_internal = grid.num_internal_faces
+        n_bnd = grid.num_domain_bnd_faces
+        k = self.num_components
+        device = grid.device
+        dtype = grid.dtype
+
+        new_mask = torch.ones(n_internal, dtype=torch.bool, device=device)
+        if isinstance(grid, AxisProjectedGrid):
+            new_mask[grid.ap_is_immersed_faces] = False
+            immersed_shape = (grid.num_immersed_faces, k)
+            self._immersed_upper = torch.zeros(
+                immersed_shape, dtype=dtype, device=device
+            )
+            self._immersed_lower = torch.zeros(
+                immersed_shape, dtype=dtype, device=device
+            )
+
+        if topology_changed or self._single_mask.shape[0] != n_internal:
+            self._single_mask = new_mask
+            self._num_single_sided = int(new_mask.sum().item())
+            self._single_data = torch.zeros(
+                (self._num_single_sided, k), dtype=dtype, device=device
+            )
+            self._domain_bnd_data = torch.zeros(
+                (n_bnd, k), dtype=dtype, device=device
+            )
+        else:
+            full = torch.zeros((n_internal, k), dtype=dtype, device=device)
+            full[self._single_mask] = self._single_data
+            self._single_mask = new_mask
+            self._single_data = full[new_mask]
+            self._num_single_sided = int(new_mask.sum().item())
 
     # ================================
     # Grid Accessors

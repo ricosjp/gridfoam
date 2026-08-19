@@ -5,7 +5,7 @@ import fluxel
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.config import GridfoamConfig
-from gridfoam.meta.enums import IbmType
+from gridfoam.meta.enums import IbmType, MeshMotion
 
 
 def create_grid(config: GridfoamConfig) -> IGridBase:
@@ -49,15 +49,25 @@ def create_grid(config: GridfoamConfig) -> IGridBase:
     ]
     match fluxel_config.ibm_type:
         case IbmType.AXIS_PROJECTED:
-            fluxel_mesh = fluxel_mng.build_axis_projected_mesh(
-                mesh_path=path,
-                target_level=fluxel_config.target_level,
-                refinement_regions=refinement_regions,
-            )
+            session = None
+            if fluxel_config.motion is MeshMotion.DYNAMIC:
+                session = fluxel_mng.create_axis_projected_session(
+                    mesh_path=path,
+                    target_level=fluxel_config.target_level,
+                    refinement_regions=refinement_regions,
+                )
+                fluxel_mesh = session.mesh
+            else:
+                fluxel_mesh = fluxel_mng.build_axis_projected_mesh(
+                    mesh_path=path,
+                    target_level=fluxel_config.target_level,
+                    refinement_regions=refinement_regions,
+                )
             return AxisProjectedGrid(
                 simulator_config=config.simulator,
                 fluxel_mesh=fluxel_mesh,
                 mesh_path=fluxel_config.mesh_path,
+                session=session,
             )
         case _:
             raise ValueError(f"Unsupported IBM type: {config.fluxel.ibm_type}")

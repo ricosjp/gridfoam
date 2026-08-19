@@ -17,6 +17,7 @@ from gridfoam.meta.enums import (
     GradScheme,
     IbmType,
     LaplacianScheme,
+    MeshMotion,
     NormType,
     PrecisionType,
     PreconditionerType,
@@ -127,6 +128,16 @@ class FluxelConfig(BaseModel, frozen=True):
         Type of the immersed boundary method.
         Currently supported methods:
             - AXIS_PROJECTED: Axis projected method.
+    """
+    motion: MeshMotion = Field(default=MeshMotion.STATIC)
+    """
+    motion : MeshMotion, default=MeshMotion.STATIC
+        Whether the immersed boundary can move after the mesh is built.
+
+        - STATIC: One-shot ``build_axis_projected_mesh``. IBM data is fixed.
+        - DYNAMIC: ``create_axis_projected_session``. Call
+          ``AxisProjectedGrid.update_ib`` or ``remesh`` when the boundary
+          translates or rotates.
     """
 
 

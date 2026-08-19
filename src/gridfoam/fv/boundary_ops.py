@@ -10,6 +10,7 @@ from jaxtyping import Bool, Float, Int
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.enums import (
     BoundaryConditionType,
     DomainBoundaryPatch,
@@ -35,8 +36,9 @@ class BoundaryBatch:
 
 
 BoundaryBatchCacheKey = tuple[
-    tuple[PatchName, int, BoundaryConditionType],
-    ...,
+    tuple[int, int, int, int, int, tuple[float, ...], tuple[float, ...]]
+    | tuple[int, int],
+    tuple[tuple[PatchName, int, BoundaryConditionType], ...],
 ]
 
 _boundary_batch_cache: WeakKeyDictionary[
@@ -45,8 +47,31 @@ _boundary_batch_cache: WeakKeyDictionary[
 ] = WeakKeyDictionary()
 
 
+def _grid_topology_token(
+    grid: IGridBase,
+) -> (
+    tuple[int, int, int, int, int, tuple[float, ...], tuple[float, ...]]
+    | tuple[int, int]
+):
+    """Fingerprint used to invalidate cached boundary batches."""
+    if isinstance(grid, AxisProjectedGrid):
+        return (
+            grid.num_cells,
+            grid.num_internal_faces,
+            grid.num_immersed_faces,
+            id(grid.ap_is_immersed_faces),
+            id(grid.ap_dist_owner_to_bnd),
+            tuple(grid.ib_translation),
+            tuple(grid.ib_rotation_quaternion),
+        )
+    return (grid.num_cells, grid.num_internal_faces)
+
+
 def _boundary_batch_cache_key(field: CellField) -> BoundaryBatchCacheKey:
-    return tuple((patch, id(bc), bc.type) for patch, bc in field.bcs.items())
+    return (
+        _grid_topology_token(field.grid),
+        tuple((patch, id(bc), bc.type) for patch, bc in field.bcs.items()),
+    )
 
 
 def iter_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:

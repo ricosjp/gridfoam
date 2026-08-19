@@ -15,6 +15,7 @@ fluxel:
   n_leaf_refinement: 3
   mesh_path: "examples/motorBike/gridfoam/data/motorBike_drop_shadow_no_group.obj"
   ibm_type: axis_projected
+  motion: static
   refinement_regions:
     - name: refinement_box
       min: [-1.0, -0.7, 0.0]

@@ -15,7 +15,9 @@ A typical configuration contains:
 
 ``fluxel``
    Mesh generation: domain bounds, octree resolution, immersed-surface path,
-   and IBM type.
+   IBM type, and optional ``motion`` (``static`` or ``dynamic``).
+   ``static`` (default) builds the mesh once. ``dynamic`` keeps a fluxel
+   session so the IBM can be updated when the boundary moves.
 
 ``simulator``
    Solver settings, boundary and initial conditions, and output control.

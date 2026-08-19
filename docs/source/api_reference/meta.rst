@@ -24,6 +24,7 @@ Enums
    :template: autosummary/class.rst
 
    IbmType
+   MeshMotion
    DeviceType
    DomainBoundaryPatch
    FieldRole

@@ -22,6 +22,7 @@ def test_example_cavity_config_loads():
     cfg = GridfoamConfig.model_validate(raw)
     assert cfg.simulator.device.value in ("cpu", "cuda")
     assert cfg.fluxel.ibm_type.value == "axis_projected"
+    assert cfg.fluxel.motion.value == "static"
 
 
 def test_refinement_region_config_validates_box():
@@ -49,3 +50,44 @@ def test_refinement_region_config_rejects_invalid_box():
         return
 
     raise AssertionError("invalid refinement region should fail validation")
+
+
+def test_fluxel_motion_dynamic_from_yaml():
+    repo = Path(__file__).resolve().parents[3]
+    config_path = (
+        repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
+    )
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+    raw["fluxel"]["motion"] = "dynamic"
+    cfg = GridfoamConfig.model_validate(raw)
+    assert cfg.fluxel.motion.value == "dynamic"
+
+
+def test_dynamic_motion_example_configs_load():
+    repo = Path(__file__).resolve().parents[3]
+    for rel in (
+        "examples/dynamic_motions/update_ib/config.yaml",
+        "examples/dynamic_motions/remesh/config.yaml",
+    ):
+        config_path = repo / rel
+        assert config_path.is_file(), f"missing example config: {config_path}"
+        with open(config_path) as f:
+            raw = yaml.safe_load(f)
+        cfg = GridfoamConfig.model_validate(raw)
+        assert cfg.fluxel.motion.value == "dynamic"
+
+
+def test_fluxel_motion_rejects_unknown_value():
+    repo = Path(__file__).resolve().parents[3]
+    config_path = (
+        repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
+    )
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+    raw["fluxel"]["motion"] = "moving"
+    try:
+        GridfoamConfig.model_validate(raw)
+    except ValidationError:
+        return
+    raise AssertionError("unknown motion value should fail validation")

@@ -11,6 +11,7 @@ fluxel:
   n_leaf_refinement: 0
   mesh_path: null
   ibm_type: axis_projected
+  motion: static
 
 # Simulator config (simulation settings)
 simulator:

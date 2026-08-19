@@ -15,6 +15,7 @@ fluxel:
   n_leaf_refinement: 2
   mesh_path: {{ mesh_path }}
   ibm_type: axis_projected
+  motion: static
   refinement_regions:
     - name: refinement_box
       min: [-2.0, -2.0, -2.0]

@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
-import fluxel
 import graphlow as gl
 import torch
 from jaxtyping import Bool, Float, Int
@@ -67,11 +66,7 @@ class IGridBase(ABC):
     """
 
     @abstractmethod
-    def __init__(
-        self,
-        simulator_config: SimulatorConfig,
-        fluxel_mesh: fluxel.ICfdMesh,
-    ):
+    def __init__(self, simulator_config: SimulatorConfig):
         pass
 
     @abstractmethod
