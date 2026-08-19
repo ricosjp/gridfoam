@@ -67,8 +67,8 @@ def test_fluxel_motion_dynamic_from_yaml():
 def test_dynamic_motion_example_configs_load():
     repo = Path(__file__).resolve().parents[3]
     for rel in (
-        "examples/dynamic_motions/update_ib/config.yaml",
-        "examples/dynamic_motions/remesh/config.yaml",
+        "examples/dynamic_motions/update_ib/data/config.yaml",
+        "examples/dynamic_motions/remesh/data/config.yaml",
     ):
         config_path = repo / rel
         assert config_path.is_file(), f"missing example config: {config_path}"
