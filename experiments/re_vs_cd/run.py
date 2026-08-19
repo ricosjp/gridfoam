@@ -1,10 +1,10 @@
 import argparse
-import csv
 import logging
 import shutil
 import stat
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -19,7 +19,6 @@ from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import GridfoamConfig, ManualAlgorithm
 from gridfoam.post.diagnostics import DiagnosticsCollector
-from gridfoam.post.forces.coeffs import ForceCoeffs
 from gridfoam.post.forces.evaluator import ForceEvaluator
 
 PARAMETERS_PATH = Path("experiments/re_vs_cd/data/parameters.yml")
@@ -29,7 +28,6 @@ GRIDFOAM_TEMPLATE_PATH = Path(
 OPENFOAM_TEMPLATE_PATH = Path("experiments/re_vs_cd/templates/openfoam")
 
 MeshLevel = Literal["coarse", "fine"]
-SolverName = Literal["gridfoam", "openfoam", "all"]
 
 # OpenFOAM snappyHexMesh / blockMesh presets.
 # coarse matches the historical re_vs_cd OpenFOAM setup (~7e5 cells).
@@ -93,14 +91,6 @@ def load_experiment_parameters(yaml_path: Path) -> ExperimentParameters:
         return ExperimentParameters.model_validate(yaml.safe_load(f))
 
 
-def iter_parameter_combinations(
-    parameters: ExperimentParameters,
-) -> Iterator[tuple[CaseConfig, float]]:
-    for case in parameters.case:
-        for Re in parameters.Re:
-            yield case, Re
-
-
 def re_param(Re: float) -> str:
     return f"re_{Re:g}"
 
@@ -109,16 +99,14 @@ def compute_nu(case: CaseConfig, Re: float) -> float:
     return case.magU_ref * case.L_ref / Re
 
 
-def openfoam_solver_dir_name(mesh_level: MeshLevel = "coarse") -> str:
-    return "openfoam" if mesh_level == "coarse" else f"openfoam_{mesh_level}"
-
-
 def openfoam_output_dir(
     case: CaseConfig, Re: float, mesh_level: MeshLevel = "coarse"
 ) -> Path:
+    solver_dir = (
+        "openfoam" if mesh_level == "coarse" else f"openfoam_{mesh_level}"
+    )
     return Path(
-        "experiments/re_vs_cd/outputs/"
-        f"{case.name}/{openfoam_solver_dir_name(mesh_level)}/{re_param(Re)}"
+        f"experiments/re_vs_cd/outputs/{case.name}/{solver_dir}/{re_param(Re)}"
     )
 
 
@@ -220,50 +208,10 @@ def run_openfoam_case(
     return read_openfoam_cd(case_dir)
 
 
-def write_force_coeffs(path: Path, coeffs: list[ForceCoeffs]) -> None:
-    fieldnames = [
-        "time",
-        "Cd",
-        "Cs",
-        "Cl",
-        "CmRoll",
-        "CmPitch",
-        "CmYaw",
-        "Cd_f",
-        "Cd_r",
-        "Cs_f",
-        "Cs_r",
-        "Cl_f",
-        "Cl_r",
-    ]
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for co in coeffs:
-            writer.writerow(
-                {
-                    "time": co.time,
-                    "Cd": co.Cd.item(),
-                    "Cs": co.Cs.item(),
-                    "Cl": co.Cl.item(),
-                    "CmRoll": co.CmRoll.item(),
-                    "CmPitch": co.CmPitch.item(),
-                    "CmYaw": co.CmYaw.item(),
-                    "Cd_f": co.Cd_f.item(),
-                    "Cd_r": co.Cd_r.item(),
-                    "Cs_f": co.Cs_f.item(),
-                    "Cs_r": co.Cs_r.item(),
-                    "Cl_f": co.Cl_f.item(),
-                    "Cl_r": co.Cl_r.item(),
-                }
-            )
-
-
 def calculate_drag_coefficient(config: GridfoamConfig) -> float:
     grid = create_grid(config)
 
     phase = None
-    # Create the algorithm
     algorithm_config = grid.sim_config.fvSolution.algorithm
     if isinstance(algorithm_config, ManualAlgorithm):
         raise ValueError("Manual algorithm has no step sequence")
@@ -376,8 +324,31 @@ def parse_args(
 def _selected_cases(
     parameters: ExperimentParameters, case_names: list[str]
 ) -> list[CaseConfig]:
-    selected = {name for name in case_names}
+    selected = set(case_names)
     return [case for case in parameters.case if case.name in selected]
+
+
+def _run_case(
+    run_name: str,
+    *,
+    solver: str,
+    params: dict[str, object],
+    compute_cd: Callable[[], float],
+    use_mlflow: bool,
+    Re: float,
+) -> None:
+    if use_mlflow:
+        with mlflow.start_run(nested=True, run_name=run_name):
+            run = mlflow.active_run()
+            assert run is not None
+            print(f"  Nested run: {run_name} ({run.info.run_id})")
+            mlflow.log_param("solver", solver)
+            mlflow.log_params(params)
+            mlflow.log_metrics({"Re": Re, "Cd": compute_cd()})
+        return
+
+    print(f"  Run: {run_name}")
+    print(f"  Cd={compute_cd()}")
 
 
 def run_gridfoam_cases(
@@ -386,30 +357,19 @@ def run_gridfoam_cases(
     for case in cases:
         for Re in re_values:
             config = load_gridfoam_config(case, Re)
-            run_name = f"gridfoam_{case.name}_{Re:g}"
-            if use_mlflow:
-                with mlflow.start_run(nested=True, run_name=run_name):
-                    run = mlflow.active_run()
-                    assert run is not None
-                    rid = run.info.run_id
-                    print(f"  Nested run: {run_name} ({rid})")
-
-                    mlflow.log_param("solver", "gridfoam")
-                    mlflow.log_params(
-                        {
-                            "case_name": case.name,
-                            "mesh_path": case.mesh_path,
-                            "Re": Re,
-                            **config.model_dump(),
-                        }
-                    )
-
-                    Cd = calculate_drag_coefficient(config)
-                    mlflow.log_metrics({"Re": Re, "Cd": Cd})
-            else:
-                print(f"  Run: {run_name}")
-                Cd = calculate_drag_coefficient(config)
-                print(f"  Cd={Cd}")
+            _run_case(
+                f"gridfoam_{case.name}_{Re:g}",
+                solver="gridfoam",
+                params={
+                    "case_name": case.name,
+                    "mesh_path": case.mesh_path,
+                    "Re": Re,
+                    **config.model_dump(),
+                },
+                compute_cd=partial(calculate_drag_coefficient, config),
+                use_mlflow=use_mlflow,
+                Re=Re,
+            )
 
 
 def run_openfoam_cases(
@@ -421,40 +381,28 @@ def run_openfoam_cases(
 ) -> None:
     for case in cases:
         for Re in re_values:
-            run_name = (
-                f"openfoam_{mesh_level}_{case.name}_{Re:g}"
+            prefix = (
+                f"openfoam_{mesh_level}"
                 if mesh_level != "coarse"
-                else f"openfoam_{case.name}_{Re:g}"
+                else "openfoam"
             )
-            context = openfoam_template_context(case, Re, mesh_level=mesh_level)
-            if use_mlflow:
-                with mlflow.start_run(nested=True, run_name=run_name):
-                    run = mlflow.active_run()
-                    assert run is not None
-                    rid = run.info.run_id
-                    print(f"  Nested run: {run_name} ({rid})")
-
-                    mlflow.log_param("solver", "openfoam")
-                    mlflow.log_params(
-                        {
-                            "case_name": case.name,
-                            "mesh_path": case.mesh_path,
-                            "Re": Re,
-                            "mesh_level": mesh_level,
-                            **{
-                                key: value
-                                for key, value in context.items()
-                                if key != "mesh_level"
-                            },
-                        }
-                    )
-
-                    Cd = run_openfoam_case(case, Re, mesh_level=mesh_level)
-                    mlflow.log_metrics({"Re": Re, "Cd": Cd})
-            else:
-                print(f"  Run: {run_name}")
-                Cd = run_openfoam_case(case, Re, mesh_level=mesh_level)
-                print(f"  Cd={Cd}")
+            _run_case(
+                f"{prefix}_{case.name}_{Re:g}",
+                solver="openfoam",
+                params={
+                    "case_name": case.name,
+                    "mesh_path": case.mesh_path,
+                    "Re": Re,
+                    **openfoam_template_context(
+                        case, Re, mesh_level=mesh_level
+                    ),
+                },
+                compute_cd=partial(
+                    run_openfoam_case, case, Re, mesh_level=mesh_level
+                ),
+                use_mlflow=use_mlflow,
+                Re=Re,
+            )
 
 
 def main() -> None:
