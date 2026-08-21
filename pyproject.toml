@@ -32,7 +32,7 @@ dependencies = [
     "pydantic>=2.11.7",
     "pyyaml>=6.0.2",
     "scipy>=1.17.1",
-    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
+    "phlower-tensor>=0.1.0",
     "fluxel",
     "pyamg>=5.3.0",
     "beartype",
@@ -83,6 +83,9 @@ experiments = [
 conflicts = [[{ extra = "cpu" }, { extra = "cu118" }, { extra = "cu124" }]]
 
 [tool.uv.sources]
+# Keep as uv.sources (not a direct URL in dependencies) so dependents such as
+# phlower can override the source via their own [tool.uv.sources].
+phlower-tensor = { git = "https://github.com/ricosjp/phlower-tensor.git", branch = "main" }
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu118", extra = "cu118" },
