@@ -7,6 +7,7 @@ import pathlib
 import pytest
 import torch
 
+from gridfoam.core.dimensions import DIM_KIN_PRESSURE, DIM_VELOCITY
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.meta.config import (
@@ -102,6 +103,8 @@ def test_cellfield_initializes_from_conditions_internal() -> None:
     expected_p = torch.tensor([2.5], dtype=grid.dtype)
     torch.testing.assert_close(U.data, expected_u.expand_as(U.data))
     torch.testing.assert_close(p.data, expected_p.expand_as(p.data))
+    assert U.dimension == DIM_VELOCITY
+    assert p.dimension == DIM_KIN_PRESSURE
 
 
 def test_cellfield_without_conditions_stays_zero() -> None:

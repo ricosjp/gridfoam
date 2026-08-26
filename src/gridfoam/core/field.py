@@ -4,9 +4,16 @@ from abc import ABC, abstractmethod
 
 import torch
 from jaxtyping import Bool, Float
+from phlower_tensor import PhysicalDimensions
 
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.factory import create_boundary_condition
+from gridfoam.core.dimensions import (
+    DimensionLike,
+    assert_compatible,
+    resolve_field_dimension,
+    to_dimensions,
+)
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.enums import FieldRole
@@ -29,8 +36,8 @@ class GeometricField(ABC):
         Temporal role of the field.
     num_components : int
         Number of field components ``k``.
-    dimension : dict[str, int] or None
-        Optional physical-dimension map.
+    dimension : PhysicalDimensions or None
+        Optional physical dimension of the field.
     export : bool
         Whether the field is written to output.
     """
@@ -61,8 +68,8 @@ class GeometricField(ABC):
 
     @property
     @abstractmethod
-    def dimension(self) -> dict[str, int] | None:
-        """Optional physical-dimension map."""
+    def dimension(self) -> PhysicalDimensions | None:
+        """Optional physical dimension of the field."""
         pass
 
     @property
@@ -86,8 +93,8 @@ class CellField(GeometricField):
         Temporal role of the field.
     num_components : int
         Number of field components ``k``.
-    dimension : dict[str, int] or None
-        Optional physical-dimension map from configuration.
+    dimension : PhysicalDimensions or None
+        Optional physical dimension of the field.
     export : bool
         Whether the field is written to output.
     bcs : dict[PatchName, BoundaryCondition]
@@ -104,6 +111,7 @@ class CellField(GeometricField):
         name: str,
         role: FieldRole,
         num_components: int,
+        dimension: DimensionLike = None,
     ):
         self._grid = grid
         self._name = name
@@ -117,11 +125,22 @@ class CellField(GeometricField):
         self._data = torch.zeros(shape, dtype=dtype, device=device)
 
         self._bcs: dict[PatchName, BoundaryCondition] = {}
-        self._dimension = None
         self._export = False
         self._condition = self.grid.sim_config.get_field_condition(self.name)
+        config_dimension = (
+            self._condition.dimension if self._condition is not None else None
+        )
+        self._dimension = resolve_field_dimension(
+            self.name, explicit=dimension, config=config_dimension
+        )
+        # A caller-supplied dimension wins over the configured one, so reject
+        # the combination instead of silently discarding the configuration.
+        assert_compatible(
+            self._dimension,
+            to_dimensions(config_dimension),
+            f"cell field {name!r} configuration",
+        )
         if self._condition is not None:
-            self._dimension = self._condition.dimension
             self._export = self._condition.export
             # init internal value
             self.reset_data(self._condition.internal)
@@ -214,8 +233,8 @@ class CellField(GeometricField):
         return self._num_components
 
     @property
-    def dimension(self) -> dict[str, int] | None:
-        """Optional physical-dimension map from configuration."""
+    def dimension(self) -> PhysicalDimensions | None:
+        """Optional physical dimension of the field."""
         return self._dimension
 
     @property
@@ -264,8 +283,8 @@ class FaceField(GeometricField):
         Temporal role of the field.
     num_components : int
         Number of field components ``k``.
-    dimension : dict[str, int] or None
-        Optional physical-dimension map.
+    dimension : PhysicalDimensions or None
+        Optional physical dimension of the field.
     export : bool
         Whether the field is written to output.
     num_single_sided : int
@@ -288,14 +307,14 @@ class FaceField(GeometricField):
         name: str,
         role: FieldRole,
         num_components: int,
-        dimension: dict[str, int] | None = None,
+        dimension: DimensionLike = None,
         export: bool = True,
     ):
         self._grid = grid
         self._name = name
         self._role = role
         self._num_components = num_components
-        self._dimension = dimension
+        self._dimension = resolve_field_dimension(name, explicit=dimension)
         self._export = export
 
         device = grid.device
@@ -403,8 +422,8 @@ class FaceField(GeometricField):
         return self._num_components
 
     @property
-    def dimension(self) -> dict[str, int] | None:
-        """Optional physical-dimension map."""
+    def dimension(self) -> PhysicalDimensions | None:
+        """Optional physical dimension of the field."""
         return self._dimension
 
     @property
@@ -483,6 +502,7 @@ def get_or_create_cellfield(
     name: str,
     role: FieldRole,
     num_components: int,
+    dimension: DimensionLike = None,
 ) -> CellField:
     """
     Return an existing cell field or create and register a new one.
@@ -497,6 +517,8 @@ def get_or_create_cellfield(
         Temporal role required for the field.
     num_components : int
         Number of components ``k``.
+    dimension : PhysicalDimensions or dict[str, float or int] or None, optional
+        Optional physical dimension of the field.
 
     Returns
     -------
@@ -507,7 +529,10 @@ def get_or_create_cellfield(
     ------
     AssertionError
         If an existing field has a mismatched ``role`` or ``num_components``.
+    DimensionMismatchError
+        If an existing field has an incompatible dimension.
     """
+    resolved = resolve_field_dimension(name, explicit=dimension)
     field = grid.get_cellfield(name)
     if field is None:
         field = CellField(
@@ -515,9 +540,11 @@ def get_or_create_cellfield(
             name=name,
             role=role,
             num_components=num_components,
+            dimension=dimension,
         )
     assert field.role == role
     assert field.num_components == num_components
+    assert_compatible(field.dimension, resolved, f"cell field {name!r}")
     return field
 
 
@@ -526,7 +553,7 @@ def get_or_create_facefield(
     name: str,
     role: FieldRole,
     num_components: int,
-    dimension: dict[str, int] | None = None,
+    dimension: DimensionLike = None,
     export: bool = True,
 ) -> FaceField:
     """
@@ -542,8 +569,8 @@ def get_or_create_facefield(
         Temporal role required for the field.
     num_components : int
         Number of components ``k``.
-    dimension : dict[str, int] or None, optional
-        Optional physical-dimension map.
+    dimension : PhysicalDimensions or dict[str, float or int] or None, optional
+        Optional physical dimension of the field.
     export : bool, optional
         Whether the field is written to output. Default is ``True``.
 
@@ -556,7 +583,10 @@ def get_or_create_facefield(
     ------
     AssertionError
         If an existing field has mismatched metadata.
+    DimensionMismatchError
+        If an existing field has an incompatible dimension.
     """
+    resolved = resolve_field_dimension(name, explicit=dimension)
     field = grid.get_facefield(name)
     if field is None:
         field = FaceField(
@@ -569,6 +599,6 @@ def get_or_create_facefield(
         )
     assert field.role == role
     assert field.num_components == num_components
-    assert field.dimension == dimension
+    assert_compatible(field.dimension, resolved, f"face field {name!r}")
     assert field.export == export
     return field
