@@ -164,10 +164,13 @@ class PotentialFlow:
             config.phiRefValue if config.phiRefValue is not None else 0.0
         )
 
+        # Explicit terms enter the matrix in volume-integrated form.
+        div_phi_source = div_phi * Phi.grid.cell_volumes
+
         phi_eqn_mat = None
         for _ in range(n + 1):
             phi_eqn_mat = fvm.laplacian(1.0, Phi)
-            phi_eqn_mat.source = phi_eqn_mat.source + div_phi
+            phi_eqn_mat.source = phi_eqn_mat.source + div_phi_source
             if Phi_needs_ref:
                 if phi_ref_cell is None:
                     raise ValueError(

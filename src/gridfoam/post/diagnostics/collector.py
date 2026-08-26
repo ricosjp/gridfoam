@@ -219,6 +219,7 @@ class DiagnosticsCollector:
             local_error, global_error = compute_continuity_error(
                 phi,
                 self._grid.cell_volumes,
+                self._delta_t,
             )
             self._cumulative_continuity += global_error
             self._continuity_writer.writerow(

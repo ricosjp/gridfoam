@@ -1,5 +1,6 @@
 import torch
 
+from gridfoam.core.dimensions import DIM_VOLUME, dim_div
 from gridfoam.core.field import (
     CellField,
     FaceField,
@@ -12,6 +13,10 @@ from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 def div(phi: FaceField) -> CellField:
     """
     Compute cell-centered divergence from a face field.
+
+    Implements OpenFOAM ``fvc::div``, i.e. the face sum normalized by the
+    cell volume. Callers adding the result to an ``FvMatrix`` source must
+    multiply by the cell volume, as OpenFOAM ``fvMatrix::operator==`` does.
 
     Parameters
     ----------
@@ -31,7 +36,7 @@ def div(phi: FaceField) -> CellField:
         f"div({phi.name})",
         FieldRole.LOCAL,
         1,
-        dimension=phi.dimension,
+        dimension=dim_div(phi.dimension, DIM_VOLUME),
     )
     data = torch.zeros(
         (grid.num_cells, 1), dtype=grid.dtype, device=grid.device
@@ -55,5 +60,5 @@ def div(phi: FaceField) -> CellField:
             grid.neighbour[grid.ap_is_immersed_faces],
             -phi.immersed_lower.clone(),
         )
-    div_phi.data = data
+    div_phi.data = data / grid.cell_volumes
     return div_phi
