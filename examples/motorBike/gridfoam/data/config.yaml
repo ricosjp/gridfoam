@@ -88,6 +88,9 @@ simulator:
   # Conditions corresponding to 0.orig
   conditions:
     U:
+      # Optional SI base exponents (T, L, M, I, Theta, N, J).
+      # Must match solver defaults when both are set (velocity: L/T).
+      dimension: {L: 1, T: -1}
       internal: *flow_velocity
       boundary:
         inlet:
@@ -110,6 +113,8 @@ simulator:
           patches: [_default]
           value: [0.0, 0.0, 0.0]
     p:
+      # Kinematic pressure (p/rho): L^2/T^2
+      dimension: {L: 2, T: -2}
       internal: [0.0]
       boundary:
         inlet:

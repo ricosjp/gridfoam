@@ -2,6 +2,7 @@ import logging
 
 import torch
 
+from gridfoam.core.dimensions import DIM_VOL_FLUX, assert_compatible
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
@@ -49,9 +50,15 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
     -------
     FvMatrix
         Coefficient matrix assembled from convection term.
+
+    Raises
+    ------
+    DimensionMismatchError
+        If ``phi`` does not carry a volumetric flux dimension.
     """
     mat = FvMatrix(field)
     grid = field.grid
+    assert_compatible(phi.dimension, DIM_VOL_FLUX, "fvm.div flux field")
     div_scheme = _search_div_scheme(grid.sim_config, phi, field)
 
     # Internal faces

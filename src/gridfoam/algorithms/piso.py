@@ -11,6 +11,12 @@ from gridfoam.algorithms.utils.pressure_correction import (
 )
 from gridfoam.algorithms.utils.reference_value import needs_reference_value
 from gridfoam.algorithms.utils.residual import continuity_residual
+from gridfoam.core.dimensions import (
+    DIM_KIN_PRESSURE,
+    DIM_RAU,
+    DIM_VELOCITY,
+    DIM_VOL_FLUX,
+)
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     CellField,
@@ -130,11 +136,21 @@ class PISO(AlgorithmBase):
         rAU_name = make_field_name("rAU", phase=phase)
         HbyA_name = make_field_name("HbyA", phase=phase)
 
-        self.U = get_or_create_cellfield(grid, U_name, FieldRole.TRANSIENT, 3)
-        self.p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
-        self.phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, 1)
-        self.rAU = get_or_create_cellfield(grid, rAU_name, FieldRole.LOCAL, 1)
-        self.HbyA = get_or_create_cellfield(grid, HbyA_name, FieldRole.LOCAL, 3)
+        self.U = get_or_create_cellfield(
+            grid, U_name, FieldRole.TRANSIENT, 3, dimension=DIM_VELOCITY
+        )
+        self.p = get_or_create_cellfield(
+            grid, p_name, FieldRole.LOCAL, 1, dimension=DIM_KIN_PRESSURE
+        )
+        self.phi = get_or_create_facefield(
+            grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
+        )
+        self.rAU = get_or_create_cellfield(
+            grid, rAU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+        )
+        self.HbyA = get_or_create_cellfield(
+            grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+        )
 
         self.solvers = {
             field_name: create_solver(config)

@@ -57,7 +57,11 @@ def linear(field: CellField) -> FaceField:
     """
     grid = field.grid
     psi_f = get_or_create_facefield(
-        grid, f"{field.name}_f", FieldRole.LOCAL, field.num_components
+        grid,
+        f"{field.name}_f",
+        FieldRole.LOCAL,
+        field.num_components,
+        dimension=field.dimension,
     )
 
     base_values = linear_internal_face_values(field)

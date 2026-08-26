@@ -68,6 +68,8 @@ simulator:
   # Conditions corresponding to 0.orig
   conditions:
     p:
+      # Kinematic pressure (p/rho): L^2/T^2
+      dimension: {L: 2, T: -2}
       internal: [0.0]
       boundary:
         wall:
