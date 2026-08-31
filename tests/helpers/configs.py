@@ -6,6 +6,11 @@ import pathlib
 
 from tests.conftest import default_properties, small_gridfoam_config
 
+from gridfoam.core.dimensions import (
+    DIM_KIN_PRESSURE,
+    DIM_VELOCITY,
+    dimension_config,
+)
 from gridfoam.meta.config import (
     BoundaryConditionConfig,
     ConditionConfig,
@@ -179,6 +184,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
+                    dimension=dimension_config(DIM_VELOCITY),
                     internal=[0.0, 0.0, 0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -193,6 +199,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
                     },
                 ),
                 "p": ConditionConfig(
+                    dimension=dimension_config(DIM_KIN_PRESSURE),
                     internal=[0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -256,6 +263,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
+                    dimension=dimension_config(DIM_VELOCITY),
                     internal=[1.0, 0.1, 0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -270,6 +278,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
                     },
                 ),
                 "p": ConditionConfig(
+                    dimension=dimension_config(DIM_KIN_PRESSURE),
                     internal=[0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -326,6 +335,7 @@ def channel_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
+                    dimension=dimension_config(DIM_VELOCITY),
                     internal=[1.0, 0.0, 0.0],
                     boundary={
                         "inlet": BoundaryConditionConfig(

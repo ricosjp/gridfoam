@@ -6,6 +6,12 @@ from gridfoam.algorithms.utils import needs_reference_value, set_reference_value
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
+from gridfoam.core.dimensions import (
+    DIM_KIN_PRESSURE,
+    DIM_VELOCITY,
+    DIM_VELOCITY_POTENTIAL,
+    DIM_VOL_FLUX,
+)
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     CellField,
@@ -57,9 +63,15 @@ class PotentialFlow:
         p_name = make_field_name("p", phase=phase)
         phi_name = make_field_name("phi", phase=phase)
 
-        self.U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
-        self.p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
-        self.phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, 1)
+        self.U = get_or_create_cellfield(
+            grid, U_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+        )
+        self.p = get_or_create_cellfield(
+            grid, p_name, FieldRole.LOCAL, 1, dimension=DIM_KIN_PRESSURE
+        )
+        self.phi = get_or_create_facefield(
+            grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
+        )
 
         boundary_conditions = grid.sim_config.conditions
         if boundary_conditions is None:
@@ -133,6 +145,7 @@ class PotentialFlow:
             name="Phi",
             role=FieldRole.LOCAL,
             num_components=1,
+            dimension=DIM_VELOCITY_POTENTIAL,
         )
         Phi.export = False
         self._set_Phi_bcs(Phi)

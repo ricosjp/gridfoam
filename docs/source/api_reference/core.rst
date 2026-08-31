@@ -36,6 +36,24 @@ Field helpers
    get_or_create_cellfield
    get_or_create_facefield
 
+Physical dimensions
+-------------------
+
+.. currentmodule:: gridfoam.core.dimensions
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/function.rst
+
+   to_dimensions
+   resolve_field_dimension
+   default_field_dimension
+   assert_compatible
+   dim_mul
+   dim_div
+   dim_pow
+   dimension_config
+
 Equation container
 ------------------
 

@@ -13,6 +13,11 @@ from tests.conftest import default_properties
 
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
+from gridfoam.core.dimensions import (
+    DIM_KIN_PRESSURE,
+    DIM_VELOCITY,
+    dimension_config,
+)
 from gridfoam.core.field import CellField
 from gridfoam.meta.config import (
     BoundaryConditionConfig,
@@ -277,6 +282,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                 ),
                 conditions={
                     "U": ConditionConfig(
+                        dimension=dimension_config(DIM_VELOCITY),
                         internal=[0.0, 0.0, 0.0],
                         boundary={
                             "inlet": BoundaryConditionConfig(
@@ -306,6 +312,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         },
                     ),
                     "p": ConditionConfig(
+                        dimension=dimension_config(DIM_KIN_PRESSURE),
                         internal=[0.0],
                         boundary={
                             "inlet": BoundaryConditionConfig(

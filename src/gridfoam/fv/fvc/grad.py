@@ -1,5 +1,6 @@
 """Public cell-centered gradient entry point."""
 
+from gridfoam.core.dimensions import DIM_LENGTH, dim_div
 from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.fv.schemes.grad import get_grad_scheme
 from gridfoam.meta.config import SimulatorConfig
@@ -46,6 +47,7 @@ def grad(field: CellField) -> CellField:
         f"grad({field.name})",
         field.role,
         field.num_components * 3,
+        dimension=dim_div(field.dimension, DIM_LENGTH),
     )
     grad_field.data = grad_tensor.reshape(
         grid.num_cells, field.num_components * 3

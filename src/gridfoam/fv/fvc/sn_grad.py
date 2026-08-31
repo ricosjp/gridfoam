@@ -1,6 +1,7 @@
 import torch
 from jaxtyping import Float
 
+from gridfoam.core.dimensions import DIM_LENGTH, dim_div
 from gridfoam.core.field import (
     CellField,
     FaceField,
@@ -38,12 +39,12 @@ def sn_grad(field: CellField) -> FaceField:
     """
     grid = field.grid
 
-    # TODO: fix dimension L: -1
     sn_grad_field = get_or_create_facefield(
         grid,
         f"snGrad({field.name})",
         FieldRole.LOCAL,
         field.num_components,
+        dimension=dim_div(field.dimension, DIM_LENGTH),
     )
     # Internal faces
     sn_grad_field.single_data = corrected_internal_sn_grad_values(field)

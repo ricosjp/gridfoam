@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 from jaxtyping import Float
 
+from gridfoam.core.dimensions import DIM_NU
 from gridfoam.core.field import (
     CellField,
     FaceField,
@@ -53,7 +54,7 @@ class TurbulenceModel(ABC):
         # Initialize turbulent viscosity field.
         nu_t_name = make_field_name("nu_t")
         self.nu_t = get_or_create_cellfield(
-            self.grid, nu_t_name, FieldRole.LOCAL, 1
+            self.grid, nu_t_name, FieldRole.LOCAL, 1, dimension=DIM_NU
         )
 
     @abstractmethod

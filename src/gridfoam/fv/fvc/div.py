@@ -24,8 +24,14 @@ def div(phi: FaceField) -> CellField:
         Cell-centered divergence field.
     """
     grid = phi.grid
+    # Volume-integrated form (no division by cell volume), matching the
+    # ``fvm`` operators so that both sides of an equation are consistent.
     div_phi = get_or_create_cellfield(
-        grid, f"div({phi.name})", FieldRole.LOCAL, 1
+        grid,
+        f"div({phi.name})",
+        FieldRole.LOCAL,
+        1,
+        dimension=phi.dimension,
     )
     data = torch.zeros(
         (grid.num_cells, 1), dtype=grid.dtype, device=grid.device
