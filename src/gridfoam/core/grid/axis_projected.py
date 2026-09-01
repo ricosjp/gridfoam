@@ -4,7 +4,7 @@ import logging
 import pathlib
 from collections.abc import Iterator, Sequence
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from weakref import WeakValueDictionary
 
 import graphlow as gl
@@ -30,6 +30,30 @@ else:
 
 logger = logging.getLogger(__name__)
 
+_DEVICE_TENSOR_ATTRS = (
+    "_owner",
+    "_neighbour",
+    "_axis",
+    "_domain_bnd_owner",
+    "_domain_bnd_dir_id",
+    "_cell_centers",
+    "_cell_sizes",
+    "_cell_volumes",
+    "_face_centers",
+    "_Sf",
+    "_domain_bnd_face_centers",
+    "_domain_bnd_Sf",
+    "_ap_is_immersed_faces",
+    "_ap_owner_bnd_patch_id",
+    "_ap_neighbour_bnd_patch_id",
+    "_ap_owner_bnd_anchor_id",
+    "_ap_neighbour_bnd_anchor_id",
+    "_ap_dist_owner_to_bnd",
+    "_ap_owner_weights",
+    "_ap_dist_neighbour_to_bnd",
+    "_ap_neighbour_weights",
+)
+
 
 class AxisProjectedGrid(IGridBase):
     """
@@ -48,6 +72,7 @@ class AxisProjectedGrid(IGridBase):
         session: ApibmSession | None = None,
     ):
         self._sim_config = simulator_config
+        self._runtime_device: torch.device | None = None
         self._session = session
         self._cellfields = WeakValueDictionary[str, CellField]()
         self._facefields = WeakValueDictionary[str, FaceField]()
@@ -431,7 +456,54 @@ class AxisProjectedGrid(IGridBase):
 
     @property
     def device(self) -> torch.device:
+        if self._runtime_device is not None:
+            return self._runtime_device
         return self._sim_config.device.to_torch_device()
+
+    def to(
+        self,
+        device: torch.device | str,
+        *,
+        non_blocking: bool = False,
+    ) -> Self:
+        """
+        Move geometry, IBM arrays, and registered fields to ``device``.
+
+        The move is in-place. ``sim_config.device`` is left unchanged.
+
+        Parameters
+        ----------
+        device : torch.device or str
+            Target device.
+        non_blocking : bool, default False
+            Passed through to ``Tensor.to``.
+
+        Returns
+        -------
+        AxisProjectedGrid
+            This grid after tensors have been moved.
+        """
+        target = torch.device(device) if isinstance(device, str) else device
+        if _devices_match(self.device, target):
+            return self
+
+        for name in _DEVICE_TENSOR_ATTRS:
+            tensor = getattr(self, name)
+            setattr(
+                self,
+                name,
+                tensor.to(device=target, non_blocking=non_blocking),
+            )
+
+        self._runtime_device = self._owner.device
+        self._surface_mesh_cache = None
+        self._surface_mesh_rest_points = None
+
+        for field in list(self._cellfields.values()):
+            field.to(target, non_blocking=non_blocking)
+        for field in list(self._facefields.values()):
+            field.to(target, non_blocking=non_blocking)
+        return self
 
     @property
     def num_cells(self) -> int:
@@ -536,6 +608,21 @@ class AxisProjectedGrid(IGridBase):
     @property
     def ap_neighbour_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
         return self._ap_neighbour_bnd_anchor_id
+
+
+def _devices_match(left: torch.device, right: torch.device) -> bool:
+    """Return whether two devices refer to the same runtime device."""
+    if left.type != right.type:
+        return False
+    if left.type != "cuda":
+        return True
+    left_index = left.index
+    right_index = right.index
+    if left_index is None:
+        left_index = torch.cuda.current_device()
+    if right_index is None:
+        right_index = torch.cuda.current_device()
+    return left_index == right_index
 
 
 def _resolve_rotation_quaternion(

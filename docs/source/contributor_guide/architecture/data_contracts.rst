@@ -25,6 +25,13 @@ Face values are separated by topology:
 * ``immersed_upper`` and ``immersed_lower`` store the two sides of immersed
   faces on an ``AxisProjectedGrid``.
 
+:meth:`~gridfoam.core.field.FaceField.pack` concatenates these blocks along
+axis 0 in the order
+``[single | domain_bnd | immersed_upper | immersed_lower]``.
+Immersed blocks are omitted on non-axis-projected grids.
+:func:`~gridfoam.core.field.packed_face_n_rows` returns the packed row count
+from the grid alone.
+
 Operators must preserve this distinction. In particular, immersed faces must
 not be treated as ordinary internal faces.
 

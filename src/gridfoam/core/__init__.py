@@ -1,5 +1,5 @@
 from gridfoam.core.equation import equation
-from gridfoam.core.field import CellField, FaceField
+from gridfoam.core.field import CellField, FaceField, packed_face_n_rows
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
@@ -16,6 +16,7 @@ __all__ = [
     "equation",
     "CellField",
     "FaceField",
+    "packed_face_n_rows",
     "FvMatrix",
     "IGridBase",
     "create_grid",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Self
 
 import torch
 from jaxtyping import Bool, Float
@@ -268,6 +269,37 @@ class CellField(GeometricField):
         """Previous time-level values with shape ``[C, k]``."""
         return self._old_data
 
+    def to(
+        self,
+        device: torch.device | str,
+        *,
+        non_blocking: bool = False,
+    ) -> Self:
+        """
+        Move cell buffers to ``device`` in place.
+
+        Parameters
+        ----------
+        device : torch.device or str
+            Target device.
+        non_blocking : bool, default False
+            Passed through to ``Tensor.to``.
+
+        Returns
+        -------
+        CellField
+            This field after the buffers have been moved.
+        """
+        old_aliased = self._old_data is self._data
+        self._data = self._data.to(device=device, non_blocking=non_blocking)
+        if old_aliased:
+            self._old_data = self._data
+        else:
+            self._old_data = self._old_data.to(
+                device=device, non_blocking=non_blocking
+            )
+        return self
+
 
 class FaceField(GeometricField):
     """
@@ -299,6 +331,12 @@ class FaceField(GeometricField):
         Lower-side immersed-face values, shape ``[F_immersed, k]``.
     domain_bnd_data : torch.Tensor
         Domain-boundary face values, shape ``[F_bnd, k]``.
+
+    Notes
+    -----
+    Packed layout along axis 0 is
+    ``[single | domain_bnd | immersed_upper | immersed_lower]``.
+    Immersed blocks are present only on ``AxisProjectedGrid``.
     """
 
     def __init__(
@@ -495,6 +533,113 @@ class FaceField(GeometricField):
     @domain_bnd_data.setter
     def domain_bnd_data(self, value: Float[torch.Tensor, "F_bnd k"]):
         self._domain_bnd_data = value
+
+    def packed_n_rows(self) -> int:
+        """Packed layout row count (feature axis ``k`` is not included)."""
+        return sum(block.shape[0] for block in self._pack_blocks())
+
+    def pack(self) -> Float[torch.Tensor, "N k"]:
+        """
+        Concatenate face blocks along axis 0.
+
+        Layout is ``[single | domain_bnd | immersed_upper | immersed_lower]``.
+        Immersed blocks are omitted unless the grid is an
+        ``AxisProjectedGrid``.
+        """
+        return torch.cat(self._pack_blocks(), dim=0)
+
+    def unpack(self, packed: Float[torch.Tensor, "N k"]) -> None:
+        """
+        Write a packed tensor back into the face blocks.
+
+        Parameters
+        ----------
+        packed : torch.Tensor
+            Packed values with shape ``[N, k]``.
+
+        Raises
+        ------
+        ValueError
+            If ``packed`` does not have ``packed_n_rows()`` rows.
+        """
+        n_rows = self.packed_n_rows()
+        if packed.shape[0] != n_rows:
+            raise ValueError(
+                f"packed has {packed.shape[0]} rows, expected {n_rows}"
+            )
+        offset = 0
+        for block in self._pack_blocks():
+            n_block = block.shape[0]
+            block[:] = packed[offset : offset + n_block]
+            offset += n_block
+
+    def to(
+        self,
+        device: torch.device | str,
+        *,
+        non_blocking: bool = False,
+    ) -> Self:
+        """
+        Move face buffers to ``device`` in place.
+
+        Parameters
+        ----------
+        device : torch.device or str
+            Target device.
+        non_blocking : bool, default False
+            Passed through to ``Tensor.to``.
+
+        Returns
+        -------
+        FaceField
+            This field after the buffers have been moved.
+        """
+        self._single_data = self._single_data.to(
+            device=device, non_blocking=non_blocking
+        )
+        self._domain_bnd_data = self._domain_bnd_data.to(
+            device=device, non_blocking=non_blocking
+        )
+        self._single_mask = self._single_mask.to(
+            device=device, non_blocking=non_blocking
+        )
+        if isinstance(self.grid, AxisProjectedGrid):
+            self._immersed_upper = self._immersed_upper.to(
+                device=device, non_blocking=non_blocking
+            )
+            self._immersed_lower = self._immersed_lower.to(
+                device=device, non_blocking=non_blocking
+            )
+        return self
+
+    def _pack_blocks(self) -> list[torch.Tensor]:
+        """Face-value blocks in packed-layout order."""
+        blocks = [self._single_data, self._domain_bnd_data]
+        if isinstance(self.grid, AxisProjectedGrid):
+            blocks.extend([self._immersed_upper, self._immersed_lower])
+        return blocks
+
+
+def packed_face_n_rows(grid: IGridBase) -> int:
+    """
+    Return the packed face-layout row count for ``grid``.
+
+    Parameters
+    ----------
+    grid : IGridBase
+        Computational grid whose topology defines the packed layout.
+
+    Returns
+    -------
+    int
+        Number of rows ``N`` in ``[N, k]`` packed face tensors.
+    """
+    if isinstance(grid, AxisProjectedGrid):
+        n_single = grid.num_internal_faces - grid.num_immersed_faces
+        return (
+            n_single + grid.num_domain_bnd_faces + 2 * grid.num_immersed_faces
+        )
+    return grid.num_internal_faces + grid.num_domain_bnd_faces
 
 
 def get_or_create_cellfield(

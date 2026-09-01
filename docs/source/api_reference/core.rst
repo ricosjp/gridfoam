@@ -35,6 +35,7 @@ Field helpers
 
    get_or_create_cellfield
    get_or_create_facefield
+   packed_face_n_rows
 
 Physical dimensions
 -------------------

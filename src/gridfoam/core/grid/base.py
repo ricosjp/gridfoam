@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import graphlow as gl
 import torch
@@ -127,6 +127,33 @@ class IGridBase(ABC):
     @abstractmethod
     def device(self) -> torch.device:
         """Device used for field tensors."""
+        pass
+
+    @abstractmethod
+    def to(
+        self,
+        device: torch.device | str,
+        *,
+        non_blocking: bool = False,
+    ) -> Self:
+        """
+        Move geometry, topology, and registered fields to ``device``.
+
+        The move is in-place and returns this grid. When tensors are already
+        on ``device``, ``self`` is returned unchanged.
+
+        Parameters
+        ----------
+        device : torch.device or str
+            Target device.
+        non_blocking : bool, default False
+            Passed through to ``Tensor.to``.
+
+        Returns
+        -------
+        Self
+            This grid after tensors have been moved.
+        """
         pass
 
     @property
