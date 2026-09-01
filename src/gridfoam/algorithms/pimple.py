@@ -111,9 +111,6 @@ class PIMPLE(AlgorithmBase):
     HbyA: CellField
     """Explicit momentum contribution ``H(U)/A(U)``."""
 
-    solvers: dict[str, LinearSolver]
-    """Linear solvers keyed by field name from ``fvSolution``."""
-
     n_outer_correctors: int
     """Number of PIMPLE outer correctors."""
 
@@ -161,7 +158,7 @@ class PIMPLE(AlgorithmBase):
             grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
         )
 
-        self.solvers = {
+        self._solvers = {
             field_name: create_solver(config)
             for field_name, config in (
                 self.grid.sim_config.fvSolution.solvers.items()
@@ -209,6 +206,11 @@ class PIMPLE(AlgorithmBase):
     def turbulence(self) -> TurbulenceModel:
         """Turbulence model used to evaluate effective viscosity."""
         return self._turbulence
+
+    @property
+    def solvers(self) -> dict[str, LinearSolver]:
+        """Linear solvers keyed by field name from ``fvSolution``."""
+        return self._solvers
 
     def has_converged(self) -> bool:
         """

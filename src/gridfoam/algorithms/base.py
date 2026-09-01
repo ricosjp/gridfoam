@@ -4,7 +4,7 @@ from gridfoam.core.field import FaceField
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.post.diagnostics import DiagnosticsCollector
-from gridfoam.solvers.base import SolveStats
+from gridfoam.solvers.base import GradientMode, LinearSolver, SolveStats
 
 
 class AlgorithmBase(ABC):
@@ -17,6 +17,8 @@ class AlgorithmBase(ABC):
         Computational grid owned by the algorithm.
     turbulence : TurbulenceModel
         Turbulence model used to evaluate effective viscosity.
+    solvers : dict[str, LinearSolver]
+        Linear solvers keyed by field name from ``fvSolution``.
     """
 
     _diagnostics: DiagnosticsCollector | None = None
@@ -34,10 +36,28 @@ class AlgorithmBase(ABC):
         """Turbulence model used to evaluate effective viscosity."""
         pass
 
+    @property
+    @abstractmethod
+    def solvers(self) -> dict[str, LinearSolver]:
+        """Linear solvers keyed by field name from ``fvSolution``."""
+        pass
+
     @abstractmethod
     def step(self):
         """Advance the simulation by one algorithm step."""
         pass
+
+    def set_grad_mode(self, grad_mode: GradientMode) -> None:
+        """
+        Set ``grad_mode`` on every registered linear solver.
+
+        Parameters
+        ----------
+        grad_mode : {"adjoint", "unrolled"}
+            Differentiation mode applied to each solver.
+        """
+        for solver in self.solvers.values():
+            solver.grad_mode = grad_mode
 
     def attach_diagnostics(self, diagnostics: DiagnosticsCollector) -> None:
         """

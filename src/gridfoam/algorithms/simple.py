@@ -112,9 +112,6 @@ class SIMPLE(AlgorithmBase):
     HbyA: CellField
     """Explicit momentum contribution ``H(U)/A(U)``."""
 
-    solvers: dict[str, LinearSolver]
-    """Linear solvers keyed by field name from ``fvSolution``."""
-
     alpha_U: float
     """Under-relaxation factor for the momentum equation."""
 
@@ -162,7 +159,7 @@ class SIMPLE(AlgorithmBase):
             grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
         )
 
-        self.solvers = {
+        self._solvers = {
             field_name: create_solver(config)
             for field_name, config in (
                 self.grid.sim_config.fvSolution.solvers.items()
@@ -210,6 +207,11 @@ class SIMPLE(AlgorithmBase):
     def turbulence(self) -> TurbulenceModel:
         """Turbulence model used to evaluate effective viscosity."""
         return self._turbulence
+
+    @property
+    def solvers(self) -> dict[str, LinearSolver]:
+        """Linear solvers keyed by field name from ``fvSolution``."""
+        return self._solvers
 
     def has_converged(self) -> bool:
         """
