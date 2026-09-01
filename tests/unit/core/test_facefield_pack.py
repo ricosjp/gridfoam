@@ -229,6 +229,18 @@ def test_unpack_rejects_wrong_row_count(
         phi.unpack(packed[:-1])
 
 
+def test_unpack_rejects_wrong_feature_count(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    # Feature axis k must match num_components.
+    phi = FaceField(small_axis_projected_grid, "phi_pack_k", FieldRole.LOCAL, 1)
+    packed = torch.zeros(
+        (phi.packed_n_rows(), 2), dtype=phi.grid.dtype, device=phi.grid.device
+    )
+    with pytest.raises(ValueError, match="features"):
+        phi.unpack(packed)
+
+
 def test_pack_layout_is_single_then_bnd_then_immersed(
     tmp_path: Path,
 ) -> None:

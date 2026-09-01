@@ -560,12 +560,18 @@ class FaceField(GeometricField):
         Raises
         ------
         ValueError
-            If ``packed`` does not have ``packed_n_rows()`` rows.
+            If the row count differs from ``packed_n_rows()`` or the feature
+            axis ``k`` differs from ``num_components``.
         """
         n_rows = self.packed_n_rows()
+        n_features = self.num_components
         if packed.shape[0] != n_rows:
             raise ValueError(
                 f"packed has {packed.shape[0]} rows, expected {n_rows}"
+            )
+        if packed.shape[1] != n_features:
+            raise ValueError(
+                f"packed has {packed.shape[1]} features, expected {n_features}"
             )
         offset = 0
         for block in self._pack_blocks():
