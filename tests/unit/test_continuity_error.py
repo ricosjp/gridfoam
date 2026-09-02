@@ -17,7 +17,9 @@ def test_compute_continuity_error_uniform_divergence(
     U.data.fill_(1.0)
     phi.single_data.fill_(0.01)
 
-    local_error, global_error = compute_continuity_error(phi, grid.cell_volumes)
+    local_error, global_error = compute_continuity_error(
+        phi, grid.cell_volumes, grid.dt
+    )
 
     assert local_error >= 0.0
     assert isinstance(global_error, float)
@@ -30,7 +32,9 @@ def test_compute_continuity_error_zero_flux_is_zero(
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
     phi.single_data.zero_()
 
-    local_error, global_error = compute_continuity_error(phi, grid.cell_volumes)
+    local_error, global_error = compute_continuity_error(
+        phi, grid.cell_volumes, grid.dt
+    )
 
     assert local_error == 0.0
     assert global_error == 0.0

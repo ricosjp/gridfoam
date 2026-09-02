@@ -47,7 +47,8 @@ def solve_pressure_poisson(
     rAU : CellField
         Inverse momentum diagonal ``1 / A(U)``.
     div_phi : torch.Tensor
-        Cell-centered divergence of the predicted face flux ``div(phi)``.
+        Cell-centered divergence of the predicted face flux ``div(phi)``,
+        normalized by the cell volume as returned by ``fvc.div``.
     solver : LinearSolver
         Linear solver used for the pressure equation.
     n_non_orthogonal_correctors : int
@@ -67,9 +68,11 @@ def solve_pressure_poisson(
     """
     p_eqn_mat: FvMatrix | None = None
     last_stats: tuple[SolveStats, ...] | None = None
+    # Explicit terms enter the matrix in volume-integrated form.
+    div_phi_source = div_phi * p.grid.cell_volumes
     for corr in range(n_non_orthogonal_correctors + 1):
         p_eqn_mat = -fvm.laplacian(rAU.data, p)
-        p_eqn_mat.source = p_eqn_mat.source - div_phi
+        p_eqn_mat.source = p_eqn_mat.source - div_phi_source
         if p_needs_ref:
             if p_ref_cell is None or p_ref_value is None:
                 raise ValueError(
