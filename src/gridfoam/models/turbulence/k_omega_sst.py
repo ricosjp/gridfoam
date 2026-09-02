@@ -23,8 +23,6 @@ class KOmegaSST(TurbulenceModel):
     ----------
     grid : IGridBase
         Computational grid.
-    nu : float or torch.Tensor
-        Kinematic viscosity.
     """
 
     def __init__(self, grid: IGridBase):

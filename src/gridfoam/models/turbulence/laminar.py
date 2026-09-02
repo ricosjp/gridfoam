@@ -28,10 +28,12 @@ class Laminar(TurbulenceModel):
 
     def nu_eff(self) -> Float[torch.Tensor, " C 1"]:
         """
-        Return effective viscosity for laminar flow.
+        Return effective viscosity ``nu + nu_t``.
 
-        Since ``nu_t = 0`` in laminar mode, returning ``nu`` directly is
-        slightly cheaper than evaluating ``nu + nu_t``.
+        Returns
+        -------
+        torch.Tensor
+            Effective viscosity per cell with shape ``[C, 1]``.
         """
         nu_eff_value = self.transport.nu() + self.nu_t.data
         nu_eff_min = torch.min(nu_eff_value).item()

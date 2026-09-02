@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.enums import TransportModelType
 from gridfoam.models.transport.base import TransportModel
