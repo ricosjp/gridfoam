@@ -7,19 +7,22 @@ Choose the extension point by its result:
 
 ``fv/fvc``
    Explicit operators that evaluate and return tensor or field data, such as
-   divergence, gradient, normal gradient, and interpolation.
+   divergence, gradient, normal gradient, interpolation, and reconstruction.
 
 ``fv/fvm``
    Implicit operators that assemble and return an ``FvMatrix``.
 
 ``fv/schemes``
    User-selectable numerical kernels and their dispatch tables.
+   Schemes must not import ``fvc`` or ``fvm``. A scheme that needs a
+   configured gradient should call ``schemes.grad.eval_grad``.
+
+``fv/kernels``
+   Shared tensor kernels: interpolation weights, Green-Gauss assembly, and
+   geometry coefficients.
 
 ``fv/boundary_ops.py``
    Shared iteration and evaluation for domain and immersed boundary faces.
-
-``fv/mesh_geometry.py``
-   Reusable geometry coefficients independent of a particular equation.
 
 Adding a selectable scheme
 --------------------------
@@ -39,7 +42,8 @@ Current dispatch coverage
 -------------------------
 
 ``div`` and ``grad`` schemes are selected from ``fvSchemes`` through
-dispatch tables. ``fvm.ddt`` currently always uses Euler, and
+dispatch tables. ``sn_grad`` uses the configured gradient via
+``eval_grad``. ``fvm.ddt`` currently always uses Euler, and
 ``fvm.laplacian`` has a single implementation, even though the corresponding
 configuration dictionaries already exist. When adding a selectable ddt or
 laplacian scheme, wire the lookup in the operator as part of the same change.

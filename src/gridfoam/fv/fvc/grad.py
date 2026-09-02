@@ -2,23 +2,7 @@
 
 from gridfoam.core.dimensions import DIM_LENGTH, dim_div
 from gridfoam.core.field import CellField, get_or_create_cellfield
-from gridfoam.fv.schemes.grad import get_grad_scheme
-from gridfoam.meta.config import SimulatorConfig
-from gridfoam.meta.enums import GradScheme
-
-
-def _search_grad_scheme(
-    sim_config: SimulatorConfig, field: CellField
-) -> GradScheme:
-    if sim_config.fvSchemes.gradSchemes is None:
-        return GradScheme.LINEAR
-    key = f"grad({field.name})"
-    grad_scheme = sim_config.fvSchemes.gradSchemes.get(key)
-    if grad_scheme is None:
-        grad_scheme = sim_config.fvSchemes.gradSchemes.get("default")
-    if grad_scheme is None:
-        grad_scheme = GradScheme.LINEAR
-    return grad_scheme
+from gridfoam.fv.schemes.grad import eval_grad
 
 
 def grad(field: CellField) -> CellField:
@@ -38,10 +22,7 @@ def grad(field: CellField) -> CellField:
         ``3 * c : 3 * c + 3``.
     """
     grid = field.grid
-    grad_scheme = _search_grad_scheme(grid.sim_config, field)
-    scheme_func = get_grad_scheme(grad_scheme)
-
-    grad_tensor = scheme_func(field)
+    grad_tensor = eval_grad(field)
     grad_field = get_or_create_cellfield(
         grid,
         f"grad({field.name})",

@@ -37,16 +37,16 @@ def single_internal_mask(
     return single_mask
 
 
-def single_face_linear_weights(
+def linear_face_weights(
     grid: IGridBase,
-    single_mask: Bool[torch.Tensor, " F_internal"],
+    face_mask: Bool[torch.Tensor, " F_internal"],
 ) -> tuple[
-    Int[torch.Tensor, " F_single"],
-    Int[torch.Tensor, " F_single"],
-    Float[torch.Tensor, " F_single 1"],
+    Int[torch.Tensor, " F_sel"],
+    Int[torch.Tensor, " F_sel"],
+    Float[torch.Tensor, " F_sel 1"],
 ]:
     """
-    Axis-aligned linear interpolation weights on single-sided faces.
+    Axis-aligned linear interpolation weights on selected internal faces.
 
     The interpolated face value is ``psi_f = w * psi_O + (1 - w) * psi_N``.
 
@@ -54,19 +54,19 @@ def single_face_linear_weights(
     ----------
     grid : IGridBase
         Grid providing cell centers and face centers.
-    single_mask : torch.Tensor
-        Boolean mask over internal faces selecting single-sided faces.
+    face_mask : torch.Tensor
+        Boolean mask over internal faces.
 
     Returns
     -------
     tuple
-        ``(owner, neighbour, w)`` indexed by the single-sided face subset.
+        ``(owner, neighbour, w)`` indexed by the selected face subset.
     """
-    owner = grid.owner[single_mask]
-    neighbour = grid.neighbour[single_mask]
-    axis_idx = grid.axis[single_mask, None]
+    owner = grid.owner[face_mask]
+    neighbour = grid.neighbour[face_mask]
+    axis_idx = grid.axis[face_mask, None]
     d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
-    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[single_mask]
+    d_fN_vec = grid.cell_centers[neighbour] - grid.face_centers[face_mask]
     d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
     d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
     w = d_fN / d_ON
@@ -91,7 +91,7 @@ def linear_internal_face_values(
     """
     grid = field.grid
     single_mask = single_internal_mask(grid)
-    owner, neighbour, w = single_face_linear_weights(grid, single_mask)
+    owner, neighbour, w = linear_face_weights(grid, single_mask)
     return w * field.data[owner] + (1.0 - w) * field.data[neighbour]
 
 
@@ -126,7 +126,7 @@ def correct_internal_values(
     grid = field.grid
     k = field.num_components
     single_mask = single_internal_mask(grid)
-    owner, neighbour, w = single_face_linear_weights(grid, single_mask)
+    owner, neighbour, w = linear_face_weights(grid, single_mask)
 
     if grad_data.ndim == 2:
         grad_tensor = grad_data.reshape(grid.num_cells, k, 3)

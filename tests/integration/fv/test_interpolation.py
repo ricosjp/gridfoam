@@ -16,7 +16,7 @@ from gridfoam.fv.fvc.interpolate import interpolate
 from gridfoam.fv.kernels.face_interpolation import (
     correct_internal_values,
     linear_internal_face_values,
-    single_face_linear_weights,
+    linear_face_weights,
     single_internal_mask,
 )
 from gridfoam.meta.enums import FieldRole
@@ -51,7 +51,7 @@ def test_correct_internal_values_improve_on_offset_faces():
     grid = refined_grid()
     field, gradient = linear_scalar_field(grid)
     single_mask = single_internal_mask(grid)
-    owner, neighbour, w = single_face_linear_weights(grid, single_mask)
+    owner, neighbour, w = linear_face_weights(grid, single_mask)
     centroid = (
         w * grid.cell_centers[owner] + (1.0 - w) * grid.cell_centers[neighbour]
     )
@@ -95,7 +95,7 @@ def test_interpolate_improves_where_face_offset_is_nonzero():
     grid = refined_grid()
     field, gradient = linear_scalar_field(grid)
     single_mask = single_internal_mask(grid)
-    owner, neighbour, w = single_face_linear_weights(grid, single_mask)
+    owner, neighbour, w = linear_face_weights(grid, single_mask)
     centroid = (
         w * grid.cell_centers[owner] + (1.0 - w) * grid.cell_centers[neighbour]
     )

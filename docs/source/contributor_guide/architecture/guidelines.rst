@@ -20,7 +20,9 @@ Choose the owning layer
 
 ``fv``
    Reusable discretization. Put explicit evaluation in ``fvc``, implicit matrix
-   assembly in ``fvm``, and selectable numerical kernels in ``schemes``.
+   assembly in ``fvm``, selectable numerical kernels in ``schemes``, and shared
+   tensor operations in ``kernels``. Schemes must not import ``fvc`` or
+   ``fvm``.
 
 ``models``
    Physical-property and closure models, such as transport and turbulence.
@@ -75,8 +77,8 @@ Use grid-owned metadata for tensor allocation:
 
 Do not assume all internal faces are single-sided. ``FaceField`` separates
 ordinary internal values from the upper and lower sides of immersed faces.
-Use helpers in ``fv.boundary_ops`` and existing interpolation/flux utilities
-instead of reconstructing topology masks in each operator.
+Use helpers in ``fv.boundary_ops`` and ``fv.kernels`` instead of reconstructing
+topology masks in each operator.
 
 Configuration-driven changes
 ----------------------------

@@ -15,7 +15,7 @@ Source map
    ├── meta/            # config, enums, shared types
    ├── core/            # grid, field, fvmatrix, equation
    ├── boundaries/      # basic/ and derived/ conditions
-   ├── fv/              # fvc/, fvm/, schemes/, flux helpers
+   ├── fv/              # fvc/, fvm/, schemes/, kernels/, flux helpers
    ├── models/          # transport/ and turbulence/
    ├── solvers/         # krylov, pyamg, adjoint/
    ├── algorithms/      # simple, piso, pimple, utils/
@@ -45,9 +45,10 @@ Responsibilities
 
 ``fv``
    Finite-volume operators and scheme dispatch. ``fvc`` operators evaluate
-   fields explicitly, while ``fvm`` operators assemble an ``FvMatrix``. Some
-   FV helpers, such as ``adjust_phi``, also depend on boundary-condition
-   types.
+   fields explicitly, while ``fvm`` operators assemble an ``FvMatrix``.
+   Selectable discretizations live in ``schemes`` and must not import
+   ``fvc`` or ``fvm``. Shared tensor kernels live in ``kernels``. Some FV
+   helpers, such as ``adjust_phi``, also depend on boundary-condition types.
 
 ``models``
    Transport and turbulence models that provide physical properties and close

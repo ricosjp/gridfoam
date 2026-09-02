@@ -4,12 +4,12 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
-from gridfoam.fv import fvc
 from gridfoam.fv.kernels.face_interpolation import (
     correct_internal_values,
+    linear_face_weights,
     linear_internal_face_values,
-    single_face_linear_weights,
 )
+from gridfoam.fv.schemes.grad import eval_grad
 from gridfoam.meta.enums import DivScheme
 
 DivSchemeFunc = Callable[
@@ -106,7 +106,7 @@ def linear(
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
     grid = field.grid
-    _, _, w = single_face_linear_weights(grid, phi.single_mask)
+    _, _, w = linear_face_weights(grid, phi.single_mask)
 
     # Flux contribution to owner equation:
     # +flux * (w * phi_O + (1 - w) * phi_N)
@@ -120,9 +120,7 @@ def linear(
 
     # Face-centre offset correction as an explicit deferred source.
     base_values = linear_internal_face_values(field)
-    grad_data = fvc.grad(field).data.reshape(
-        grid.num_cells, field.num_components, 3
-    )
+    grad_data = eval_grad(field)
     corrected = correct_internal_values(field, base_values, grad_data)
     source_face = -phi.single_data * (corrected - base_values)
 
@@ -265,7 +263,7 @@ def _apply_tvd_scheme(
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
     grid = field.grid
-    owner, neighbour, w = single_face_linear_weights(grid, phi.single_mask)
+    owner, neighbour, w = linear_face_weights(grid, phi.single_mask)
     d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
 
     # 1. Build stable upwind matrix coefficients.
@@ -284,9 +282,7 @@ def _apply_tvd_scheme(
     psi_upwind = torch.where(phi.single_data > 0, psi_O, psi_N)  # [F_single k]
 
     # 3. Compute gradients and OpenFOAM-style NVDTVD/NVDVTVDV r.
-    n_cells = grid.num_cells
-    grad_flat = fvc.grad(field).data  # [n_cells, k * 3]
-    grad_tensor = grad_flat.reshape(n_cells, field.num_components, 3)
+    grad_tensor = eval_grad(field)
     base_values = w * psi_O + (1.0 - w) * psi_N
     psi_linear = correct_internal_values(field, base_values, grad_tensor)
 

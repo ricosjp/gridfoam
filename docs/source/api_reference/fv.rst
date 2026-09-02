@@ -23,6 +23,7 @@ Explicit operators (``fvc``)
    interpolate
    sn_grad
    div
+   reconstruct
 
 Implicit operators (``fvm``)
 ----------------------------
@@ -47,5 +48,4 @@ Flux utilities
    :template: autosummary/function.rst
 
    correct_flux
-   reconstruct_U_from_phi
    set_phi_from_matrix_flux

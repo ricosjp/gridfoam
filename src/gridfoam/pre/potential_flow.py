@@ -22,10 +22,7 @@ from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
-from gridfoam.fv.flux import (
-    correct_flux,
-    reconstruct_U_from_phi,
-)
+from gridfoam.fv.flux import correct_flux
 from gridfoam.meta.config import PotentialFlowConfig, SolverConfig
 from gridfoam.meta.enums import BoundaryConditionType, FieldRole
 from gridfoam.meta.types import PatchName
@@ -188,7 +185,7 @@ class PotentialFlow:
         phi_hbya = self.phi.single_data.clone()
         self.phi.single_data = phi_hbya - phi_eqn_mat.flux(Phi.data)
 
-        reconstruct_U_from_phi(self.phi, self.U)
+        fvc.reconstruct(self.phi, self.U)
         if self.adjust_phi_enabled:
             adjust_phi(self.phi, self.U)
 

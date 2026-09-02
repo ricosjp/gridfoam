@@ -14,7 +14,8 @@ from gridfoam.fv.boundary_ops import (
 )
 from gridfoam.fv.fvc.grad import grad
 from gridfoam.fv.fvc.interpolate import interpolate
-from gridfoam.fv.mesh_geometry import (
+from gridfoam.fv.kernels.face_interpolation import linear_face_weights
+from gridfoam.fv.kernels.geometry import (
     non_orth_correction_vectors,
     non_orth_delta_coeffs,
 )
@@ -23,23 +24,15 @@ from gridfoam.fv.mesh_geometry import (
 def _interpolate_gamma(
     grid: IGridBase, gamma: Float[torch.Tensor, " C 1"] | float
 ) -> Float[torch.Tensor, " F 1"] | float:
-    c_own = grid.cell_centers[grid.owner]
-    c_nei = grid.cell_centers[grid.neighbour]
-    axis_idx = grid.axis[:, None]
-    if isinstance(gamma, torch.Tensor):
-        d_ON_vec = c_nei - c_own
-        d_fN_vec = c_nei - grid.face_centers
-
-        # Extract only axis-direction distance normal to the face.
-        d_ON = torch.abs(d_ON_vec.gather(1, axis_idx))
-        d_fN = torch.abs(d_fN_vec.gather(1, axis_idx))
-        w = d_fN / d_ON
-
-        gamma_f = w * gamma[grid.owner] + (1.0 - w) * gamma[grid.neighbour]
-    else:
-        gamma_f = gamma
-
-    return gamma_f
+    if not isinstance(gamma, torch.Tensor):
+        return gamma
+    # All internal faces, including immersed; those coefficients are zeroed
+    # later so the LDU arrays keep internal-face length.
+    all_internal = torch.ones(
+        grid.num_internal_faces, dtype=torch.bool, device=grid.device
+    )
+    owner, neighbour, w = linear_face_weights(grid, all_internal)
+    return w * gamma[owner] + (1.0 - w) * gamma[neighbour]
 
 
 def _non_orthogonal_correction_source(

@@ -15,6 +15,7 @@ from gridfoam.fv.boundary_ops import (
 from gridfoam.fv.kernels.face_interpolation import single_internal_mask
 from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
 from gridfoam.fv.schemes.interpolate import linear as interpolate_linear
+from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import GradScheme
 
 GradSchemeFunc = Callable[[CellField], Float[torch.Tensor, " C k 3"]]
@@ -135,3 +136,38 @@ GRAD_SCHEMES: dict[GradScheme, GradSchemeFunc] = {
 def get_grad_scheme(scheme: GradScheme) -> GradSchemeFunc:
     """Return the gradient-scheme function for the given enum."""
     return GRAD_SCHEMES[scheme]
+
+
+def _search_grad_scheme(
+    sim_config: SimulatorConfig, field: CellField
+) -> GradScheme:
+    if sim_config.fvSchemes.gradSchemes is None:
+        return GradScheme.LINEAR
+    key = f"grad({field.name})"
+    grad_scheme = sim_config.fvSchemes.gradSchemes.get(key)
+    if grad_scheme is None:
+        grad_scheme = sim_config.fvSchemes.gradSchemes.get("default")
+    if grad_scheme is None:
+        grad_scheme = GradScheme.LINEAR
+    return grad_scheme
+
+
+def eval_grad(field: CellField) -> Float[torch.Tensor, " C k 3"]:
+    """
+    Evaluate the configured cell-centered gradient as a tensor.
+
+    Schemes that need a gradient must call this helper rather than
+    ``fvc.grad``, which wraps the same tensor in a named ``CellField``.
+
+    Parameters
+    ----------
+    field : CellField
+        Target cell-centered field with ``k`` components.
+
+    Returns
+    -------
+    torch.Tensor
+        Cell-centered gradient with shape ``[C, k, 3]``.
+    """
+    scheme = _search_grad_scheme(field.grid.sim_config, field)
+    return get_grad_scheme(scheme)(field)

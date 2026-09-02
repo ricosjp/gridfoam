@@ -1,3 +1,5 @@
+"""Reusable face-geometry coefficients."""
+
 import torch
 from jaxtyping import Float
 
