@@ -60,20 +60,54 @@ def _solve_csr_components(
     rhs: Float[torch.Tensor, " C k"],
     x0: Float[torch.Tensor, " C k"],
     *,
-    tol: float,
+    atol: float,
+    rtol: float,
     max_iter: int,
-) -> Float[torch.Tensor, " C k"]:
-    """Solve each RHS column with PyAMG smoothed aggregation."""
+    norm_order: int | float,
+) -> SolveResult:
+    """Apply V-cycles with the same residual criterion as Krylov solvers.
+
+    PyAMG's native tolerance uses ||b|| and an L2 norm. Check the true
+    residual ourselves after each cycle to support configured norms and
+    a relative tolerance based on the initial residual, including b=0.
+    The hierarchy is built once and reused across cycles and components.
+    """
     b_np = rhs.detach().cpu().numpy()
     x0_np = x0.detach().cpu().numpy()
     x_out = np.zeros_like(b_np)
-    ml = pyamg.smoothed_aggregation_solver(A_csr)
+    ml = None
+    stats = []
 
     for c in range(b_np.shape[1]):
+        b = b_np[:, c]
         x = np.asarray(x0_np[:, c], dtype=b_np.dtype).copy()
-        x_out[:, c] = ml.solve(b_np[:, c], x0=x, tol=tol, maxiter=max_iter)
+        initial = float(np.linalg.norm(b - A_csr @ x, ord=norm_order))
+        threshold = max(atol, rtol * initial)
+        final = initial
+        iterations = 0
+        while np.isfinite(final) and final >= threshold:
+            if iterations >= max_iter:
+                break
+            if ml is None:
+                ml = pyamg.smoothed_aggregation_solver(A_csr)
+            x = ml.solve(b, x0=x, tol=0.0, maxiter=1)
+            iterations += 1
+            final = float(np.linalg.norm(b - A_csr @ x, ord=norm_order))
+        x_out[:, c] = x
+        stats.append(
+            SolveStats(
+                solver="pyamg",
+                initial_residual=initial,
+                final_residual=final,
+                iterations=iterations,
+                converged=bool(np.isfinite(final) and final < threshold),
+            )
+        )
 
-    return torch.from_numpy(x_out).to(device=rhs.device, dtype=rhs.dtype)
+    return SolveResult(
+        solution=torch.from_numpy(x_out).to(device=rhs.device, dtype=rhs.dtype),
+        stats=tuple(stats),
+    )
 
 
 class PyamgBridgeSolver(LinearSolver):
@@ -88,30 +122,21 @@ class PyamgBridgeSolver(LinearSolver):
         self.atol = config.tolerance
         self.rtol = config.rel_tolerance
         self.max_iter = config.max_iter
+        self.norm_order = config.norm_type.to_norm_order()
 
     def _solve_primal(self, eq: Equation) -> SolveResult:
         A = eq.fv_matrix
         A_csr = _build_csr(
             A.diag, A.upper, A.lower, A.grid.owner, A.grid.neighbour
         )
-        solution = _solve_csr_components(
+        return _solve_csr_components(
             A_csr,
             A.source,
             eq.target.data,
-            tol=self.rtol,
+            atol=self.atol,
+            rtol=self.rtol,
+            norm_order=self.norm_order,
             max_iter=self.max_iter,
-        )
-        return SolveResult(
-            solution=solution,
-            stats=(
-                SolveStats(
-                    solver="pyamg",
-                    initial_residual=0.0,
-                    final_residual=0.0,
-                    iterations=0,
-                    converged=True,
-                ),
-            ),
         )
 
     def solve_transpose(
@@ -126,6 +151,8 @@ class PyamgBridgeSolver(LinearSolver):
             A_csr,
             rhs,
             torch.zeros_like(rhs),
-            tol=self.rtol,
+            atol=self.atol,
+            rtol=self.rtol,
+            norm_order=self.norm_order,
             max_iter=self.max_iter,
-        )
+        ).solution

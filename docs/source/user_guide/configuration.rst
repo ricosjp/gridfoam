@@ -140,6 +140,22 @@ or contact resistance. The existing skewness correction also does not
 reconstruct separate gradients on each side of a material interface;
 general skewed discontinuous problems still require convergence checks.
 
+Linear solver convergence
+-------------------------
+
+CG, BiCGSTAB, and PyAMG use the configured ``norm_type`` to measure the
+unnormalized algebraic residual ``b - A x``. Each component converges when
+its residual norm is less than ``max(tolerance, rel_tolerance * initial)``;
+``initial`` is measured from that component's initial guess for this solve.
+Setting ``rel_tolerance`` to zero leaves only the absolute criterion.
+
+PyAMG checks the true residual after each V-cycle and reports actual
+initial/final residuals and cycle counts per component. An initial guess
+already within tolerance takes zero cycles. Exhausting ``max_iter`` without
+meeting the criterion returns ``converged=False``. The same tolerance and
+norm settings apply to the transpose solve used by the implicit adjoint.
+These linear-solver criteria are distinct from outer ``residualControl``.
+
 Residual control
 ----------------
 

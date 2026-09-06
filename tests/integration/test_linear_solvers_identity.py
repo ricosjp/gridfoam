@@ -73,9 +73,9 @@ def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
 
 
 def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
-    # PyAMG bridge must solve a scalar identity system on the test mesh.
+    # PyAMG reports independent component statistics through the public API.
     grid = small_axis_projected_grid
-    eq, b = _identity_linear_system(grid, name="p_amg", k=1)
+    eq, b = _identity_linear_system(grid, name="p_amg", k=2)
     cfg = SolverConfig(
         method=SolverType.PyAMG,
         tolerance=1e-12,
@@ -85,6 +85,17 @@ def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
     solver = create_solver(cfg)
     result = solver.solve(eq)
     assert torch.allclose(result.solution, b, atol=1e-5, rtol=1e-5)
+    assert len(result.stats) == 2
+    for c, stats in enumerate(result.stats):
+        assert stats.converged
+        assert stats.iterations == 1
+        initial = torch.linalg.vector_norm(
+            b[:, c], ord=cfg.norm_type.to_norm_order()
+        ).item()
+        assert abs(stats.initial_residual - initial) < 1e-12
+        assert stats.final_residual < max(
+            cfg.tolerance, cfg.rel_tolerance * initial
+        )
 
 
 def test_equation_factory_returns_named_container(

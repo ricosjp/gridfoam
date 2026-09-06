@@ -22,9 +22,9 @@ class SolveStats:
     solver : str
         Solver type name (for example ``"cg"``).
     initial_residual : float
-        Normalized initial residual norm.
+        Initial algebraic residual norm (not normalized).
     final_residual : float
-        Normalized final residual norm.
+        Final algebraic residual norm (not normalized).
     iterations : int
         Number of solver iterations performed.
     converged : bool
@@ -35,10 +35,10 @@ class SolveStats:
     """Solver type name (for example ``"cg"``)."""
 
     initial_residual: float
-    """Normalized initial residual norm."""
+    """Initial algebraic residual norm (not normalized)."""
 
     final_residual: float
-    """Normalized final residual norm."""
+    """Final algebraic residual norm (not normalized)."""
 
     iterations: int
     """Number of solver iterations performed."""
