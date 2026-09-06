@@ -18,6 +18,7 @@ from fluxel import (
 )
 from jaxtyping import Bool, Float, Int
 
+from gridfoam.core.fv_cache import FvGridCache
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
@@ -79,6 +80,7 @@ class AxisProjectedGrid(IGridBase):
         self._mesh_path = mesh_path
         self._surface_mesh_cache: gl.TensorMesh[Any] | None = None
         self._surface_mesh_rest_points: torch.Tensor | None = None
+        self._fv_cache = FvGridCache()
 
         self._load_topology(fluxel_mesh)
         self._load_ap_payload(fluxel_mesh)
@@ -210,6 +212,7 @@ class AxisProjectedGrid(IGridBase):
 
     def _sync_registered_fields(self, *, topology_changed: bool) -> None:
         """Resize registered fields after IBM or topology updates."""
+        self.invalidate_derived_caches()
         for field in list(self._cellfields.values()):
             field.sync_to_grid_topology(topology_changed=topology_changed)
         for field in list(self._facefields.values()):
@@ -460,6 +463,11 @@ class AxisProjectedGrid(IGridBase):
             return self._runtime_device
         return self._sim_config.device.to_torch_device()
 
+    @property
+    def fv_cache(self) -> FvGridCache:
+        """Grid-owned FV derived-data cache."""
+        return self._fv_cache
+
     def to(
         self,
         device: torch.device | str,
@@ -498,6 +506,7 @@ class AxisProjectedGrid(IGridBase):
         self._runtime_device = self._owner.device
         self._surface_mesh_cache = None
         self._surface_mesh_rest_points = None
+        self.invalidate_derived_caches()
 
         for field in list(self._cellfields.values()):
             field.to(target, non_blocking=non_blocking)

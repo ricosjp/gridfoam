@@ -10,9 +10,10 @@ from gridfoam.meta.enums import BoundaryConditionType, FaceSide
 from gridfoam.meta.types import PatchName
 
 if TYPE_CHECKING:
-    from gridfoam.core.field import CellField
+    from gridfoam.core.field import CellField, GeometricField
 else:
     CellField = Any
+    GeometricField = Any
 
 
 class BoundaryCondition(ABC):
@@ -33,6 +34,26 @@ class BoundaryCondition(ABC):
     def type(self) -> BoundaryConditionType:
         """Serialized boundary-condition type."""
         pass
+
+    def dependencies(self, field: CellField) -> tuple[GeometricField, ...]:
+        """
+        Fields other than ``field`` that :meth:`evaluate` reads.
+
+        Used to invalidate cached boundary states. Conditions that only
+        depend on ``field`` and static data return an empty tuple.
+
+        Parameters
+        ----------
+        field : CellField
+            Field the condition is attached to.
+
+        Returns
+        -------
+        tuple[GeometricField, ...]
+            Registered fields whose data influences the evaluation.
+        """
+        del field
+        return ()
 
     @abstractmethod
     def component(self, c: int) -> BoundaryCondition:

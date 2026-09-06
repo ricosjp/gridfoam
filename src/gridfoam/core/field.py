@@ -15,10 +15,16 @@ from gridfoam.core.dimensions import (
     resolve_field_dimension,
     to_dimensions,
 )
+from gridfoam.core.fv_cache import FvFieldCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.meta.enums import FieldRole
 from gridfoam.meta.types import PatchName
+
+
+def _tensor_token(tensor: torch.Tensor) -> tuple[int, int, int]:
+    """Identity, storage pointer and in-place version of ``tensor``."""
+    return (id(tensor), tensor.data_ptr(), tensor._version)
 
 
 class GeometricField(ABC):
@@ -79,6 +85,18 @@ class GeometricField(ABC):
         """Whether the field is written to output."""
         pass
 
+    @abstractmethod
+    def state_token(self) -> tuple[int, ...]:
+        """
+        Fingerprint of the current data used for cache invalidation.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Changes whenever the field data is replaced or modified in place.
+        """
+        pass
+
 
 class CellField(GeometricField):
     """
@@ -104,6 +122,8 @@ class CellField(GeometricField):
         Cell values with shape ``[C, k]``.
     old_data : torch.Tensor
         Previous time-level values with shape ``[C, k]``.
+    fv_cache : FvFieldCache
+        Field-owned FV cache (boundary batches and states).
     """
 
     def __init__(
@@ -118,6 +138,7 @@ class CellField(GeometricField):
         self._name = name
         self._role = role
         self._num_components = num_components
+        self._fv_cache = FvFieldCache()
 
         device = grid.device
         dtype = grid.dtype
@@ -176,6 +197,7 @@ class CellField(GeometricField):
             dtype=self.grid.dtype,
             device=self.grid.device,
         )
+        self.fv_cache.clear()
         self.update_history()
 
     def reset_data(self, init_value: list[float]):
@@ -206,6 +228,12 @@ class CellField(GeometricField):
         Add or update boundary conditions.
         """
         self._bcs.update(bcs)
+        self.fv_cache.clear_boundary_batches()
+
+    @property
+    def fv_cache(self) -> FvFieldCache:
+        """Field-owned FV cache (boundary batches and states)."""
+        return self._fv_cache
 
     # ================================
     # Grid Accessors
@@ -268,6 +296,16 @@ class CellField(GeometricField):
     def old_data(self) -> Float[torch.Tensor, "C k"]:
         """Previous time-level values with shape ``[C, k]``."""
         return self._old_data
+
+    def state_token(self) -> tuple[int, ...]:
+        """
+        Fingerprint of the current cell data used for cache invalidation.
+
+        Combines the tensor identity, storage pointer and in-place version
+        counter, so both ``field.data = new`` and ``field.data[:] = x``
+        change the token.
+        """
+        return _tensor_token(self._data)
 
     def to(
         self,
@@ -386,6 +424,17 @@ class FaceField(GeometricField):
 
         # Self-register in the grid field registry.
         grid.register_facefield(self)
+
+    def state_token(self) -> tuple[int, ...]:
+        """
+        Fingerprint of all face blocks used for cache invalidation.
+
+        See :meth:`CellField.state_token`.
+        """
+        token: tuple[int, ...] = ()
+        for block in self._pack_blocks():
+            token += _tensor_token(block)
+        return token
 
     def sync_to_grid_topology(self, *, topology_changed: bool = False) -> None:
         """

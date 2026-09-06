@@ -17,9 +17,10 @@ from gridfoam.meta.enums import (
 from gridfoam.meta.types import PatchName
 
 if TYPE_CHECKING:
-    from gridfoam.core.field import CellField
+    from gridfoam.core.field import CellField, GeometricField
 else:
     CellField = Any
+    GeometricField = Any
 
 
 class InletOutletBC(BoundaryCondition):
@@ -55,6 +56,10 @@ class InletOutletBC(BoundaryCondition):
             self.inlet_value[c : c + 1],
             phase=self.phase,
         )
+
+    def dependencies(self, field: CellField) -> tuple[GeometricField, ...]:
+        phi = field.grid.get_facefield(self.phi_name)
+        return () if phi is None else (phi,)
 
     def evaluate(
         self,

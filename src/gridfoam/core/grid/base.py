@@ -8,6 +8,7 @@ import graphlow as gl
 import torch
 from jaxtyping import Bool, Float, Int
 
+from gridfoam.core.fv_cache import FvGridCache
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
@@ -63,6 +64,8 @@ class IGridBase(ABC):
         Domain-boundary face area vectors with shape ``[F_bnd, 3]``.
     surface_mesh : graphlow.TensorMesh
         Surface mesh used for force and visualization sampling.
+    fv_cache : FvGridCache
+        Grid-owned FV cache (face geometry, ...).
     """
 
     @abstractmethod
@@ -154,6 +157,25 @@ class IGridBase(ABC):
         Self
             This grid after tensors have been moved.
         """
+        pass
+
+    def invalidate_derived_caches(self) -> None:
+        """
+        Clear FV caches on this grid and its cell fields.
+
+        Call after topology, immersed-boundary, or device changes
+        (``remesh``, ``update_ib``, ``to``).
+        """
+        self.fv_cache.clear()
+        for name in self.cellfield_names():
+            cell_field = self.get_cellfield(name)
+            if cell_field is not None:
+                cell_field.fv_cache.clear()
+
+    @property
+    @abstractmethod
+    def fv_cache(self) -> FvGridCache:
+        """Grid-owned FV derived-data cache."""
         pass
 
     @property

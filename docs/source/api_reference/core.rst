@@ -12,6 +12,8 @@ Core
    CellField
    FaceField
    FvMatrix
+   FvGridCache
+   FvFieldCache
    IGridBase
    FieldNameParts
 
