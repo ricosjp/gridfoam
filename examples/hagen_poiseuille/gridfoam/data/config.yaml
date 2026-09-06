@@ -18,7 +18,7 @@ simulator:
   # Control settings corresponding to system/controlDict
   control:
     deltaT: 0.1
-    endTime: 500
+    endTime: 200
     writeInterval: 100
     output:
       output_dir: "examples/hagen_poiseuille/gridfoam/outputs"
@@ -33,7 +33,7 @@ simulator:
     algorithm:
       type: piso
       nNonOrthogonalCorrectors: 0
-      nCorrectors: 1
+      nCorrectors: 2
       pRefCell: 0
       pRefValue: 0.0
     solvers:
