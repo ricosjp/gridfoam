@@ -1,4 +1,17 @@
-CUDA_TAG = cu124
+# Torch extra: cpu, cu118, or cu124. Do not combine cpu with a CUDA extra.
+CUDA_TAG ?= cu124
+
+.PHONY: help
+help:
+	@echo "install / dev-install   uv sync (CUDA_TAG=$(CUDA_TAG))"
+	@echo "lint                    basedpyright, ruff check, ruff format"
+	@echo "cpu-test                default pytest (excludes slow/profile/benchmark)"
+	@echo "slow-test               pytest -m slow"
+	@echo "document                sphinx HTML"
+	@echo "benchmark               resolution sweep under tests/profile"
+	@echo "profile-time / profile-memory"
+	@echo "experiment-gf-vs-of     OpenFOAM vs gridfoam slice comparison"
+	@echo "experiment-re-vs-cd     sphere Re–Cd sweep"
 
 .PHONY: reset
 reset:
@@ -23,9 +36,9 @@ lint:
 cpu-test:
 	uv run pytest tests --cov=src --cov-report term-missing --durations 5
 
-.PHONY: gpu-test
-gpu-test:
-	uv run pytest tests -m with_device --cov=src --cov-report term-missing --durations 5
+.PHONY: slow-test
+slow-test:
+	uv run pytest tests -m slow --cov=src --cov-report term-missing --durations 5
 
 .PHONY: document
 document:
@@ -49,9 +62,13 @@ profile-memory:
 	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run pytest -v -m profile --memray --memray-bin-path=./tests/profile/outputs/memory --memray-bin-prefix=gridfoam
 	# uv run memray flamegraph -f {bin_path}
 
-.PHONY: experiment
-experiment:
-	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m experiments.run --config experiments/config.yml
+.PHONY: experiment-gf-vs-of
+experiment-gf-vs-of:
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python experiments/gf_vs_of/run.py
+
+.PHONY: experiment-re-vs-cd
+experiment-re-vs-cd:
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python experiments/re_vs_cd/run.py
 
 .PHONY: performance_check
 performance_check: benchmark profile-time profile-memory
