@@ -35,9 +35,11 @@ Responsibilities
 
 ``core``
    Mesh interfaces, cell- and face-centred fields, finite-volume matrices, and
-   equations. ``CellField`` constructs configured boundary conditions, so
-   ``core`` and ``boundaries`` have a narrow integration point even though
-   lower layers should otherwise avoid importing higher layers.
+   equations. Grid- and field-owned FV caches (``fv_cache``) live here so
+   ``core`` does not import ``fv``. ``CellField`` constructs configured
+   boundary conditions, so ``core`` and ``boundaries`` have a narrow
+   integration point even though lower layers should otherwise avoid
+   importing higher layers.
 
 ``boundaries``
    Boundary-condition contracts and implementations. Every condition is
@@ -47,8 +49,9 @@ Responsibilities
    Finite-volume operators and scheme dispatch. ``fvc`` operators evaluate
    fields explicitly, while ``fvm`` operators assemble an ``FvMatrix``.
    Selectable discretizations live in ``schemes`` and must not import
-   ``fvc`` or ``fvm``. Shared tensor kernels live in ``kernels``. Some FV
-   helpers, such as ``adjust_phi``, also depend on boundary-condition types.
+   ``fvc`` or ``fvm``. Shared tensor kernels live in ``kernels`` and fill
+   slots on ``grid.fv_cache`` / ``field.fv_cache``. Some FV helpers, such
+   as ``adjust_phi``, also depend on boundary-condition types.
 
 ``models``
    Transport and turbulence models that provide physical properties and close

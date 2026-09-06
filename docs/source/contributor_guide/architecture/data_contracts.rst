@@ -35,6 +35,20 @@ from the grid alone.
 Operators must preserve this distinction. In particular, immersed faces must
 not be treated as ordinary internal faces.
 
+FV caches
+---------
+
+Derived FV data is owned by the object it describes, not by module globals:
+
+* ``grid.fv_cache`` (:class:`~gridfoam.core.FvGridCache`) holds static face
+  geometry (:class:`~gridfoam.fv.kernels.FaceGeometry`).
+* ``field.fv_cache`` (:class:`~gridfoam.core.FvFieldCache`) holds boundary
+  batches and evaluated boundary states.
+
+Call :meth:`~gridfoam.core.grid.base.IGridBase.invalidate_derived_caches`
+after topology, immersed-boundary, or device changes (``remesh``,
+``update_ib``, ``to``).
+
 FvMatrix and Equation
 ---------------------
 

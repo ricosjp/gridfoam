@@ -28,10 +28,12 @@ update timing for transient fields.
 Shared pressure correction
 --------------------------
 
-SIMPLE, PISO, and PIMPLE share pressure-equation and flux-correction operations
-in ``algorithms/utils/pressure_correction.py``. Put behavior there when its
-mathematics and ordering are genuinely common. Algorithm-specific loop counts,
-relaxation, and convergence decisions remain in the concrete class.
+SIMPLE, PISO, and PIMPLE share pressure-equation and flux-correction helpers
+in ``algorithms/utils/pressure_correction.py`` (``solve_pressure_poisson``,
+``apply_simplec``, ``correct_phi``, ``correct_velocity``). Put behavior there
+when its mathematics and ordering are genuinely common. Algorithm-specific
+loop counts, relaxation, and convergence decisions remain in the concrete
+class.
 
 Other shared helpers include:
 

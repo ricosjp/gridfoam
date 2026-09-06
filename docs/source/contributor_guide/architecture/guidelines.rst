@@ -78,7 +78,9 @@ Use grid-owned metadata for tensor allocation:
 Do not assume all internal faces are single-sided. ``FaceField`` separates
 ordinary internal values from the upper and lower sides of immersed faces.
 Use helpers in ``fv.boundary_ops`` and ``fv.kernels`` instead of reconstructing
-topology masks in each operator.
+topology masks in each operator. Prefer ``grid.fv_cache`` /
+``field.fv_cache`` over module-level caches; clear them through
+``invalidate_derived_caches`` when the mesh or device changes.
 
 Configuration-driven changes
 ----------------------------
@@ -98,9 +100,8 @@ Not every internal helper needs an enum or factory entry. Add those entries
 only when users must select the implementation from configuration.
 
 Some configuration enums exist before runtime dispatch is complete. For
-example, ``ddtSchemes`` and ``laplacianSchemes`` are accepted by
-``fvSchemesConfig``, but the current ``fvm.ddt`` and ``fvm.laplacian``
-implementations do not yet look them up.
+example, ``ddtSchemes`` is accepted by ``fvSchemesConfig``, but the current
+``fvm.ddt`` implementation does not yet look it up.
 
 For a feature selected from YAML, review all of these locations:
 

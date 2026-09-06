@@ -33,14 +33,25 @@ Simulator blocks
    precision.
 
 ``simulator.fvSchemes``
-   Discretization schemes for time derivatives, gradients, divergence, and
-   Laplacian terms. ``divSchemes`` and ``gradSchemes`` are actively dispatched;
-   ``ddtSchemes`` and ``laplacianSchemes`` are accepted but not yet wired to
-   runtime operators.
+   Discretization schemes for time derivatives, gradients, divergence,
+   surface-normal gradients, and Laplacian terms. ``divSchemes``,
+   ``gradSchemes`` (default ``leastsquare``), ``snGradSchemes`` and
+   ``laplacianSchemes`` (default ``corrected``) are actively dispatched;
+   ``ddtSchemes`` is accepted but not yet wired to a runtime operator.
+   On an octree grid the ``corrected`` schemes add the explicit skewness
+   correction on hanging-node (2:1) faces only; ``uncorrected`` skips it.
 
 ``simulator.fvSolution``
    Pressure--velocity algorithm (SIMPLE, PISO, or PIMPLE), linear solvers per
    field, optional potential-flow initialization, and ``adjustPhi`` behaviour.
+   The coupling follows the OpenFOAM ``pEqn.H`` structure: the predicted
+   flux ``phiHbyA`` is built with ``constrainHbyA`` on every face block,
+   ``adjustPhi`` is applied to it before the pressure solve (only when the
+   pressure level is not fixed by a Dirichlet patch), PISO/PIMPLE add
+   ``ddtCorr``, and ``phi = phiHbyA - pEqn.flux()`` is evaluated on internal
+   and boundary faces. ``consistent: true`` selects the SIMPLEC formulation
+   (``rAtU = 1/(1/A - H1)``) for SIMPLE and PIMPLE. ``residualControl`` for
+   ``p`` uses the residual of the unsolved pressure equation, as in OpenFOAM.
 
 ``simulator.conditions``
    Initial field values and boundary conditions per patch.
