@@ -1,70 +1,71 @@
 """
 Integration tests for surface-normal gradient (``sn_grad``) reconstruction.
 
-Exercises scheme selection and least-squares accuracy at octree interfaces.
+Scheme selection and hanging-node accuracy on refined octree meshes.
 """
 
 from __future__ import annotations
 
-import importlib
-
 import torch
-from pytest import MonkeyPatch
 from tests.helpers import linear_scalar_field, refined_grid
 
-from gridfoam.core.field import CellField
-from gridfoam.fv.fvc.grad import grad
 from gridfoam.fv.fvc.sn_grad import sn_grad
-from gridfoam.meta.enums import GradScheme
-
-grad_schemes_module = importlib.import_module("gridfoam.fv.schemes.grad")
-
-
-def test_sn_grad_default_linear_scheme_does_not_use_leastsquare(
-    monkeypatch: MonkeyPatch,
-):
-    # Default LINEAR ``sn_grad`` must not call least-squares reconstruction.
-    def fail_leastsquare(_field: CellField) -> torch.Tensor:
-        raise AssertionError("leastSquare reconstruction should not be used")
-
-    monkeypatch.setattr(grad_schemes_module, "leastsquare", fail_leastsquare)
-
-    grid = refined_grid()
-    field, _ = linear_scalar_field(grid)
-
-    sn_grad(field)
+from gridfoam.fv.kernels.face_geometry import face_geometry
+from gridfoam.meta.config import fvSchemesConfig
+from gridfoam.meta.enums import GradScheme, SnGradScheme
 
 
-def test_sn_grad_is_exact_with_leastsquare_grad_scheme_on_octree_interfaces():
-    # With LEASTSQUARE as the default grad scheme, ``sn_grad`` must recover
-    # the analytic normal derivative on faces adjacent to octree interfaces.
-    grid = refined_grid(grad_scheme=GradScheme.LEASTSQUARE)
+def test_sn_grad_corrected_is_exact_for_linear_field():
+    # Default ``corrected`` snGrad uses a local least-squares gradient on
+    # hanging cells, so it is exact for any configured ``gradSchemes``.
+    for grad_scheme in (None, GradScheme.LINEAR, GradScheme.LEASTSQUARE):
+        grid = refined_grid(grad_scheme=grad_scheme)
+        field, gradient = linear_scalar_field(grid)
+
+        result = sn_grad(field)
+        expected = gradient[grid.axis[result.single_mask]].reshape(-1, 1)
+        torch.testing.assert_close(
+            result.single_data, expected, atol=1e-12, rtol=1e-12
+        )
+
+
+def test_sn_grad_uncorrected_scheme_skips_hanging_correction():
+    # ``uncorrected`` is the two-point difference: exact on regular faces,
+    # not on hanging-node faces for a skewed field.
+    grid = refined_grid(
+        fv_schemes=fvSchemesConfig(
+            snGradSchemes={"default": SnGradScheme.UNCORRECTED}
+        )
+    )
     field, gradient = linear_scalar_field(grid)
+    geo = face_geometry(grid)
 
-    sn_grad_result = sn_grad(field)
-    expected = gradient[grid.axis[sn_grad_result.single_mask]].reshape(-1, 1)
+    result = sn_grad(field).single_data
+    expected = gradient[grid.axis[geo.single_idx]].reshape(-1, 1)
 
+    regular = torch.ones(geo.num_single, dtype=torch.bool)
+    regular[geo.hang_idx] = False
     torch.testing.assert_close(
-        sn_grad_result.single_data, expected, atol=1e-12, rtol=1e-12
+        result[regular], expected[regular], atol=1e-12, rtol=1e-12
     )
+    assert (result[geo.hang_idx] - expected[geo.hang_idx]).abs().max() > 1e-3
 
 
-def test_sn_grad_reuses_cached_grad_field():
-    # A prior ``grad`` call populates the registry Face/CellField objects.
-    # ``sn_grad`` must still recover the analytic normal derivative.
-    grid = refined_grid(grad_scheme=GradScheme.LEASTSQUARE)
-    field_direct, gradient = linear_scalar_field(grid)
-
-    sn_grad_direct = sn_grad(field_direct)
-
-    field_cached, _ = linear_scalar_field(grid)
-    grad(field_cached)
-    sn_grad_cached = sn_grad(field_cached)
-
-    expected = gradient[grid.axis[sn_grad_direct.single_mask]].reshape(-1, 1)
-    torch.testing.assert_close(
-        sn_grad_direct.single_data, expected, atol=1e-12, rtol=1e-12
+def test_sn_grad_scheme_lookup_prefers_field_specific_key():
+    # ``snGrad(<field>)`` must take precedence over ``default``.
+    grid = refined_grid(
+        fv_schemes=fvSchemesConfig(
+            snGradSchemes={
+                "default": SnGradScheme.UNCORRECTED,
+                "snGrad(psi)": SnGradScheme.CORRECTED,
+            }
+        )
     )
+    field, gradient = linear_scalar_field(grid)
+    assert field.name == "psi"
+
+    result = sn_grad(field)
+    expected = gradient[grid.axis[result.single_mask]].reshape(-1, 1)
     torch.testing.assert_close(
-        sn_grad_cached.single_data, expected, atol=1e-12, rtol=1e-12
+        result.single_data, expected, atol=1e-12, rtol=1e-12
     )

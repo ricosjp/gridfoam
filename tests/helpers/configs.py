@@ -49,13 +49,27 @@ from gridfoam.meta.enums import (
 def refined_config(
     *,
     grad_scheme: GradScheme | None = None,
+    fv_schemes: fvSchemesConfig | None = None,
     root_resolution: tuple[int, int, int] = (4, 4, 1),
     domain_upper: tuple[float, float, float] = (1.0, 1.0, 0.1),
     refinement_min: tuple[float, float, float] = (0.25, 0.25, 0.0),
     refinement_max: tuple[float, float, float] = (0.75, 0.75, 0.1),
 ) -> GridfoamConfig:
-    """Axis-projected mesh with one centred refinement region."""
+    """
+    Axis-projected mesh with one centred refinement region.
+
+    ``fv_schemes`` replaces the whole ``fvSchemes`` block; ``grad_scheme``
+    only overrides ``gradSchemes.default`` on top of it.
+    """
     config = small_gridfoam_config()
+    if fv_schemes is not None:
+        config = config.model_copy(
+            update={
+                "simulator": config.simulator.model_copy(
+                    update={"fvSchemes": fv_schemes}
+                )
+            }
+        )
     config = config.model_copy(
         update={
             "fluxel": config.fluxel.model_copy(
@@ -92,8 +106,22 @@ def refined_config(
     return config
 
 
-def refined_3d_config(*, grad_scheme: GradScheme) -> GridfoamConfig:
-    """3-D refined mesh for hierarchy-interface gradient schemes."""
+def refined_3d_config(
+    *,
+    grad_scheme: GradScheme | None = None,
+    fv_schemes: fvSchemesConfig | None = None,
+) -> GridfoamConfig:
+    """3-D refined mesh for hierarchy-interface scheme tests."""
+    if fv_schemes is None:
+        fv_schemes = fvSchemesConfig(
+            gradSchemes=(
+                None if grad_scheme is None else {"default": grad_scheme}
+            ),
+        )
+    elif grad_scheme is not None:
+        fv_schemes = fv_schemes.model_copy(
+            update={"gradSchemes": {"default": grad_scheme}}
+        )
     return GridfoamConfig(
         fluxel=FluxelConfig(
             domain=DomainConfig(lower=[0.0, 0.0, 0.0], upper=[1.0, 1.0, 1.0]),
@@ -122,9 +150,7 @@ def refined_3d_config(*, grad_scheme: GradScheme) -> GridfoamConfig:
                 ),
                 precision=PrecisionType.FLOAT64,
             ),
-            fvSchemes=fvSchemesConfig(
-                gradSchemes={"default": grad_scheme},
-            ),
+            fvSchemes=fv_schemes,
             fvSolution=fvSolutionConfig(
                 algorithm=ManualAlgorithm(type=AlgorithmType.MANUAL),
                 solvers={"p": SolverConfig(method=SolverType.CG)},

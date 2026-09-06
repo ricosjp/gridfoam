@@ -49,3 +49,23 @@ Flux utilities
 
    correct_flux
    set_phi_from_matrix_flux
+
+Face geometry
+-------------
+
+Static face geometry is cached on ``grid.fv_cache`` and rebuilt after
+``remesh``, ``update_ib``, or ``to``.
+
+.. currentmodule:: gridfoam.fv.kernels
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   FaceGeometry
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/function.rst
+
+   face_geometry

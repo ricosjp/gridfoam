@@ -1,81 +1,79 @@
-from typing import cast
-
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Float
 
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
 from gridfoam.fv.boundary_ops import (
     BoundaryFaceKind,
     evaluate_boundary_state,
     iter_boundary_batches,
 )
-from gridfoam.fv.fvc.grad import grad
-from gridfoam.fv.fvc.interpolate import interpolate
-from gridfoam.fv.kernels.face_interpolation import linear_face_weights
-from gridfoam.fv.kernels.geometry import (
-    non_orth_correction_vectors,
-    non_orth_delta_coeffs,
-)
+from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
+from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
+from gridfoam.fv.kernels.least_squares import least_squares_gradient
+from gridfoam.meta.config import SimulatorConfig
+from gridfoam.meta.enums import LaplacianScheme
+
+DEFAULT_LAPLACIAN_SCHEME = LaplacianScheme.CORRECTED
+
+
+def search_laplacian_scheme(
+    sim_config: SimulatorConfig, field: CellField
+) -> LaplacianScheme:
+    """
+    Resolve the ``laplacianSchemes`` entry for ``field``.
+
+    Lookup order is ``laplacian(<field>)``, then ``default``, then
+    :data:`DEFAULT_LAPLACIAN_SCHEME`. ``LINEAR`` is treated as
+    ``CORRECTED``.
+    """
+    schemes = sim_config.fvSchemes.laplacianSchemes
+    if schemes is None:
+        return DEFAULT_LAPLACIAN_SCHEME
+    scheme = schemes.get(f"laplacian({field.name})")
+    if scheme is None:
+        scheme = schemes.get("default")
+    if scheme is None:
+        return DEFAULT_LAPLACIAN_SCHEME
+    if scheme == LaplacianScheme.LINEAR:
+        return LaplacianScheme.CORRECTED
+    return scheme
 
 
 def _interpolate_gamma(
-    grid: IGridBase, gamma: Float[torch.Tensor, " C 1"] | float
+    geo: FaceGeometry, gamma: Float[torch.Tensor, " C 1"] | float
 ) -> Float[torch.Tensor, " F 1"] | float:
+    """Uncorrected linear interpolation of ``gamma`` to all internal faces."""
     if not isinstance(gamma, torch.Tensor):
         return gamma
     # All internal faces, including immersed; those coefficients are zeroed
     # later so the LDU arrays keep internal-face length.
-    all_internal = torch.ones(
-        grid.num_internal_faces, dtype=torch.bool, device=grid.device
+    return (
+        geo.w_all * gamma[geo.owner] + (1.0 - geo.w_all) * gamma[geo.neighbour]
     )
-    owner, neighbour, w = linear_face_weights(grid, all_internal)
-    return w * gamma[owner] + (1.0 - w) * gamma[neighbour]
 
 
-def _non_orthogonal_correction_source(
+def _hanging_correction_source(
     field: CellField,
+    geo: FaceGeometry,
     gamma_f: Float[torch.Tensor, " F 1"] | float,
-    d: Float[torch.Tensor, " F 3"],
-    delta_coeffs: Float[torch.Tensor, " F 1"],
-    mag_Sf: Float[torch.Tensor, " F 1"],
-) -> tuple[
-    Int[torch.Tensor, " F_single"],
-    Int[torch.Tensor, " F_single"],
-    Float[torch.Tensor, " F_single k"],
-]:
+) -> Float[torch.Tensor, " F_hang k"]:
     """
-    Build the explicit non-orthogonal Laplacian source on single-sided faces.
+    Explicit skewness-correction flux on hanging-node faces.
 
-    Returns owner/neighbour cell indices and
-    ``gamma_f * |Sf| * (k & grad(psi)_f)`` for each face.
+    Returns ``gamma_f * |Sf| * (snGrad_corrected - snGrad_uncorrected)``
+    using the same correction kernel as ``fvc.sn_grad``, so the matrix
+    flux and the explicit surface-normal gradient agree exactly.
     """
-    grid = field.grid
-    grad_psi_f = interpolate(grad(field))
-    single_mask = grad_psi_f.single_mask
-
-    d_vec = d[single_mask]
-    delta_coeffs_face = delta_coeffs[single_mask]
-    Sf = grid.Sf[single_mask]
-    mag_Sf_face = mag_Sf[single_mask]
-    corr_vec = non_orth_correction_vectors(
-        d_vec, delta_coeffs_face, mag_Sf_face, Sf
-    )
-
-    grad_f = grad_psi_f.single_data.reshape(-1, field.num_components, 3)
-    correction = torch.sum(corr_vec[:, None, :] * grad_f, dim=2)
-
+    grad_hang = least_squares_gradient(field, geo, hanging_cells_only=True)
+    correction = sn_grad_hanging_correction(field, grad_hang, geo)
+    hang_faces = geo.single_idx[geo.hang_idx]
     if isinstance(gamma_f, torch.Tensor):
-        gamma_face = gamma_f[single_mask]
+        gamma_hang = gamma_f[hang_faces]
     else:
-        gamma_face = gamma_f
-    source = gamma_face * mag_Sf_face * correction
-
-    owner = grid.owner[single_mask]
-    neighbour = grid.neighbour[single_mask]
-    return owner, neighbour, source
+        gamma_hang = gamma_f
+    return gamma_hang * geo.mag_Sf_s[geo.hang_idx] * correction
 
 
 def laplacian(
@@ -84,7 +82,13 @@ def laplacian(
     """
     Build the diffusion (Laplacian) matrix term.
 
-    Represents div(gamma * grad(phi)).
+    Represents div(gamma * grad(phi)). The implicit part uses the
+    orthogonal two-point stencil ``gamma_f |Sf| / |d . n|`` on every face,
+    which keeps the matrix symmetric. On an octree the only
+    non-orthogonal/skewed faces are hanging-node (2:1) interfaces; with the
+    ``corrected`` scheme their skewness correction is added as an explicit
+    source and recorded in ``FvMatrix.face_flux_correction``. The
+    ``uncorrected`` scheme omits that term.
 
     Parameters
     ----------
@@ -102,46 +106,42 @@ def laplacian(
     """
     mat = FvMatrix(field)
     grid = field.grid
-
-    # Distance vector d between owner and neighbor cell centers
-    c_own = grid.cell_centers[grid.owner]
-    c_nei = grid.cell_centers[grid.neighbour]
-    d = c_nei - c_own
-
-    mag_Sf = cast(
-        torch.Tensor, torch.linalg.vector_norm(grid.Sf, dim=1, keepdim=True)
-    )
-    delta_coeffs = non_orth_delta_coeffs(d, mag_Sf, grid.Sf)
+    geo = face_geometry(grid)
+    scheme = search_laplacian_scheme(grid.sim_config, field)
 
     # Interpolate gamma to face centers.
-    gamma_f = _interpolate_gamma(grid, gamma)
+    gamma_f = _interpolate_gamma(geo, gamma)
 
-    # Face diffusion coefficient: gamma * |Sf| * nonOrthDeltaCoeffs
-    coeff = gamma_f * mag_Sf * delta_coeffs
+    # Face diffusion coefficient: gamma * |Sf| / |d . n|
+    coeff = gamma_f * geo.mag_Sf_all * geo.delta_coeffs_all
 
     # Cut immersed split faces for dual-sided IBM treatment.
-    if isinstance(grid, AxisProjectedGrid):
-        coeff[grid.ap_is_immersed_faces] = 0.0
+    if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
+        coeff = coeff.masked_fill(grid.ap_is_immersed_faces[:, None], 0.0)
 
     mat.upper = coeff
     mat.lower = coeff
 
     # Subtract from owner and neighbor diagonal contributions.
-    mat.diag.index_add_(0, grid.owner, -coeff)
-    mat.diag.index_add_(0, grid.neighbour, -coeff)
+    mat.diag.index_add_(0, geo.owner, -coeff)
+    mat.diag.index_add_(0, geo.neighbour, -coeff)
 
-    # Non-orthogonal correction source
-    owner_single, neighbour_single, correction_src = (
-        _non_orthogonal_correction_source(
-            field, gamma_f, d, delta_coeffs, mag_Sf
+    # Skewness correction on hanging-node faces (explicit, deferred).
+    if scheme == LaplacianScheme.CORRECTED and geo.num_hanging > 0:
+        correction_src = _hanging_correction_source(field, geo, gamma_f)
+        hang = geo.hang_idx
+        mat.source.index_add_(0, geo.owner_s[hang], -correction_src)
+        mat.source.index_add_(0, geo.neighbour_s[hang], correction_src)
+
+        # Store the explicit correction so that ``FvMatrix.flux`` reproduces
+        # the full discrete face flux (OpenFOAM ``faceFluxCorrectionPtr``).
+        face_flux_correction = torch.zeros(
+            (geo.num_single, field.num_components),
+            dtype=grid.dtype,
+            device=grid.device,
         )
-    )
-    mat.source.index_add_(0, owner_single, -correction_src)
-    mat.source.index_add_(0, neighbour_single, correction_src)
-
-    # Store the explicit correction so that ``FvMatrix.flux`` can reproduce the
-    # full discrete face flux (OpenFOAM ``faceFluxCorrectionPtr`` equivalent).
-    mat.face_flux_correction = correction_src
+        face_flux_correction.index_add_(0, hang, correction_src)
+        mat.face_flux_correction = face_flux_correction
 
     # Domain boundaries
     for batch in iter_boundary_batches(field):

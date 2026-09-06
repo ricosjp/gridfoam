@@ -8,32 +8,13 @@ from gridfoam.core.field import (
     FieldRole,
     get_or_create_facefield,
 )
-from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.fv.boundary_ops import (
-    BoundaryFaceKind,
-    evaluate_boundary_state,
-    iter_boundary_batches,
-)
+from gridfoam.fv.boundary_ops import fill_boundary_face_values
+from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.kernels.face_interpolation import (
     correct_internal_values,
     linear_internal_face_values,
 )
-from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
-
-
-def _fill_boundary_face_values(field: CellField, psi_f: FaceField) -> None:
-    """Write domain and immersed boundary values into ``psi_f``."""
-    grid = field.grid
-    for batch in iter_boundary_batches(field):
-        _, _, _, psi_b = evaluate_boundary_state(field, batch)
-        if batch.face_kind == BoundaryFaceKind.DOMAIN:
-            psi_f.domain_bnd_data[batch.face_mask] = psi_b
-            continue
-        if isinstance(grid, AxisProjectedGrid):
-            if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-                psi_f.immersed_upper[batch.face_mask] = psi_b
-            elif batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
-                psi_f.immersed_lower[batch.face_mask] = psi_b
+from gridfoam.fv.kernels.least_squares import least_squares_gradient
 
 
 def linear(field: CellField) -> FaceField:
@@ -41,9 +22,13 @@ def linear(field: CellField) -> FaceField:
     Interpolate a cell field to faces with hierarchy-aware linear weights.
 
     Gridfoam ``linear`` includes the face-centre offset correction used for
-    hanging-node interfaces. A provisional Green-Gauss gradient is formed
-    from uncorrected linear face values and then used only as an explicit
-    correction; the public ``fvc.grad`` entry point is never called.
+    hanging-node interfaces. On an octree the offset is non-zero only on
+    2:1 faces, so the correction is evaluated on that subset using a local
+    weighted least-squares gradient of the cells adjacent to those faces.
+    The least-squares gradient is exact for linear fields, which keeps the
+    corrected face values (and any Green-Gauss gradient built from them)
+    exact for linear fields across refinement interfaces. Boundary faces
+    without a boundary condition are filled by zero-gradient extrapolation.
 
     Parameters
     ----------
@@ -56,6 +41,7 @@ def linear(field: CellField) -> FaceField:
         Face-centered field named ``{field.name}_f``.
     """
     grid = field.grid
+    geo = face_geometry(grid)
     psi_f = get_or_create_facefield(
         grid,
         f"{field.name}_f",
@@ -64,10 +50,14 @@ def linear(field: CellField) -> FaceField:
         dimension=field.dimension,
     )
 
-    base_values = linear_internal_face_values(field)
-    psi_f.single_data = base_values
-    _fill_boundary_face_values(field, psi_f)
+    base_values = linear_internal_face_values(field, geo)
+    fill_boundary_face_values(field, psi_f)
 
-    provisional = assemble_gauss_gradient(grid, psi_f)
-    psi_f.single_data = correct_internal_values(field, base_values, provisional)
+    if geo.num_hanging > 0:
+        grad_hang = least_squares_gradient(field, geo, hanging_cells_only=True)
+        psi_f.single_data = correct_internal_values(
+            field, base_values, grad_hang, geo
+        )
+    else:
+        psi_f.single_data = base_values
     return psi_f

@@ -21,6 +21,7 @@ from gridfoam.meta.enums import (
     NormType,
     PrecisionType,
     PreconditionerType,
+    SnGradScheme,
     SolverType,
     TransportModelType,
     TurbulenceType,
@@ -204,8 +205,10 @@ class fvSchemesConfig(BaseModel, frozen=True):
     gradSchemes : dict[str, gradScheme] | None
         Scheme for the grad.
         Currently supported schemes:
-            - LINEAR: Linear scheme.
-            - LEASTSQUARE: Least-squares scheme.
+            - LEASTSQUARE (default): Weighted least-squares scheme with a
+              cached geometric normal matrix. Exact for linear fields on
+              hanging-node cells.
+            - LINEAR: Green-Gauss from skew-corrected linear face values.
     """
     divSchemes: dict[str, DivScheme] | None = None
     """
@@ -218,9 +221,23 @@ class fvSchemesConfig(BaseModel, frozen=True):
     laplacianSchemes: dict[str, LaplacianScheme] | None = None
     """
     laplacianSchemes : dict[str, LaplacianScheme] | None
-        Scheme for the laplacian.
+        Scheme for the laplacian, keyed by ``laplacian(<field>)`` or
+        ``default``.
         Currently supported schemes:
-            - LINEAR: Linear scheme.
+            - CORRECTED (default): Explicit skewness correction on
+              hanging-node faces.
+            - UNCORRECTED: Orthogonal part only.
+            - LINEAR: Alias of CORRECTED.
+    """
+    snGradSchemes: dict[str, SnGradScheme] | None = None
+    """
+    snGradSchemes : dict[str, SnGradScheme] | None
+        Scheme for the surface-normal gradient, keyed by
+        ``snGrad(<field>)`` or ``default``.
+        Currently supported schemes:
+            - CORRECTED (default): Explicit skewness correction on
+              hanging-node faces.
+            - UNCORRECTED: Compact two-point difference only.
     """
 
     @field_validator(
@@ -228,6 +245,7 @@ class fvSchemesConfig(BaseModel, frozen=True):
         "divSchemes",
         "laplacianSchemes",
         "gradSchemes",
+        "snGradSchemes",
         mode="before",
     )
     @classmethod

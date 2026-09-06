@@ -144,13 +144,32 @@ class DivScheme(StrEnum):
     KOREN = auto()
 
 
+class SnGradScheme(StrEnum):
+    """
+    Type of the surface-normal gradient scheme.
+    - UNCORRECTED: Compact two-point difference along the face normal.
+      Exact on regular faces; ignores skewness on hanging-node faces.
+    - CORRECTED: Adds the explicit skewness correction on hanging-node
+      (2:1) faces using a local least-squares gradient.
+    """
+
+    UNCORRECTED = auto()
+    CORRECTED = auto()
+
+
 class LaplacianScheme(StrEnum):
     """
     Type of the Laplacian scheme.
-    - LINEAR: Linear scheme.
+    - LINEAR: Alias of CORRECTED kept for backward compatibility.
+    - CORRECTED: Orthogonal implicit part plus explicit skewness correction
+      on hanging-node faces (OpenFOAM ``Gauss linear corrected``).
+    - UNCORRECTED: Orthogonal implicit part only. Cheapest; accepts an
+      O(h) flux error on hanging-node faces.
     """
 
     LINEAR = auto()
+    CORRECTED = auto()
+    UNCORRECTED = auto()
 
 
 class SolverType(StrEnum):

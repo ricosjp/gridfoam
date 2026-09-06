@@ -2,27 +2,38 @@
 
 from __future__ import annotations
 
-from gridfoam.core.field import CellField, FaceField
+import pytest
+import torch
+
+from gridfoam.core.field import FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.fv import fvc
 from gridfoam.meta.enums import FieldRole
 from gridfoam.post.diagnostics.continuity import compute_continuity_error
 
 
-def test_compute_continuity_error_uniform_divergence(
+def test_compute_continuity_error_matches_volume_weighted_div(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
     grid = small_axis_projected_grid
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    U.data.fill_(1.0)
     phi.single_data.fill_(0.01)
+    phi.domain_bnd_data.fill_(0.01)
 
-    local_error, global_error = compute_continuity_error(
-        phi, grid.cell_volumes, grid.dt
-    )
+    volumes = grid.cell_volumes.reshape(-1, 1)
+    cont_err = fvc.div(phi).data
+    total_volume = torch.sum(volumes)
+    expected_local = (
+        grid.dt * torch.sum(torch.abs(cont_err) * volumes) / total_volume
+    ).item()
+    expected_global = (
+        grid.dt * torch.sum(cont_err * volumes) / total_volume
+    ).item()
 
-    assert local_error >= 0.0
-    assert isinstance(global_error, float)
+    local_error, global_error = compute_continuity_error(phi, volumes, grid.dt)
+
+    assert local_error == pytest.approx(expected_local)
+    assert global_error == pytest.approx(expected_global)
 
 
 def test_compute_continuity_error_zero_flux_is_zero(
@@ -31,9 +42,10 @@ def test_compute_continuity_error_zero_flux_is_zero(
     grid = small_axis_projected_grid
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
     phi.single_data.zero_()
+    phi.domain_bnd_data.zero_()
 
     local_error, global_error = compute_continuity_error(
-        phi, grid.cell_volumes, grid.dt
+        phi, grid.cell_volumes.reshape(-1, 1), grid.dt
     )
 
     assert local_error == 0.0

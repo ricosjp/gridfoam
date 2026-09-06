@@ -14,6 +14,7 @@ from jaxtyping import Bool, Float, Int
 from tests.conftest import small_gridfoam_config
 
 from gridfoam.core.field import CellField, FaceField, packed_face_n_rows
+from gridfoam.core.fv_cache import FvGridCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
@@ -30,6 +31,7 @@ class _NonAxisProjectedGrid(IGridBase):
         self._n_cells = 4
         self._n_internal = 4
         self._n_bnd = 8
+        self._fv_cache = FvGridCache()
 
     def register_cellfield(self, field: CellField) -> None:
         return None
@@ -81,6 +83,10 @@ class _NonAxisProjectedGrid(IGridBase):
     @property
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    def fv_cache(self) -> FvGridCache:
+        return self._fv_cache
 
     @property
     def num_cells(self) -> int:

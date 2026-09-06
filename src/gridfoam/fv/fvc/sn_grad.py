@@ -11,17 +11,17 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
-from gridfoam.fv.schemes.sn_grad import corrected as corrected_internal_sn_grad
+from gridfoam.fv.schemes.sn_grad import eval_sn_grad
 
 
 def sn_grad(field: CellField) -> FaceField:
     """
     Compute the surface-normal gradient on faces.
 
-    Uses the OpenFOAM corrected scheme:
-
-    snGrad(psi) = nonOrthDeltaCoeffs * (psi_N - psi_O)
-                  + nonOrthCorrectionVectors & grad(psi)_f.
+    Internal faces use the scheme configured in ``snGradSchemes``
+    (``corrected`` by default, which adds the hanging-node skewness
+    correction). Boundary faces carry the boundary-condition normal
+    gradient.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def sn_grad(field: CellField) -> FaceField:
         dimension=dim_div(field.dimension, DIM_LENGTH),
     )
     # Internal faces
-    sn_grad_field.single_data = corrected_internal_sn_grad(field)
+    sn_grad_field.single_data = eval_sn_grad(field)
 
     for batch in iter_boundary_batches(field):
         _, _, ref_g, _ = evaluate_boundary_state(field, batch)

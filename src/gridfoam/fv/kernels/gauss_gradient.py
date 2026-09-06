@@ -8,11 +8,13 @@ from jaxtyping import Float
 from gridfoam.core.field import FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 
 
 def assemble_gauss_gradient(
     grid: IGridBase,
     psi_f: FaceField,
+    geometry: FaceGeometry | None = None,
 ) -> Float[torch.Tensor, " C k 3"]:
     """
     Assemble a cell-centered Green-Gauss gradient from face values.
@@ -23,23 +25,24 @@ def assemble_gauss_gradient(
         Grid providing face topology and geometry.
     psi_f : FaceField
         Face field supplying single-sided, domain, and immersed values.
+    geometry : FaceGeometry or None
+        Cached face geometry. Looked up from the grid when ``None``.
 
     Returns
     -------
     torch.Tensor
         Cell-centered gradient with shape ``[C, k, 3]``.
     """
+    geo = geometry if geometry is not None else face_geometry(grid)
     k = psi_f.num_components
-    single_mask = psi_f.single_mask
     grad_data = torch.zeros(
         (grid.num_cells, k, 3), dtype=grid.dtype, device=grid.device
     )
 
     # Internal single-sided faces: owner +Sf*psi_f, neighbour -Sf*psi_f.
-    Sf = grid.Sf[single_mask]
-    flux = Sf[:, None, :] * psi_f.single_data[:, :, None]
-    grad_data.index_add_(0, grid.owner[single_mask], flux)
-    grad_data.index_add_(0, grid.neighbour[single_mask], -flux)
+    flux = geo.Sf_s[:, None, :] * psi_f.single_data[:, :, None]
+    grad_data.index_add_(0, geo.owner_s, flux)
+    grad_data.index_add_(0, geo.neighbour_s, -flux)
 
     # Domain boundaries.
     flux_domain = (
@@ -49,17 +52,16 @@ def assemble_gauss_gradient(
 
     # Immersed boundaries: upper uses +Sf on owner, lower uses -Sf on neighbour.
     if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
-        immersed_owner = grid.owner[grid.ap_is_immersed_faces]
-        immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
-        immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
+        immersed = grid.ap_is_immersed_faces
+        immersed_Sf = grid.Sf[immersed]
         grad_data.index_add_(
             0,
-            immersed_owner,
+            grid.owner[immersed],
             immersed_Sf[:, None, :] * psi_f.immersed_upper[:, :, None],
         )
         grad_data.index_add_(
             0,
-            immersed_neighbour,
+            grid.neighbour[immersed],
             -immersed_Sf[:, None, :] * psi_f.immersed_lower[:, :, None],
         )
 

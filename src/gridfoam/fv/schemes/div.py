@@ -4,11 +4,12 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
+from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.kernels.face_interpolation import (
     correct_internal_values,
-    linear_face_weights,
     linear_internal_face_values,
 )
+from gridfoam.fv.kernels.least_squares import least_squares_gradient
 from gridfoam.fv.schemes.grad import eval_grad
 from gridfoam.meta.enums import DivScheme
 
@@ -105,8 +106,8 @@ def linear(
     ]
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
-    grid = field.grid
-    _, _, w = linear_face_weights(grid, phi.single_mask)
+    geo = face_geometry(field.grid)
+    w = geo.w_s
 
     # Flux contribution to owner equation:
     # +flux * (w * phi_O + (1 - w) * phi_N)
@@ -118,11 +119,17 @@ def linear(
     lower = -phi.single_data * w
     diag_N = -phi.single_data * (1.0 - w)
 
-    # Face-centre offset correction as an explicit deferred source.
-    base_values = linear_internal_face_values(field)
-    grad_data = eval_grad(field)
-    corrected = correct_internal_values(field, base_values, grad_data)
-    source_face = -phi.single_data * (corrected - base_values)
+    # Face-centre offset correction on hanging faces as an explicit
+    # deferred source; zero on regular faces.
+    shape = (phi.num_single_sided, field.num_components)
+    source_face = torch.zeros(
+        shape, dtype=phi.grid.dtype, device=phi.grid.device
+    )
+    if geo.num_hanging > 0:
+        base_values = linear_internal_face_values(field, geo)
+        grad_hang = least_squares_gradient(field, geo, hanging_cells_only=True)
+        corrected = correct_internal_values(field, base_values, grad_hang, geo)
+        source_face = -phi.single_data * (corrected - base_values)
 
     return upper, lower, diag_O, diag_N, source_face
 
@@ -263,7 +270,8 @@ def _apply_tvd_scheme(
         (upper, lower, diag_owner, diag_neighbour, source_face)
     """
     grid = field.grid
-    owner, neighbour, w = linear_face_weights(grid, phi.single_mask)
+    geo = face_geometry(grid)
+    owner, neighbour, w = geo.owner_s, geo.neighbour_s, geo.w_s
     d_ON_vec = grid.cell_centers[neighbour] - grid.cell_centers[owner]
 
     # 1. Build stable upwind matrix coefficients.
@@ -282,9 +290,11 @@ def _apply_tvd_scheme(
     psi_upwind = torch.where(phi.single_data > 0, psi_O, psi_N)  # [F_single k]
 
     # 3. Compute gradients and OpenFOAM-style NVDTVD/NVDVTVDV r.
+    # The configured gradient is needed on every upwind cell for ``r``; it
+    # is reused for the hanging-face offset correction of the linear value.
     grad_tensor = eval_grad(field)
     base_values = w * psi_O + (1.0 - w) * psi_N
-    psi_linear = correct_internal_values(field, base_values, grad_tensor)
+    psi_linear = correct_internal_values(field, base_values, grad_tensor, geo)
 
     if field.num_components == 1:
         grad_O = grad_tensor[owner, 0]  # [F_single, 3]

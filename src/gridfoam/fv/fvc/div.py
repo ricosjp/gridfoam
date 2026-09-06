@@ -8,6 +8,7 @@ from gridfoam.core.field import (
     get_or_create_cellfield,
 )
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.fv.kernels.face_geometry import face_geometry
 
 
 def div(phi: FaceField) -> CellField:
@@ -29,8 +30,6 @@ def div(phi: FaceField) -> CellField:
         Cell-centered divergence field.
     """
     grid = phi.grid
-    # Volume-integrated form (no division by cell volume), matching the
-    # ``fvm`` operators so that both sides of an equation are consistent.
     div_phi = get_or_create_cellfield(
         grid,
         f"div({phi.name})",
@@ -43,22 +42,19 @@ def div(phi: FaceField) -> CellField:
     )
 
     # Internal faces
-    single_data = phi.single_data.clone()
-    data.index_add_(0, grid.owner[phi.single_mask], single_data)
-    data.index_add_(0, grid.neighbour[phi.single_mask], -single_data)
+    geo = face_geometry(grid)
+    data.index_add_(0, geo.owner_s, phi.single_data)
+    data.index_add_(0, geo.neighbour_s, -phi.single_data)
 
     # Domain boundaries
-    data.index_add_(0, grid.domain_bnd_owner, phi.domain_bnd_data.clone())
+    data.index_add_(0, grid.domain_bnd_owner, phi.domain_bnd_data)
 
-    # Immersed boundaries
-    if isinstance(grid, AxisProjectedGrid):
-        data.index_add_(
-            0, grid.owner[grid.ap_is_immersed_faces], phi.immersed_upper.clone()
-        )
-        data.index_add_(
-            0,
-            grid.neighbour[grid.ap_is_immersed_faces],
-            -phi.immersed_lower.clone(),
-        )
+    # Immersed boundaries: both blocks are stored outward from their
+    # adjacent cell (upper along +Sf for the owner, lower along -Sf for the
+    # neighbour), so both enter with a positive sign.
+    if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
+        immersed = grid.ap_is_immersed_faces
+        data.index_add_(0, grid.owner[immersed], phi.immersed_upper)
+        data.index_add_(0, grid.neighbour[immersed], phi.immersed_lower)
     div_phi.data = data / grid.cell_volumes
     return div_phi

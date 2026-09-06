@@ -6,14 +6,27 @@ from tests.helpers.configs import refined_3d_config, refined_config
 
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
+from gridfoam.meta.config import fvSchemesConfig
 from gridfoam.meta.enums import GradScheme
 
 
-def refined_grid(*, grad_scheme: GradScheme | None = None) -> IGridBase:
+def refined_grid(
+    *,
+    grad_scheme: GradScheme | None = None,
+    fv_schemes: fvSchemesConfig | None = None,
+) -> IGridBase:
     """2-D refined axis-projected grid."""
-    return create_grid(refined_config(grad_scheme=grad_scheme))
+    return create_grid(
+        refined_config(grad_scheme=grad_scheme, fv_schemes=fv_schemes)
+    )
 
 
-def refined_3d_grid(grad_scheme: GradScheme) -> IGridBase:
+def refined_3d_grid(
+    grad_scheme: GradScheme | None = None,
+    *,
+    fv_schemes: fvSchemesConfig | None = None,
+) -> IGridBase:
     """3-D refined axis-projected grid."""
-    return create_grid(refined_3d_config(grad_scheme=grad_scheme))
+    return create_grid(
+        refined_3d_config(grad_scheme=grad_scheme, fv_schemes=fv_schemes)
+    )

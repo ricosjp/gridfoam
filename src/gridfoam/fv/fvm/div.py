@@ -11,6 +11,7 @@ from gridfoam.fv.boundary_ops import (
     evaluate_boundary_state,
     iter_boundary_batches,
 )
+from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.schemes.div import get_div_scheme
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DivScheme
@@ -65,13 +66,13 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
     scheme_func = get_div_scheme(div_scheme)
     upper, lower, diag_O, diag_N, source_face = scheme_func(phi, field)
 
-    single_mask = phi.single_mask
-    mat.upper[single_mask] = upper
-    mat.lower[single_mask] = lower
-    mat.diag.index_add_(0, grid.owner[single_mask], diag_O)
-    mat.diag.index_add_(0, grid.neighbour[single_mask], diag_N)
-    mat.source.index_add_(0, grid.owner[single_mask], source_face)
-    mat.source.index_add_(0, grid.neighbour[single_mask], -source_face)
+    geo = face_geometry(grid)
+    mat.upper.index_copy_(0, geo.single_idx, upper)
+    mat.lower.index_copy_(0, geo.single_idx, lower)
+    mat.diag.index_add_(0, geo.owner_s, diag_O)
+    mat.diag.index_add_(0, geo.neighbour_s, diag_N)
+    mat.source.index_add_(0, geo.owner_s, source_face)
+    mat.source.index_add_(0, geo.neighbour_s, -source_face)
 
     for batch in iter_boundary_batches(field):
         f, ref_v, ref_g, _ = evaluate_boundary_state(field, batch)

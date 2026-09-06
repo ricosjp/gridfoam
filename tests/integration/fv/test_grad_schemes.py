@@ -1,8 +1,7 @@
 """
 Integration tests for cell-centre gradient schemes on refined meshes.
 
-Verifies public ``fvc.grad`` contracts, hierarchy accuracy, and IB-aware
-least-squares stencils.
+Public ``fvc.grad`` contracts, hierarchy accuracy, and layout.
 """
 
 from __future__ import annotations
@@ -18,10 +17,7 @@ from tests.helpers import (
 from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.core.field import CellField
 from gridfoam.fv import fvc
-from gridfoam.fv.kernels.face_interpolation import (
-    linear_internal_face_values,
-    single_internal_mask,
-)
+from gridfoam.fv.kernels.face_interpolation import linear_internal_face_values
 from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, GradScheme
 
@@ -43,12 +39,12 @@ def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells():
     )
 
 
-def test_linear_grad_is_more_accurate_than_uncorrected_gauss_on_refined_mesh():
-    # LINEAR grad must beat Green-Gauss assembled from uncorrected linear
-    # face values on a 3-D refined mesh.
+def test_linear_grad_is_linear_exact_on_refined_mesh():
+    # LINEAR (Green-Gauss) must recover a constant gradient everywhere;
+    # Green-Gauss from uncorrected two-point faces is inconsistent on
+    # hanging cells.
     grid = refined_3d_grid(GradScheme.LINEAR)
     field, expected_vec = linear_scalar_field(grid)
-    interior = interior_mask(grid)
     expected = expected_vec.to(grid.device)
 
     uncorrected_faces = fvc.interpolate(field)
@@ -56,13 +52,27 @@ def test_linear_grad_is_more_accurate_than_uncorrected_gauss_on_refined_mesh():
     uncorrected = assemble_gauss_gradient(grid, uncorrected_faces)[:, 0, :]
     corrected = fvc.grad(field).data
 
-    uncorrected_err = torch.linalg.vector_norm(
-        uncorrected[interior] - expected
-    ).item()
-    corrected_err = torch.linalg.vector_norm(
-        corrected[interior] - expected
-    ).item()
-    assert corrected_err < uncorrected_err
+    assert (uncorrected - expected).abs().max().item() > 1e-2
+    torch.testing.assert_close(
+        corrected, expected.expand_as(corrected), atol=1e-12, rtol=1e-12
+    )
+
+
+def test_default_grad_scheme_is_leastsquare_and_exact_everywhere():
+    # Without a ``gradSchemes`` entry the default is least-squares, exact
+    # on boundary and hanging cells.
+    grid = refined_3d_grid()
+    assert grid.sim_config.fvSchemes.gradSchemes is None
+    field, expected = linear_scalar_field(grid)
+
+    grad_field = fvc.grad(field)
+
+    torch.testing.assert_close(
+        grad_field.data,
+        expected.expand_as(grad_field.data),
+        atol=1e-12,
+        rtol=1e-12,
+    )
 
 
 def test_grad_vector_output_layout():
@@ -115,8 +125,7 @@ def test_grad_vector_output_layout():
 
 
 def test_constant_field_has_zero_gradient():
-    # A constant field with zero-gradient boundaries must produce a vanishing
-    # gradient everywhere.
+    # Constant field with zero-gradient boundaries → vanishing gradient.
     grid = refined_grid(grad_scheme=GradScheme.LINEAR)
     field = CellField(grid, "const", FieldRole.LOCAL, 1)
     field.data[:] = 3.0
@@ -131,24 +140,4 @@ def test_constant_field_has_zero_gradient():
         torch.zeros_like(grad_field.data),
         atol=1e-12,
         rtol=1e-12,
-    )
-
-
-def test_leastsquare_uses_only_single_sided_internal_faces():
-    # Immersed faces must not enter the least-squares owner/neighbour stencil.
-    # On a mesh without immersed geometry this reduces to verifying that the
-    # single-sided mask is the full internal set used by the scheme path.
-    grid = refined_grid(grad_scheme=GradScheme.LEASTSQUARE)
-    single_mask = single_internal_mask(grid)
-    assert int(single_mask.sum().item()) == grid.num_internal_faces - getattr(
-        grid, "num_immersed_faces", 0
-    )
-    field, expected = linear_scalar_field(grid)
-    grad_field = fvc.grad(field)
-    interior = interior_mask(grid)
-    torch.testing.assert_close(
-        grad_field.data[interior],
-        expected.expand_as(grad_field.data[interior]),
-        atol=1e-10,
-        rtol=1e-10,
     )

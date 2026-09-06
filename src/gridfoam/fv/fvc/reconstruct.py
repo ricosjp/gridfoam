@@ -7,6 +7,23 @@ from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 
 
+def _accumulate_reconstruct(
+    numer: Float[torch.Tensor, " C 3"],
+    denom: Float[torch.Tensor, " C 3"],
+    cells: torch.Tensor,
+    Sf: Float[torch.Tensor, " F 3"],
+    flux: Float[torch.Tensor, " F 1"],
+) -> None:
+    """
+    Accumulate ``n_hat * phi`` and diagonal ``|Sf| n n^T`` for ``cells``.
+    """
+    mag_Sf = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
+    n_hat = Sf / mag_Sf
+    numer.index_add_(0, cells, n_hat * flux)
+    # Diagonal of |Sf| n n^T; exact for axis-aligned faces.
+    denom.index_add_(0, cells, mag_Sf * n_hat * n_hat)
+
+
 def reconstruct(
     phi: FaceField,
     U: CellField,
@@ -18,8 +35,15 @@ def reconstruct(
 
     .. math::
 
-        \\mathbf{U}_P = \\frac{1}{V_P}
-        \\sum_f (\\text{oriented } \\phi_f \\mathbf{S}_f)
+        \\mathbf{U}_P = \\left( \\sum_f |S_f| \\hat{n}_f \\hat{n}_f^T
+        \\right)^{-1} \\sum_f \\hat{n}_f \\phi_f
+
+    where the sums run over every face of the cell (``surfaceSum``), so
+    owner and neighbour receive the same-signed contribution. On an
+    axis-aligned octree the reference tensor is diagonal, so each velocity
+    component is the area-weighted average of the face-normal velocities
+    on that axis. Hanging-node sub-faces are handled naturally because both
+    sums are area weighted.
 
     Parameters
     ----------
@@ -41,27 +65,41 @@ def reconstruct(
         raise ValueError("phi and U must share the same grid.")
 
     grid = phi.grid
-    u_data = torch.zeros(
+    numer = torch.zeros(
         (grid.num_cells, 3), dtype=grid.dtype, device=grid.device
     )
+    denom = torch.zeros_like(numer)
 
     single_mask = phi.single_mask
-    flux_vec = phi.single_data * grid.Sf[single_mask]
-    u_data.index_add_(0, grid.owner[single_mask], flux_vec)
-    u_data.index_add_(0, grid.neighbour[single_mask], -flux_vec)
+    Sf_single = grid.Sf[single_mask]
+    _accumulate_reconstruct(
+        numer, denom, grid.owner[single_mask], Sf_single, phi.single_data
+    )
+    _accumulate_reconstruct(
+        numer, denom, grid.neighbour[single_mask], Sf_single, phi.single_data
+    )
+    _accumulate_reconstruct(
+        numer,
+        denom,
+        grid.domain_bnd_owner,
+        grid.domain_bnd_Sf,
+        phi.domain_bnd_data,
+    )
 
-    flux_domain = phi.domain_bnd_data * grid.domain_bnd_Sf
-    u_data.index_add_(0, grid.domain_bnd_owner, flux_domain)
-
-    if isinstance(grid, AxisProjectedGrid):
-        immersed_owner = grid.owner[grid.ap_is_immersed_faces]
-        immersed_neighbour = grid.neighbour[grid.ap_is_immersed_faces]
-        immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
-        u_data.index_add_(0, immersed_owner, phi.immersed_upper * immersed_Sf)
-        u_data.index_add_(
-            0, immersed_neighbour, -phi.immersed_lower * immersed_Sf
+    if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
+        immersed = grid.ap_is_immersed_faces
+        immersed_Sf = grid.Sf[immersed]
+        _accumulate_reconstruct(
+            numer, denom, grid.owner[immersed], immersed_Sf, phi.immersed_upper
+        )
+        _accumulate_reconstruct(
+            numer,
+            denom,
+            grid.neighbour[immersed],
+            -immersed_Sf,
+            phi.immersed_lower,
         )
 
-    u_data = u_data / grid.cell_volumes
+    u_data = numer / denom
     U.data = u_data
     return u_data

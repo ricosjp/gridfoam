@@ -15,10 +15,10 @@ from pydantic import BaseModel
 from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvm
-from gridfoam.fv.fvm.laplacian import IGridBase
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import (
     GridfoamConfig,
