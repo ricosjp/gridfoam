@@ -56,11 +56,11 @@ def test_runner_stops_only_for_simulation_convergence(
 
 def test_simple_ignores_relative_residual_control(tmp_path: Path):
     algo = SIMPLE(create_grid(simple_convergence_config(tmp_path)))
-    algo._residual_control = {
+    algo._residual_control = {  # pyright: ignore[reportPrivateUsage]
         "U": ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.1)
     }
-    algo._record_residual("U", 1.0)
-    algo._record_residual("U", 0.01)
+    algo._record_residual("U", 1.0)  # pyright: ignore[reportPrivateUsage]
+    algo._record_residual("U", 0.01)  # pyright: ignore[reportPrivateUsage]
     assert not algo.has_converged()  # relative reduction alone is insufficient
-    algo._record_residual("U", 1e-7)
+    algo._record_residual("U", 1e-7)  # pyright: ignore[reportPrivateUsage]
     assert algo.has_simulation_converged()

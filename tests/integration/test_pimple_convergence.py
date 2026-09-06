@@ -116,5 +116,5 @@ def test_pressure_uses_first_baseline_and_last_solve_initial_residual(
     algo.step()
     assert algo.has_converged()
     assert residual.call_count == 8  # one outer pass plus final pass
-    assert algo._initial_residuals["p"] == 1.0
-    assert algo._current_residuals["p"] == 0.005
+    assert algo._initial_residuals["p"] == 1.0  # pyright: ignore[reportPrivateUsage]
+    assert algo._current_residuals["p"] == 0.005  # pyright: ignore[reportPrivateUsage]

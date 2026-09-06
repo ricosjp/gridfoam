@@ -1,4 +1,5 @@
 import math
+from typing import overload
 
 import torch
 from jaxtyping import Float
@@ -46,6 +47,21 @@ def search_laplacian_scheme(
     if scheme == LaplacianScheme.GAUSS_LINEAR_UNCORRECTED:
         return LaplacianScheme.UNCORRECTED
     return scheme
+
+
+@overload
+def _interpolate_gamma(
+    geo: FaceGeometry,
+    gamma: Float[torch.Tensor, " C 1"],
+    *,
+    harmonic: bool = False,
+) -> Float[torch.Tensor, " F 1"]: ...
+
+
+@overload
+def _interpolate_gamma(
+    geo: FaceGeometry, gamma: float, *, harmonic: bool = False
+) -> float: ...
 
 
 def _interpolate_gamma(

@@ -10,7 +10,9 @@ from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.fvm.laplacian import _interpolate_gamma
+from gridfoam.fv.fvm.laplacian import (
+    _interpolate_gamma,  # pyright: ignore[reportPrivateUsage]
+)
 from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.meta.config import SolverConfig, fvSchemesConfig
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, SolverType
@@ -111,9 +113,11 @@ def test_harmonic_insulating_interface_and_positive_coefficient_gradients():
         1.0, 3.0, grid.num_cells, dtype=grid.dtype
     ).reshape(-1, 1)
     positive.requires_grad_()
-    assert torch.autograd.gradcheck(
-        lambda g: _interpolate_gamma(geo, g, harmonic=True), (positive,)
-    )
+
+    def interpolate(g: torch.Tensor) -> torch.Tensor:
+        return _interpolate_gamma(geo, g, harmonic=True)
+
+    assert torch.autograd.gradcheck(interpolate, (positive,))
 
 
 @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
