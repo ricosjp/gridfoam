@@ -225,10 +225,13 @@ def _r_for_vector_field(
     # Limit the gradient ratio to avoid overflow when gradf is too small
     # https://cpp.openfoam.org/v10/NVDVTVDV_8H_source.html
     steep = mag_gradcf >= 1000.0 * mag_gradf
+    # Mask before division: torch.where evaluates both branches, and an
+    # unused 0/0 would still produce NaN gradients during backward.
+    safe_gradf = torch.where(steep, torch.ones_like(gradf), gradf)
     return torch.where(
         steep,
         2.0 * 1000.0 * torch.sign(gradcf) * torch.sign(gradf) - 1.0,
-        2.0 * gradcf / gradf - 1.0,
+        2.0 * gradcf / safe_gradf - 1.0,
     )
 
 
@@ -314,10 +317,12 @@ def _apply_tvd_scheme(
         mag_gradf = torch.abs(gradf)
         mag_gradcf = torch.abs(gradcf)
         steep = mag_gradcf >= 1000.0 * mag_gradf
+        # Avoid zero division in the unselected branch during backward.
+        safe_gradf = torch.where(steep, torch.ones_like(gradf), gradf)
         r = torch.where(
             steep,
             2.0 * 1000.0 * torch.sign(gradcf) * torch.sign(gradf) - 1.0,
-            2.0 * gradcf / gradf - 1.0,
+            2.0 * gradcf / safe_gradf - 1.0,
         )  # [F_single, 1]
 
     else:
