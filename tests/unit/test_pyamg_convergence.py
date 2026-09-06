@@ -1,19 +1,34 @@
 """Exercise real AMG cycles, warm starts, and component-wise stopping."""
 
+from typing import cast
+
 import numpy as np
 import pytest
 import torch
 from scipy.sparse import csr_array, diags_array
 
-from gridfoam.solvers.pyamg_bridge import _solve_csr_components
+from gridfoam.solvers.pyamg_bridge import (
+    _solve_csr_components,  # pyright: ignore[reportPrivateUsage]
+)
+
+
+def _csr_diags(diagonals: list[np.ndarray], offsets: list[int]) -> csr_array:
+    # SciPy stubs type ``offsets`` as ``int`` and the CSR ``format`` as DIA.
+    return cast(
+        csr_array,
+        diags_array(
+            diagonals,
+            offsets=offsets,  # pyright: ignore[reportArgumentType]
+            format="csr",
+        ),
+    )
 
 
 def system() -> tuple[csr_array, torch.Tensor]:
     n = 64
-    matrix = diags_array(
+    matrix = _csr_diags(
         [-np.ones(n - 1), 2.01 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
+        [-1, 0, 1],
     )
     rhs = torch.linspace(1, 2, n, dtype=torch.float64)[:, None]
     return matrix, rhs
@@ -72,7 +87,7 @@ def test_amg_reports_iteration_limit_instead_of_success():
 def test_amg_honors_norm_and_skips_converged_components(
     norm: int | float, iterations: int
 ):
-    matrix = diags_array([np.ones(16)], offsets=[0], format="csr")
+    matrix = _csr_diags([np.ones(16)], [0])
     rhs = torch.zeros(16, 2, dtype=torch.float64)
     x0 = rhs.clone()
     x0[:, 1] = 0.5
