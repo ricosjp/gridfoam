@@ -4,9 +4,10 @@ import torch
 
 from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.utils.pressure_correction import (
+    apply_simplec,
     correct_phi,
     correct_velocity,
-    finalize_pressure_correction,
+    simplec_rAtU,
     solve_pressure_poisson,
 )
 from gridfoam.algorithms.utils.reference_value import needs_reference_value
@@ -31,6 +32,7 @@ from gridfoam.core.field import (
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
+from gridfoam.fv.adjust_phi import adjust_phi
 from gridfoam.fv.flux import compute_phi_hbya, correct_flux
 from gridfoam.meta.config import SIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
@@ -69,8 +71,13 @@ class SIMPLE(AlgorithmBase):
         Pressure field with shape ``[C, 1]``.
     phi : FaceField
         Volumetric face flux.
+    phi_hbya : FaceField
+        Predicted flux ``flux(constrainHbyA(HbyA))`` (all face blocks).
     rAU : CellField
         Reciprocal of the momentum diagonal, ``1/A(U)``.
+    rAtU : CellField
+        Pressure-equation coefficient: ``rAU`` or, with ``consistent``,
+        the SIMPLEC value ``1/(1/A(U) - H1)``.
     HbyA : CellField
         Explicit momentum contribution ``H(U)/A(U)``.
     solvers : dict[str, LinearSolver]
@@ -82,7 +89,8 @@ class SIMPLE(AlgorithmBase):
     n_non_orthogonal_correctors : int
         Number of non-orthogonal pressure correctors.
     consistent : bool
-        Whether SIMPLEC-style consistent flux correction is enabled.
+        Whether the SIMPLEC formulation (OpenFOAM ``consistent yes``) is
+        enabled.
     adjust_phi_enabled : bool
         Whether ``adjustPhi`` continuity adjustment is enabled.
     p_needs_ref : bool
@@ -106,8 +114,14 @@ class SIMPLE(AlgorithmBase):
     phi: FaceField
     """Volumetric face flux."""
 
+    phi_hbya: FaceField
+    """Predicted flux ``flux(constrainHbyA(HbyA))``."""
+
     rAU: CellField
     """Reciprocal of the momentum diagonal, ``1/A(U)``."""
+
+    rAtU: CellField
+    """Pressure-equation coefficient (``rAU`` or the SIMPLEC value)."""
 
     HbyA: CellField
     """Explicit momentum contribution ``H(U)/A(U)``."""
@@ -122,7 +136,7 @@ class SIMPLE(AlgorithmBase):
     """Number of non-orthogonal pressure correctors."""
 
     consistent: bool
-    """Whether SIMPLEC-style consistent flux correction is enabled."""
+    """Whether the SIMPLEC formulation is enabled."""
 
     adjust_phi_enabled: bool
     """Whether ``adjustPhi`` continuity adjustment is enabled."""
@@ -140,7 +154,9 @@ class SIMPLE(AlgorithmBase):
         U_name = make_field_name("U", phase=phase)
         p_name = make_field_name("p", phase=phase)
         phi_name = make_field_name("phi", phase=phase)
+        phi_hbya_name = make_field_name("phiHbyA", phase=phase)
         rAU_name = make_field_name("rAU", phase=phase)
+        rAtU_name = make_field_name("rAtU", phase=phase)
         HbyA_name = make_field_name("HbyA", phase=phase)
 
         self.U = get_or_create_cellfield(
@@ -152,8 +168,19 @@ class SIMPLE(AlgorithmBase):
         self.phi = get_or_create_facefield(
             grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
         )
+        self.phi_hbya = get_or_create_facefield(
+            grid,
+            phi_hbya_name,
+            FieldRole.LOCAL,
+            1,
+            dimension=DIM_VOL_FLUX,
+            export=False,
+        )
         self.rAU = get_or_create_cellfield(
             grid, rAU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+        )
+        self.rAtU = get_or_create_cellfield(
+            grid, rAtU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
         )
         self.HbyA = get_or_create_cellfield(
             grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
@@ -297,7 +324,7 @@ class SIMPLE(AlgorithmBase):
         solve_stats[self.U.name] = u_result.stats
 
         # =========================================================
-        # Pressure equation assembly (HbyA and rAU)
+        # Pressure equation assembly (HbyA, rAU, phiHbyA)
         # =========================================================
         self.rAU.data = 1.0 / UEqn_mat.A()
 
@@ -305,65 +332,59 @@ class SIMPLE(AlgorithmBase):
         UEqn_mat.source = original_source
         self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
 
-        # Interpolate HbyA to faces and compute initial flux phi_HbyA
-        phi_hbya = compute_phi_hbya(self.phi, self.HbyA)
+        # phiHbyA = flux(constrainHbyA(HbyA, U)) on every face block
+        compute_phi_hbya(self.phi_hbya, self.HbyA, self.U)
+        if self.adjust_phi_enabled:
+            adjust_phi(self.phi_hbya, self.U, self.p)
+
+        # SIMPLEC: rAtU = 1/(1/rAU - H1) and consistent phiHbyA / HbyA
+        if self.consistent:
+            self.rAtU.data = simplec_rAtU(UEqn_mat, self.rAU)
+            apply_simplec(self.phi_hbya, self.HbyA, self.p, self.rAU, self.rAtU)
+        else:
+            self.rAtU.data = self.rAU.data
 
         # =========================================================
         # Pressure Poisson equation
         # =========================================================
-        # -∇・(rAU ∇p) = -∇・U*
+        # -∇・(rAtU ∇p) = -∇・phiHbyA
 
         logger.debug(
-            "SIMPLE continuity residual L2=%.3e",
-            continuity_residual(self.phi),
+            "SIMPLE predicted-flux divergence L2=%.3e",
+            continuity_residual(self.phi_hbya),
         )
 
         # Store old pressure for pressure under-relaxation
         p_old = self.p.data.clone()
 
         # solve pressure Poisson equation (uses pFinal when configured)
-        div_phi = fvc.div(self.phi).data
+        div_phi_hbya = fvc.div(self.phi_hbya).data
         p_solver = resolve_solver(self.solvers, self.p.name, is_final=True)
-        p_eqn_mat, p_stats = solve_pressure_poisson(
+        p_result = solve_pressure_poisson(
             self.p,
-            self.rAU,
-            div_phi,
+            self.rAtU,
+            div_phi_hbya,
             p_solver,
             n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
             p_needs_ref=self.p_needs_ref,
             p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
             p_ref_value=self.p_ref_value if self.p_needs_ref else None,
         )
-        solve_stats[self.p.name] = p_stats
+        solve_stats[self.p.name] = p_result.stats
 
         if self.p.name in self._residual_control:
-            self._record_residual(
-                self.p.name,
-                field_initial_residual(p_eqn_mat, self.p),
-            )
+            self._record_residual(self.p.name, p_result.initial_residual)
 
-        # flux correction with the unrelaxed pressure-equation solution.
-        correct_phi(
-            self.phi,
-            self.rAU,
-            self.p,
-            consistent=self.consistent,
-            phi_hbya=phi_hbya,
-            p_eqn_mat=p_eqn_mat,
-        )
+        # phi = phiHbyA - pEqn.flux() with the unrelaxed pressure solution.
+        correct_phi(self.phi, self.phi_hbya, p_result.matrix, self.p, self.rAtU)
 
         # apply pressure relaxation
         self.p.data = p_old + self.alpha_p * (self.p.data - p_old)
 
         # =========================================================
-        # Velocity and flux correction
+        # Velocity correction
         # =========================================================
-        correct_velocity(self.U, self.HbyA, self.rAU, self.p)
-        finalize_pressure_correction(
-            self.phi,
-            self.U,
-            adjust_phi_enabled=self.adjust_phi_enabled,
-        )  # boundary phi sync + optional adjustPhi
+        correct_velocity(self.U, self.HbyA, self.rAtU, self.p)
 
         if "phi" in self._residual_control:
             self._record_residual("phi", continuity_residual(self.phi))

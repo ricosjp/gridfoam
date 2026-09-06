@@ -48,7 +48,8 @@ Flux utilities
    :template: autosummary/function.rst
 
    correct_flux
-   set_phi_from_matrix_flux
+   compute_phi_hbya
+   flux_from_face_velocity
 
 Face geometry
 -------------

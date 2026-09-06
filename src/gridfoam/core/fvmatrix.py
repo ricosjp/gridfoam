@@ -194,6 +194,22 @@ class FvMatrix:
         """
         return self.diag / self.grid.cell_volumes
 
+    def H1(self) -> Float[torch.Tensor, " C 1"]:
+        """
+        OpenFOAM-style ``H1()`` operator.
+
+        Returns the negative row sum of the off-diagonal coefficients
+        normalised by the cell volume, ``-sum_N a_PN / V``. Used by the
+        SIMPLEC (``consistent``) formulation:
+        ``rAtU = 1 / (1/rAU - H1)``. Boundary contributions are already
+        folded into ``diag`` and therefore do not appear here, matching
+        OpenFOAM for non-coupled patches.
+        """
+        h1 = torch.zeros_like(self.diag)
+        h1.index_add_(0, self.grid.owner, -self.upper)
+        h1.index_add_(0, self.grid.neighbour, -self.lower)
+        return h1 / self.grid.cell_volumes
+
     def H(self, x: Float[torch.Tensor, " C k"]) -> Float[torch.Tensor, " C k"]:
         """
         OpenFOAM-style ``H()`` operator.

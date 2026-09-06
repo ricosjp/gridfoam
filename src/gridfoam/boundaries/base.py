@@ -35,6 +35,18 @@ class BoundaryCondition(ABC):
         """Serialized boundary-condition type."""
         pass
 
+    @property
+    def assignable(self) -> bool:
+        """
+        Whether the boundary value may be overwritten by the solution.
+
+        Mirrors OpenFOAM ``fvPatchField::assignable``. Fixed-value style
+        conditions return ``False`` so that ``constrainHbyA`` copies the
+        velocity boundary value into ``HbyA``; gradient-type and
+        inlet-outlet conditions return ``True``.
+        """
+        return True
+
     def dependencies(self, field: CellField) -> tuple[GeometricField, ...]:
         """
         Fields other than ``field`` that :meth:`evaluate` reads.

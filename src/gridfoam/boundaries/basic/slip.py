@@ -37,6 +37,12 @@ class SlipBC(BoundaryCondition):
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.SLIP
 
+    @property
+    def assignable(self) -> bool:
+        # OpenFOAM ``slipFvPatchField::assignable`` returns false: the wall
+        # flux is fixed to zero, so ``constrainHbyA`` must not extrapolate.
+        return False
+
     def component(self, c: int) -> BoundaryCondition:
         return self
 

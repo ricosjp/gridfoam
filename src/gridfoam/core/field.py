@@ -425,6 +425,25 @@ class FaceField(GeometricField):
         # Self-register in the grid field registry.
         grid.register_facefield(self)
 
+        self.update_history()
+
+    def update_history(self) -> None:
+        """
+        Store the current single-sided face values as the old time level.
+
+        An independent copy is always kept so that ``fvc.ddt_corr`` sees the
+        previous time-step flux even when the current values are updated in
+        place. The flux field is created as ``FieldRole.LOCAL`` by several
+        producers (potential-flow initialisation, diagnostics), so the role
+        is not used to decide whether to copy.
+        """
+        self._old_single_data = self._single_data.clone()
+
+    @property
+    def old_single_data(self) -> Float[torch.Tensor, " F_single k"]:
+        """Previous time-level single-sided values, ``[F_single, k]``."""
+        return self._old_single_data
+
     def state_token(self) -> tuple[int, ...]:
         """
         Fingerprint of all face blocks used for cache invalidation.
@@ -481,6 +500,8 @@ class FaceField(GeometricField):
             self._single_mask = new_mask
             self._single_data = full[new_mask]
             self._num_single_sided = int(new_mask.sum().item())
+        # The previous time level is undefined on the new face set.
+        self.update_history()
 
     # ================================
     # Grid Accessors
@@ -650,6 +671,9 @@ class FaceField(GeometricField):
             This field after the buffers have been moved.
         """
         self._single_data = self._single_data.to(
+            device=device, non_blocking=non_blocking
+        )
+        self._old_single_data = self._old_single_data.to(
             device=device, non_blocking=non_blocking
         )
         self._domain_bnd_data = self._domain_bnd_data.to(

@@ -2,6 +2,7 @@
 
 from tests.helpers.configs import (
     channel_config,
+    channel_flow_config,
     potential_flow_config,
     refined_3d_config,
     refined_config,
@@ -12,6 +13,7 @@ from tests.helpers.grids import refined_3d_grid, refined_grid
 
 __all__ = [
     "channel_config",
+    "channel_flow_config",
     "interior_mask",
     "linear_scalar_field",
     "potential_flow_config",

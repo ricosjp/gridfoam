@@ -1,54 +1,93 @@
 """Shared pressure-correction helpers for incompressible flow algorithms.
 
-These functions implement the pressure--velocity coupling steps common to
-SIMPLE, PISO, and PIMPLE after the momentum predictor solve.
+Common SIMPLE / PISO / PIMPLE steps after the momentum predictor
+(OpenFOAM ``pEqn.H`` structure):
+
+1. ``phiHbyA = flux(HbyA) [+ rAU_f * ddtCorr]``
+   (:func:`~gridfoam.fv.flux.compute_phi_hbya`).
+2. ``adjustPhi(phiHbyA, U, p)``.
+3. Optional SIMPLEC with ``rAtU`` (:func:`apply_simplec`).
+4. ``laplacian(rAtU, p) == div(phiHbyA)`` (:func:`solve_pressure_poisson`).
+5. ``phi = phiHbyA - pEqn.flux()`` (:func:`correct_phi`).
+6. ``U = HbyA - rAtU * grad(p)`` (:func:`correct_velocity`).
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import torch
 from jaxtyping import Float
 
 from gridfoam.algorithms.utils import set_reference_value
+from gridfoam.algorithms.utils.residual import field_initial_residual
 from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
-from gridfoam.fv.adjust_phi import adjust_phi
-from gridfoam.fv.flux import correct_flux, set_phi_from_matrix_flux
+from gridfoam.fv.boundary_ops import (
+    BoundaryState,
+    boundary_block,
+    iter_boundary_states,
+    outward_boundary_Sf,
+)
+from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.solvers.base import LinearSolver, SolveStats
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class PressureSolveResult:
+    """
+    Outcome of :func:`solve_pressure_poisson`.
+
+    Attributes
+    ----------
+    matrix : FvMatrix
+        Pressure-equation matrix of the last non-orthogonal pass
+        (``-laplacian(rAtU, p)`` with the divergence source applied).
+    stats : tuple[SolveStats, ...]
+        Linear-solver statistics of the last pass.
+    initial_residual : float
+        Normalised residual of the first pass evaluated with the pressure
+        field *before* solving, as used by ``residualControl``.
+    """
+
+    matrix: FvMatrix
+    stats: tuple[SolveStats, ...]
+    initial_residual: float
+
+
 def solve_pressure_poisson(
     p: CellField,
-    rAU: CellField,
-    div_phi: Float[torch.Tensor, " C 1"],
+    rAtU: CellField,
+    div_phi_hbya: Float[torch.Tensor, " C 1"],
     solver: LinearSolver,
     *,
     n_non_orthogonal_correctors: int,
     p_needs_ref: bool,
     p_ref_cell: int | None = None,
     p_ref_value: float | None = None,
-) -> tuple[FvMatrix, tuple[SolveStats, ...]]:
+) -> PressureSolveResult:
     """
     Solve the pressure Poisson equation with non-orthogonal correctors.
 
-    Assembles and solves ``-laplacian(rAU, p) = div(phi)`` (negative
-    Laplacian form) for each non-orthogonal corrector pass.
+    Assembles and solves ``-laplacian(rAtU, p) = -div(phiHbyA)`` for each
+    non-orthogonal corrector pass.
 
     Parameters
     ----------
     p : CellField
         Pressure field to solve.
-    rAU : CellField
-        Inverse momentum diagonal ``1 / A(U)``.
-    div_phi : torch.Tensor
-        Cell-centered divergence of the predicted face flux ``div(phi)``,
-        normalized by the cell volume as returned by ``fvc.div``.
+    rAtU : CellField
+        Diffusion coefficient of the pressure equation: ``1 / A(U)`` or the
+        SIMPLEC coefficient ``1 / (1/A - H1)``.
+    div_phi_hbya : torch.Tensor
+        Cell-centered divergence of the predicted face flux, normalized by
+        the cell volume as returned by ``fvc.div``.
     solver : LinearSolver
         Linear solver used for the pressure equation.
     n_non_orthogonal_correctors : int
@@ -62,17 +101,17 @@ def solve_pressure_poisson(
 
     Returns
     -------
-    tuple[FvMatrix, tuple[SolveStats, ...]]
-        Final pressure-equation matrix and per-component statistics from the
-        last solve.
+    PressureSolveResult
+        Final matrix, last solver statistics and the initial residual.
     """
     p_eqn_mat: FvMatrix | None = None
     last_stats: tuple[SolveStats, ...] | None = None
+    initial_residual: float | None = None
     # Explicit terms enter the matrix in volume-integrated form.
-    div_phi_source = div_phi * p.grid.cell_volumes
+    div_source = div_phi_hbya * p.grid.cell_volumes
     for corr in range(n_non_orthogonal_correctors + 1):
-        p_eqn_mat = -fvm.laplacian(rAU.data, p)
-        p_eqn_mat.source = p_eqn_mat.source - div_phi_source
+        p_eqn_mat = -fvm.laplacian(rAtU.data, p)
+        p_eqn_mat.source = p_eqn_mat.source - div_source
         if p_needs_ref:
             if p_ref_cell is None or p_ref_value is None:
                 raise ValueError(
@@ -80,6 +119,9 @@ def solve_pressure_poisson(
                     "p_needs_ref is True"
                 )
             set_reference_value(p_eqn_mat, p_ref_cell, p_ref_value)
+
+        if initial_residual is None:
+            initial_residual = field_initial_residual(p_eqn_mat, p)
 
         pressure_eq = equation(p, p_eqn_mat)
         solve_result = solver.solve(pressure_eq)
@@ -95,163 +137,185 @@ def solve_pressure_poisson(
 
     assert p_eqn_mat is not None
     assert last_stats is not None
-    return p_eqn_mat, last_stats
+    assert initial_residual is not None
+    return PressureSolveResult(p_eqn_mat, last_stats, initial_residual)
 
 
-def correct_phi_inconsistent(
-    phi: FaceField,
+def simplec_rAtU(
+    UEqn_mat: FvMatrix,
     rAU: CellField,
-    p: CellField,
-    phi_hbya: Float[torch.Tensor, " F_single 1"],
-) -> None:
+    *,
+    bounded: bool = True,
+) -> Float[torch.Tensor, " C 1"]:
     """
-    Correct face flux with the inconsistent pressure-gradient formulation.
-
-    OpenFOAM default when ``consistent`` is disabled:
-
-    ``phi = phi_HbyA - rAU_f * |Sf| * snGrad(p)``.
-
-    Only single-sided internal faces in ``phi.single_data`` are updated;
-    boundary fluxes are synchronized later by ``finalize_pressure_correction``.
+    SIMPLEC pressure-equation coefficient ``rAtU = 1 / (1/rAU - H1)``.
 
     Parameters
     ----------
-    phi : FaceField
-        Face flux field to update.
+    UEqn_mat : FvMatrix
+        Assembled (and relaxed) momentum matrix.
     rAU : CellField
-        Inverse momentum diagonal.
-    p : CellField
-        Pressure field used for the surface-normal gradient.
-    phi_hbya : torch.Tensor
-        Predicted face flux ``HbyA_f & Sf`` before pressure correction.
+        Inverse momentum diagonal ``1 / A(U)``.
+    bounded : bool, default True
+        If True (default), apply the OpenFOAM ``pimpleFoam`` safeguard
+        ``1 / max(1/rAU - H1, 0.1/rAU)``. On octree / immersed-boundary
+        meshes ``1/rAU - H1`` can lose positivity, which would make
+        ``rAtU`` negative and break the pressure CG solve. Set ``False``
+        only to match the unbounded ``simpleFoam`` formula on well-behaved
+        meshes.
+
+    Returns
+    -------
+    torch.Tensor
+        ``rAtU`` cell values with shape ``[C, 1]``.
     """
-    sn_grad_p = fvc.sn_grad(p)
-    rAU_f = fvc.interpolate(rAU)
-    mag_Sf = torch.linalg.vector_norm(
-        phi.grid.Sf[phi.single_mask], dim=1, keepdim=True
-    )
-    set_phi_from_matrix_flux(
-        phi,
-        phi_hbya - rAU_f.single_data * mag_Sf * sn_grad_p.single_data,
-    )
+    inv = 1.0 / rAU.data - UEqn_mat.H1()
+    if bounded:
+        inv = torch.maximum(inv, 0.1 / rAU.data)
+    return 1.0 / inv
 
 
-def correct_phi_from_pressure_equation(
-    phi: FaceField,
-    p_eqn_mat: FvMatrix,
+def _boundary_sn_grad(
+    state: BoundaryState, p_data: Float[torch.Tensor, " C k"]
+) -> Float[torch.Tensor, " F_any k"]:
+    """Boundary-normal gradient ``(psi_b - p_P) / |d|``."""
+    batch = state.batch
+    return (state.psi_b - p_data[batch.target_cells]) / batch.mag_d
+
+
+def _add_boundary_sn_grad_flux(
+    face_field: FaceField,
     p: CellField,
-    phi_hbya: Float[torch.Tensor, " F_single 1"],
+    cell_coeff: Float[torch.Tensor, " C 1"],
+    *,
+    sign: float,
 ) -> None:
     """
-    Correct face flux using the solved pressure-equation matrix flux.
+    Add ``sign * coeff_P * |Sf| * snGrad(p)_b`` on every pressure boundary.
+    """
+    grid = p.grid
+    p_data = p.data
+    for state in iter_boundary_states(p):
+        batch = state.batch
+        mag_Sf = torch.linalg.vector_norm(
+            outward_boundary_Sf(grid, batch), dim=1, keepdim=True
+        )
+        correction = (
+            sign
+            * cell_coeff[batch.target_cells]
+            * mag_Sf
+            * _boundary_sn_grad(state, p_data)
+        )
+        block = boundary_block(face_field, batch.face_kind)
+        block[batch.face_mask] = block[batch.face_mask] + correction
 
-    OpenFOAM ``consistent`` formulation. The assembled matrix is
-    ``-laplacian(rAU, p)``, so the diffusive flux uses the positive operator:
 
-    ``phi = phi_HbyA - (-pEqn).flux(p)``.
+def _copy_boundary_flux(dst: FaceField, src: FaceField) -> None:
+    """Copy domain and immersed boundary flux blocks from ``src`` to ``dst``."""
+    dst.domain_bnd_data = src.domain_bnd_data.clone()
+    grid = dst.grid
+    if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
+        dst.immersed_upper = src.immersed_upper.clone()
+        dst.immersed_lower = src.immersed_lower.clone()
+
+
+def apply_simplec(
+    phi_hbya: FaceField,
+    HbyA: CellField,
+    p: CellField,
+    rAU: CellField,
+    rAtU: CellField,
+) -> None:
+    """
+    Apply the SIMPLEC (``consistent``) corrections to ``phiHbyA``/``HbyA``.
+
+    ``phiHbyA += interpolate(rAtU - rAU) * snGrad(p) * |Sf|`` and
+    ``HbyA -= (rAU - rAtU) * grad(p)``, as in OpenFOAM ``simpleFoam`` /
+    ``pimpleFoam`` with ``consistent yes``. Boundary faces use the boundary
+    normal gradient implied by the pressure boundary condition.
 
     Parameters
     ----------
-    phi : FaceField
-        Face flux field to update.
-    p_eqn_mat : FvMatrix
-        Solved negative-Laplacian pressure equation matrix.
+    phi_hbya : FaceField
+        Predicted flux, updated in place on all blocks.
+    HbyA : CellField
+        Momentum predictor, updated in place.
     p : CellField
-        Pressure field passed to ``FvMatrix.flux``.
-    phi_hbya : torch.Tensor
-        Predicted face flux ``HbyA_f & Sf`` before pressure correction.
+        Current pressure.
+    rAU : CellField
+        ``1 / A(U)``.
+    rAtU : CellField
+        SIMPLEC coefficient from :func:`simplec_rAtU`.
     """
-    flux_p = (-p_eqn_mat).flux(p.data)
-    set_phi_from_matrix_flux(phi, phi_hbya - flux_p)
+    geo = face_geometry(p.grid)
+    d_r = rAtU.data - rAU.data
+    d_r_f = geo.w_s * d_r[geo.owner_s] + (1.0 - geo.w_s) * d_r[geo.neighbour_s]
+    sn_grad_p = fvc.sn_grad(p).single_data
+    phi_hbya.single_data = (
+        phi_hbya.single_data + d_r_f * geo.mag_Sf_s * sn_grad_p
+    )
+    _add_boundary_sn_grad_flux(phi_hbya, p, d_r, sign=1.0)
+
+    grad_p = fvc.grad(p)
+    HbyA.data = HbyA.data - (rAU.data - rAtU.data) * grad_p.data
 
 
 def correct_phi(
     phi: FaceField,
-    rAU: CellField,
-    p: CellField,
-    *,
-    consistent: bool = False,
-    phi_hbya: Float[torch.Tensor, " F_single 1"],
+    phi_hbya: FaceField,
     p_eqn_mat: FvMatrix,
+    p: CellField,
+    rAtU: CellField,
 ) -> None:
     """
-    Apply pressure flux correction after the Poisson solve.
+    Set ``phi = phiHbyA - pEqn.flux()`` on internal and boundary faces.
 
-    Dispatches to the consistent matrix-flux path or the inconsistent
-    ``snGrad(p)`` path according to ``consistent``.
+    Internal faces use :meth:`~gridfoam.core.fvmatrix.FvMatrix.flux`
+    (including hanging-node correction). Boundary faces use
+    ``rAtU_P |Sf| (p_b - p_P) / |d|``, which is zero on zero-gradient
+    patches. The result is discretely divergence-free to solver tolerance.
 
     Parameters
     ----------
     phi : FaceField
         Face flux field to update.
-    rAU : CellField
-        Inverse momentum diagonal (used only when ``consistent=False``).
-    p : CellField
-        Pressure field used for correction.
-    consistent : bool, optional
-        If ``True``, use ``FvMatrix.flux`` (OpenFOAM ``consistent yes``).
-        If ``False``, use ``rAU_f * |Sf| * snGrad(p)``.
-    phi_hbya : torch.Tensor
-        Predicted face flux ``HbyA_f & Sf`` before pressure correction.
+    phi_hbya : FaceField
+        Predicted flux from ``compute_phi_hbya`` (after ``adjust_phi`` /
+        ``apply_simplec`` when used).
     p_eqn_mat : FvMatrix
-        Solved negative-Laplacian pressure equation matrix.
+        Solved negative-Laplacian pressure matrix.
+    p : CellField
+        Solved pressure.
+    rAtU : CellField
+        Diffusion coefficient of the pressure equation.
     """
-    if consistent:
-        correct_phi_from_pressure_equation(phi, p_eqn_mat, p, phi_hbya)
-    else:
-        correct_phi_inconsistent(phi, rAU, p, phi_hbya)
+    flux_p = (-p_eqn_mat).flux(p.data)
+    phi.single_data = phi_hbya.single_data - flux_p
+    _copy_boundary_flux(phi, phi_hbya)
+    _add_boundary_sn_grad_flux(phi, p, rAtU.data, sign=-1.0)
 
 
 def correct_velocity(
     U: CellField,
     HbyA: CellField,
-    rAU: CellField,
+    rAtU: CellField,
     p: CellField,
 ) -> None:
     """
     Correct cell-centered velocity after the pressure solve.
 
-    ``U = HbyA - rAU * grad(p)``.
+    ``U = HbyA - rAtU * grad(p)``.
 
     Parameters
     ----------
     U : CellField
         Velocity field to update.
     HbyA : CellField
-        Momentum predictor ``H(U) / A(U)``.
-    rAU : CellField
-        Inverse momentum diagonal.
+        Momentum predictor ``H(U) / A(U)`` (SIMPLEC-adjusted if enabled).
+    rAtU : CellField
+        Diffusion coefficient used in the pressure equation.
     p : CellField
         Pressure field used for the gradient correction.
     """
     grad_p = fvc.grad(p)
-    U.data = HbyA.data - rAU.data * grad_p.data
-
-
-def finalize_pressure_correction(
-    phi: FaceField,
-    U: CellField,
-    *,
-    adjust_phi_enabled: bool = True,
-) -> None:
-    """
-    Synchronize boundary fluxes and optionally apply ``adjustPhi``.
-
-    Notes
-    -----
-    1. ``correct_flux(phi, U)`` rebuilds boundary face fluxes from ``U`` BCs.
-    2. ``adjust_phi(phi, U)`` scales adjustable outlet fluxes for mass balance
-       when enabled.
-
-    Parameters
-    ----------
-    phi : FaceField
-        Face flux field to synchronize.
-    U : CellField
-        Velocity field used for boundary flux reconstruction.
-    adjust_phi_enabled : bool, optional
-        Whether to call ``adjust_phi`` after boundary synchronization.
-    """
-    correct_flux(phi, U)
-    if adjust_phi_enabled:
-        adjust_phi(phi, U)
+    U.data = HbyA.data - rAtU.data * grad_p.data

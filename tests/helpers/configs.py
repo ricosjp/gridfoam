@@ -22,6 +22,8 @@ from gridfoam.meta.config import (
     ManualAlgorithm,
     NewtonianTransportConfig,
     OutputConfig,
+    PIMPLEAlgorithm,
+    PISOAlgorithm,
     PotentialFlowConfig,
     PropertiesConfig,
     RefinementRegionConfig,
@@ -324,6 +326,135 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
                 transport=NewtonianTransportConfig(
                     type=TransportModelType.NEWTONIAN,
                     nu=0.1,
+                ),
+                turbulence=LaminarConfig(type=TurbulenceType.LAMINAR),
+            ),
+            device=DeviceType.CPU,
+        ),
+    )
+
+
+def channel_flow_config(
+    output_dir: pathlib.Path,
+    algorithm: SIMPLEAlgorithm | PISOAlgorithm | PIMPLEAlgorithm,
+    *,
+    p_outlet: BoundaryConditionType = BoundaryConditionType.DIRICHLET,
+    walls: BoundaryConditionType = BoundaryConditionType.SLIP,
+    refined: bool = True,
+) -> GridfoamConfig:
+    """
+    Inlet/outlet channel for pressure--velocity coupling tests.
+
+    Dirichlet velocity inlet at ``x_minus``, ``inletOutlet`` velocity at
+    ``x_plus``, slip or no-slip (Dirichlet) walls at ``y_minus``/``y_plus``.
+    The outlet pressure is Dirichlet (fixed level) or Neumann (requires
+    ``pRefCell``/``adjustPhi``). With ``refined`` a centred level-1 region
+    adds hanging-node faces.
+    """
+    p_bcs = {
+        "fixedFluxWalls": BoundaryConditionConfig(
+            type=BoundaryConditionType.FIXED_FLUX_PRESSURE,
+            patches=[DomainBoundaryPatch.X_MINUS.value],
+        ),
+        "walls": BoundaryConditionConfig(
+            type=BoundaryConditionType.NEUMANN,
+            patches=[
+                DomainBoundaryPatch.Y_MINUS.value,
+                DomainBoundaryPatch.Y_PLUS.value,
+            ],
+            value=[0.0],
+        ),
+        "outlet": BoundaryConditionConfig(
+            type=p_outlet,
+            patches=[DomainBoundaryPatch.X_PLUS.value],
+            value=[0.0],
+        ),
+    }
+    refinement_regions = (
+        [
+            RefinementRegionConfig(
+                name="center",
+                min=[0.75, 0.0, 0.0],
+                max=[1.25, 0.5, 0.1],
+                level=1,
+            )
+        ]
+        if refined
+        else []
+    )
+    steady = isinstance(algorithm, SIMPLEAlgorithm)
+    return GridfoamConfig(
+        fluxel=FluxelConfig(
+            domain=DomainConfig(
+                lower=[0.0, 0.0, 0.0],
+                upper=[2.0, 0.5, 0.1],
+            ),
+            root_resolution=[8, 2, 1],
+            target_level=0,
+            n_leaf_refinement=0,
+            mesh_path=None,
+            ibm_type=IbmType.AXIS_PROJECTED,
+            refinement_regions=refinement_regions,
+        ),
+        simulator=SimulatorConfig(
+            control=ControlConfig(
+                deltaT=1.0 if steady else 0.05,
+                endTime=10.0 if steady else 1.0,
+                writeInterval=1,
+                output=OutputConfig(output_dir=output_dir, base_name="chan"),
+                precision=PrecisionType.FLOAT64,
+            ),
+            fvSchemes=fvSchemesConfig(),
+            fvSolution=fvSolutionConfig(
+                algorithm=algorithm,
+                solvers={
+                    "U": SolverConfig(
+                        method=SolverType.BiCGSTAB,
+                        tolerance=1e-12,
+                        rel_tolerance=0.0,
+                    ),
+                    "p": SolverConfig(
+                        method=SolverType.CG,
+                        tolerance=1e-12,
+                        rel_tolerance=0.0,
+                    ),
+                },
+            ),
+            conditions={
+                "U": ConditionConfig(
+                    dimension=dimension_config(DIM_VELOCITY),
+                    internal=[1.0, 0.0, 0.0],
+                    boundary={
+                        "inlet": BoundaryConditionConfig(
+                            type=BoundaryConditionType.DIRICHLET,
+                            patches=[DomainBoundaryPatch.X_MINUS.value],
+                            value=[1.0, 0.0, 0.0],
+                        ),
+                        "outlet": BoundaryConditionConfig(
+                            type=BoundaryConditionType.INLET_OUTLET,
+                            patches=[DomainBoundaryPatch.X_PLUS.value],
+                            value=[0.0, 0.0, 0.0],
+                        ),
+                        "walls": BoundaryConditionConfig(
+                            type=walls,
+                            patches=[
+                                DomainBoundaryPatch.Y_MINUS.value,
+                                DomainBoundaryPatch.Y_PLUS.value,
+                            ],
+                            value=[0.0, 0.0, 0.0],
+                        ),
+                    },
+                ),
+                "p": ConditionConfig(
+                    dimension=dimension_config(DIM_KIN_PRESSURE),
+                    internal=[0.0],
+                    boundary=p_bcs,
+                ),
+            },
+            properties=PropertiesConfig(
+                transport=NewtonianTransportConfig(
+                    type=TransportModelType.NEWTONIAN,
+                    nu=0.01,
                 ),
                 turbulence=LaminarConfig(type=TurbulenceType.LAMINAR),
             ),

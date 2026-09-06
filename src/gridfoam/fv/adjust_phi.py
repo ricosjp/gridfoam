@@ -41,7 +41,9 @@ def _patch_fixes_value(U: CellField, patch: PatchName) -> bool:
     return isinstance(bc, DirichletBC)
 
 
-def adjust_phi(phi: FaceField, U: CellField) -> None:
+def adjust_phi(
+    phi: FaceField, U: CellField, p: CellField | None = None
+) -> bool:
     """
     Scale adjustable outlet boundary fluxes to satisfy global continuity.
 
@@ -50,7 +52,10 @@ def adjust_phi(phi: FaceField, U: CellField) -> None:
 
     ``massCorr = (massIn - fixedMassOut) / adjustableMassOut``.
 
-    Only outflow faces (``phi > 0``) on adjustable patches are scaled.
+    Only outflow faces (``phi > 0``) on adjustable patches are scaled. The
+    function is meant to be applied to the predicted flux ``phiHbyA``
+    before the pressure equation is assembled, so that the pure-Neumann
+    Poisson problem has a compatible right-hand side.
 
     Parameters
     ----------
@@ -58,16 +63,28 @@ def adjust_phi(phi: FaceField, U: CellField) -> None:
         Face flux field to adjust on domain boundaries.
     U : CellField
         Velocity field used to classify patch adjustability.
+    p : CellField or None, optional
+        Pressure field. As in OpenFOAM, no adjustment is made when the
+        pressure level is fixed by a Dirichlet condition (the flux balance
+        is then set by the pressure solution). ``None`` always adjusts.
+
+    Returns
+    -------
+    bool
+        ``True`` when the flux was adjusted.
     """
+    if p is not None and any(
+        isinstance(bc, DirichletBC) for bc in p.bcs.values()
+    ):
+        # Pressure level is fixed: OpenFOAM ``adjustPhi`` is a no-op.
+        return False
     grid = phi.grid
     mass_in = torch.zeros((), dtype=grid.dtype, device=grid.device)
     fixed_mass_out = torch.zeros((), dtype=grid.dtype, device=grid.device)
     adjustable_mass_out = torch.zeros((), dtype=grid.dtype, device=grid.device)
 
-    for patch, bc in U.bcs.items():
+    for patch in U.bcs:
         if not isinstance(patch, DomainBoundaryPatch):
-            continue
-        if bc is None:
             continue
 
         mask = grid.get_domain_bnd_mask(patch)
@@ -85,7 +102,7 @@ def adjust_phi(phi: FaceField, U: CellField) -> None:
             adjustable_mass_out = adjustable_mass_out + phip[outflow].sum()
 
     if adjustable_mass_out.item() <= 0.0:
-        return
+        return False
 
     mass_corr = (mass_in - fixed_mass_out) / adjustable_mass_out
 
@@ -107,3 +124,4 @@ def adjust_phi(phi: FaceField, U: CellField) -> None:
                 phip * mass_corr,
                 phip,
             )
+    return True

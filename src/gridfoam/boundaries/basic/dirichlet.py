@@ -37,6 +37,10 @@ class DirichletBC(BoundaryCondition):
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.DIRICHLET
 
+    @property
+    def assignable(self) -> bool:
+        return False
+
     def component(self, c: int) -> BoundaryCondition:
         return DirichletBC(self.value[c : c + 1])
 

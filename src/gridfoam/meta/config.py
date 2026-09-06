@@ -400,7 +400,13 @@ class SIMPLEAlgorithm(BaseModel, frozen=True):
     consistent: bool = Field(default=False)
     """
     consistent : bool, default=False
-        Use the consistent pressure-correction formulation when ``True``.
+        Enable the SIMPLEC formulation as in OpenFOAM ``simpleFoam``
+        (``SIMPLE { consistent yes; }``): the pressure equation uses
+        ``rAtU = 1/max(1/A(U) - H1, 0.1/A(U))`` (pimpleFoam-style bound,
+        required for positivity on octree / immersed-boundary meshes) and
+        ``phiHbyA``/``HbyA`` receive the matching ``(rAtU - rAU)``
+        corrections. Typically combined with a momentum relaxation factor
+        of ~0.9 and pressure relaxation of 1.0.
     """
     relaxationFactors: RelaxationFactorsConfig = Field(
         default_factory=RelaxationFactorsConfig
@@ -479,7 +485,10 @@ class PIMPLEAlgorithm(BaseModel, frozen=True):
     consistent: bool = Field(default=False)
     """
     consistent : bool, default=False
-        Use the consistent pressure-correction formulation when ``True``.
+        Enable the SIMPLEC formulation as in OpenFOAM ``pimpleFoam``
+        (``PIMPLE { consistent yes; }``): the pressure equation uses
+        ``rAtU = 1/max(1/A(U) - H1, 0.1/A(U))`` and ``phiHbyA``/``HbyA``
+        receive the matching ``(rAtU - rAU)`` corrections.
     """
     pRefCell: int | None = Field(default=None, ge=0)
     """

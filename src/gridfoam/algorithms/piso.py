@@ -6,7 +6,6 @@ from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.utils.pressure_correction import (
     correct_phi,
     correct_velocity,
-    finalize_pressure_correction,
     solve_pressure_poisson,
 )
 from gridfoam.algorithms.utils.reference_value import needs_reference_value
@@ -27,7 +26,10 @@ from gridfoam.core.field import (
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
+from gridfoam.fv.adjust_phi import adjust_phi
 from gridfoam.fv.flux import compute_phi_hbya, correct_flux
+from gridfoam.fv.kernels.face_geometry import face_geometry
+from gridfoam.fv.kernels.face_interpolation import linear_internal_face_values
 from gridfoam.meta.config import PISOAlgorithm
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
@@ -46,8 +48,9 @@ class PISO(AlgorithmBase):
     Solves transient incompressible Navier-Stokes equations.
 
     The last pressure corrector uses the ``pFinal`` solver when configured.
-    Flux correction always follows the inconsistent ``snGrad(p)`` path because
-    OpenFOAM PISO has no ``consistent`` option in ``fvSolution``.
+    The predicted flux includes ``interpolate(rAU) * ddtCorr(U, phi)`` as in
+    OpenFOAM ``pisoFoam``. OpenFOAM PISO has no ``consistent`` (SIMPLEC)
+    option in ``fvSolution``, so ``rAtU == rAU``.
 
     Parameters
     ----------
@@ -64,8 +67,12 @@ class PISO(AlgorithmBase):
         Pressure field with shape ``[C, 1]``.
     phi : FaceField
         Volumetric face flux.
+    phi_hbya : FaceField
+        Predicted flux ``flux(constrainHbyA(HbyA)) + rAU_f ddtCorr``.
     rAU : CellField
         Reciprocal of the momentum diagonal, ``1/A(U)``.
+    rAtU : CellField
+        Pressure-equation coefficient; always equal to ``rAU`` for PISO.
     HbyA : CellField
         Explicit momentum contribution ``H(U)/A(U)``.
     solvers : dict[str, LinearSolver]
@@ -75,7 +82,7 @@ class PISO(AlgorithmBase):
     n_non_orthogonal_correctors : int
         Number of non-orthogonal pressure correctors.
     consistent : bool
-        Always ``False``; PISO uses the inconsistent flux path.
+        Always ``False``; PISO has no SIMPLEC option.
     adjust_phi_enabled : bool
         Whether ``adjustPhi`` continuity adjustment is enabled.
     p_needs_ref : bool
@@ -99,8 +106,14 @@ class PISO(AlgorithmBase):
     phi: FaceField
     """Volumetric face flux."""
 
+    phi_hbya: FaceField
+    """Predicted flux ``flux(constrainHbyA(HbyA)) + rAU_f ddtCorr``."""
+
     rAU: CellField
     """Reciprocal of the momentum diagonal, ``1/A(U)``."""
+
+    rAtU: CellField
+    """Pressure-equation coefficient; equal to ``rAU`` for PISO."""
 
     HbyA: CellField
     """Explicit momentum contribution ``H(U)/A(U)``."""
@@ -112,7 +125,7 @@ class PISO(AlgorithmBase):
     """Number of non-orthogonal pressure correctors."""
 
     consistent: bool
-    """Always ``False``; PISO uses the inconsistent flux path."""
+    """Always ``False``; PISO has no SIMPLEC option."""
 
     adjust_phi_enabled: bool
     """Whether ``adjustPhi`` continuity adjustment is enabled."""
@@ -130,7 +143,9 @@ class PISO(AlgorithmBase):
         U_name = make_field_name("U", phase=phase)
         p_name = make_field_name("p", phase=phase)
         phi_name = make_field_name("phi", phase=phase)
+        phi_hbya_name = make_field_name("phiHbyA", phase=phase)
         rAU_name = make_field_name("rAU", phase=phase)
+        rAtU_name = make_field_name("rAtU", phase=phase)
         HbyA_name = make_field_name("HbyA", phase=phase)
 
         self.U = get_or_create_cellfield(
@@ -142,8 +157,19 @@ class PISO(AlgorithmBase):
         self.phi = get_or_create_facefield(
             grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
         )
+        self.phi_hbya = get_or_create_facefield(
+            grid,
+            phi_hbya_name,
+            FieldRole.LOCAL,
+            1,
+            dimension=DIM_VOL_FLUX,
+            export=False,
+        )
         self.rAU = get_or_create_cellfield(
             grid, rAU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+        )
+        self.rAtU = get_or_create_cellfield(
+            grid, rAtU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
         )
         self.HbyA = get_or_create_cellfield(
             grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
@@ -162,7 +188,7 @@ class PISO(AlgorithmBase):
         self.n_non_orthogonal_correctors = (
             algorithm_config.nNonOrthogonalCorrectors
         )
-        # PISO has no consistent option in fvSolution; use inconsistent flux.
+        # PISO has no consistent (SIMPLEC) option in fvSolution.
         self.consistent = False
         self.adjust_phi_enabled = grid.sim_config.fvSolution.adjustPhi
 
@@ -180,6 +206,7 @@ class PISO(AlgorithmBase):
             self.p_ref_value = algorithm_config.pRefValue
 
         correct_flux(self.phi, self.U, update_internal=True)
+        self.phi.update_history()
 
     @property
     def grid(self) -> IGridBase:
@@ -198,6 +225,7 @@ class PISO(AlgorithmBase):
 
     def step(self):
         grid = self.grid
+        geo = face_geometry(grid)
         logger.info("PISO step start n_correctors=%d", self.n_correctors)
         solve_stats: dict[str, tuple[SolveStats, ...]] = {}
 
@@ -237,49 +265,46 @@ class PISO(AlgorithmBase):
             UEqn_mat.source = original_source
             self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
 
-            # Interpolate HbyA to faces and compute phi_HbyA
-            phi_hbya = compute_phi_hbya(self.phi, self.HbyA)
+            # phiHbyA = flux(constrainHbyA(HbyA)) + rAU_f * ddtCorr(U, phi)
+            rAU_f = linear_internal_face_values(self.rAU, geo)
+            compute_phi_hbya(
+                self.phi_hbya,
+                self.HbyA,
+                self.U,
+                ddt_corr=rAU_f * fvc.ddt_corr(self.U, self.phi),
+            )
+            if self.adjust_phi_enabled:
+                adjust_phi(self.phi_hbya, self.U, self.p)
+            self.rAtU.data = self.rAU.data
 
             logger.debug(
-                "PISO continuity residual L2=%.3e",
-                continuity_residual(self.phi),
+                "PISO predicted-flux divergence L2=%.3e",
+                continuity_residual(self.phi_hbya),
             )
 
             # solve pressure Poisson equation (pFinal on last corrector)
-            div_phi = fvc.div(self.phi).data
+            div_phi_hbya = fvc.div(self.phi_hbya).data
             is_final = i == self.n_correctors - 1
             p_solver = resolve_solver(
                 self.solvers, self.p.name, is_final=is_final
             )
-            p_eqn_mat, p_stats = solve_pressure_poisson(
+            p_result = solve_pressure_poisson(
                 self.p,
-                self.rAU,
-                div_phi,
+                self.rAtU,
+                div_phi_hbya,
                 p_solver,
                 n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
                 p_needs_ref=self.p_needs_ref,
                 p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
                 p_ref_value=self.p_ref_value if self.p_needs_ref else None,
             )
-            solve_stats[self.p.name] = p_stats
+            solve_stats[self.p.name] = p_result.stats
 
-            # flux correction
+            # phi = phiHbyA - pEqn.flux(); U = HbyA - rAU grad(p)
             correct_phi(
-                self.phi,
-                self.rAU,
-                self.p,
-                consistent=self.consistent,
-                phi_hbya=phi_hbya,
-                p_eqn_mat=p_eqn_mat,
+                self.phi, self.phi_hbya, p_result.matrix, self.p, self.rAtU
             )
-
-            # Velocity and flux correction
-            correct_velocity(self.U, self.HbyA, self.rAU, self.p)
-            finalize_pressure_correction(
-                self.phi,
-                self.U,
-                adjust_phi_enabled=self.adjust_phi_enabled,
-            )
+            correct_velocity(self.U, self.HbyA, self.rAtU, self.p)
             logger.debug(
                 "PISO corrected flux L2=%.3e",
                 torch.linalg.vector_norm(self.phi.single_data, ord=2).item(),
@@ -290,5 +315,6 @@ class PISO(AlgorithmBase):
         # =========================================================
         self.turbulence.correct(self.U, self.phi)
         self.U.update_history()
+        self.phi.update_history()
         self._finalize_diagnostics(self.phi, solve_stats)
         logger.info("PISO step end")
