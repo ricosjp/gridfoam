@@ -1,10 +1,13 @@
-# Moving square prism with a fixed background mesh.
-# Small +x translation stays inside the refined band, so update_ib
-# refreshes IBM data without AMR reconstruction.
+# Translating square prism on a fixed background mesh.
+# Rest pose [0.4, 0.6] x [0.4, 0.6]; U_wall = (1.5, 0, 0) for 0.20
+# (travel 0.30). The refinement corridor covers that path so update_ib
+# can refresh IBM data without leaving target_level.
 version: 0.0.1
 
 inlet_speed: &inlet_speed 1.0
+body_speed: &body_speed 1.5
 flow_velocity: &flow_velocity [*inlet_speed, 0.0, 0.0]
+body_velocity: &body_velocity [*body_speed, 0.0, 0.0]
 
 fluxel:
   domain:
@@ -16,6 +19,11 @@ fluxel:
   mesh_path: "examples/dynamic_motions/update_ib/data/cube.stl"
   ibm_type: axis_projected
   motion: dynamic
+  refinement_regions:
+    - name: travel_corridor
+      min: [0.25, 0.25, 0.0]
+      max: [1.10, 0.75, 0.1]
+      level: 2
 
 simulator:
   control:
@@ -84,7 +92,7 @@ simulator:
         wall:
           type: dirichlet
           patches: [_default]
-          value: [0.0, 0.0, 0.0]
+          value: *body_velocity
     p:
       # Kinematic pressure (p/rho): L^2/T^2
       dimension: {L: 2, T: -2}
@@ -106,9 +114,8 @@ simulator:
           type: empty
           patches: [z_minus, z_plus]
         wall:
-          type: neumann
+          type: fixed_flux_pressure
           patches: [_default]
-          value: [0.0]
   properties:
     transport:
       type: newtonian

@@ -1,8 +1,10 @@
 """PISO flow around a translating square prism using ``remesh``.
 
-The body travels farther than the initial surface-refinement band.
-``remesh`` rebuilds AMR around the current pose every step. ``U``, ``p``,
-and ``phi`` are nearest-neighbour mapped from the previous mesh.
+The body leaves the initial surface-refinement band. ``remesh`` rebuilds
+AMR around the current pose every step. ``U``, ``p``, and ``phi`` are
+nearest-neighbour mapped from the previous mesh. Each step poses the
+body, maps fields, sets the immersed Dirichlet to the body velocity,
+then solves.
 """
 
 from __future__ import annotations
@@ -24,14 +26,14 @@ if str(_REPO_ROOT) not in sys.path:
 
 from examples.dynamic_motions._common import (  # noqa: E402
     configure_run_logger,
-    refresh_flux,
+    immersed_wall_velocity,
+    set_immersed_wall_velocity,
     write_square_prism_stl,
     write_step_outputs,
 )
 
-# Rest-position prism (x, y, z) and constant +x body speed.
+# Rest-position prism (xmin, xmax, ymin, ymax, zmin, zmax).
 BODY_BOUNDS = (0.40, 0.60, 0.40, 0.60, 0.00, 0.10)
-BODY_SPEED = 1.5
 
 
 def main() -> None:
@@ -47,32 +49,30 @@ def main() -> None:
         raise ValueError("Manual algorithm has no step sequence")
 
     algorithm = create_algorithm(grid)
+    body_velocity = immersed_wall_velocity(grid)
     control = grid.sim_config.control
     n_steps = int(control.endTime / control.deltaT)
     output_dir = Path(control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "remesh demo: n_cells=%d immersed=%d n_steps=%d speed=%.3f",
+        "remesh demo: n_cells=%d immersed=%d n_steps=%d U_wall=%s",
         grid.num_cells,
         grid.num_immersed_faces,
         n_steps,
-        BODY_SPEED,
+        body_velocity,
     )
 
     for step in range(1, n_steps + 1):
-        algorithm.step()
-
         time = step * control.deltaT
-        translation = [BODY_SPEED * time, 0.0, 0.0]
+        translation = [v * time for v in body_velocity]
         snapshot = capture_volume_fields(grid)
-        grid.remesh(
-            translation=translation,
-            warn_outside_refinement=False,
-        )
+        grid.remesh(translation=translation)
         map_volume_fields(grid, snapshot)
+        set_immersed_wall_velocity(grid, body_velocity)
         algorithm = create_algorithm(grid)
-        refresh_flux(grid, update_internal=False)
+
+        algorithm.step()
 
         if step % control.writeInterval == 0 or step == n_steps:
             write_step_outputs(

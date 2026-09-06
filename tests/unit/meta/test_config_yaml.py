@@ -8,6 +8,7 @@ import yaml
 from pydantic import ValidationError
 
 from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
+from gridfoam.meta.enums import BoundaryConditionType
 
 
 def test_example_cavity_config_loads():
@@ -76,6 +77,15 @@ def test_dynamic_motion_example_configs_load():
             raw = yaml.safe_load(f)
         cfg = GridfoamConfig.model_validate(raw)
         assert cfg.fluxel.motion.value == "dynamic"
+        u_wall = cfg.simulator.conditions["U"].boundary["wall"]
+        assert u_wall.type == BoundaryConditionType.DIRICHLET
+        assert u_wall.value == [1.5, 0.0, 0.0]
+        p_wall = cfg.simulator.conditions["p"].boundary["wall"]
+        assert p_wall.type == BoundaryConditionType.FIXED_FLUX_PRESSURE
+        if "update_ib" in rel:
+            assert len(cfg.fluxel.refinement_regions) >= 1
+        else:
+            assert cfg.fluxel.refinement_regions == []
 
 
 def test_fluxel_motion_rejects_unknown_value():

@@ -1,7 +1,9 @@
 """PISO flow around a translating square prism using ``update_ib``.
 
-The background mesh is fixed. A wide refinement band covers the travel
-path so IBM data can be refreshed without AMR reconstruction.
+The background mesh is fixed. A refinement corridor covers the short
++x travel so IBM data stays at ``target_level``. Each step poses the
+body, sets the immersed Dirichlet to the body velocity, refreshes
+``phi``, then solves.
 """
 
 from __future__ import annotations
@@ -22,14 +24,15 @@ if str(_REPO_ROOT) not in sys.path:
 
 from examples.dynamic_motions._common import (  # noqa: E402
     configure_run_logger,
+    immersed_wall_velocity,
     refresh_flux,
+    set_immersed_wall_velocity,
     write_square_prism_stl,
     write_step_outputs,
 )
 
-# Rest-position prism (x, y, z) and constant +x body speed.
+# Rest-position prism (xmin, xmax, ymin, ymax, zmin, zmax).
 BODY_BOUNDS = (0.40, 0.60, 0.40, 0.60, 0.00, 0.10)
-BODY_SPEED = 1.5
 
 
 def main() -> None:
@@ -45,30 +48,29 @@ def main() -> None:
         raise ValueError("Manual algorithm has no step sequence")
 
     algorithm = create_algorithm(grid)
+    body_velocity = immersed_wall_velocity(grid)
     control = grid.sim_config.control
     n_steps = int(control.endTime / control.deltaT)
     output_dir = Path(control.output.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "update_ib demo: n_cells=%d immersed=%d n_steps=%d speed=%.3f",
+        "update_ib demo: n_cells=%d immersed=%d n_steps=%d U_wall=%s",
         grid.num_cells,
         grid.num_immersed_faces,
         n_steps,
-        BODY_SPEED,
+        body_velocity,
     )
 
     n_cells0 = grid.num_cells
     for step in range(1, n_steps + 1):
-        algorithm.step()
-
         time = step * control.deltaT
-        translation = [BODY_SPEED * time, 0.0, 0.0]
-        grid.update_ib(
-            translation=translation,
-            warn_outside_refinement=False,
-        )
+        translation = [v * time for v in body_velocity]
+        grid.update_ib(translation=translation)
+        set_immersed_wall_velocity(grid, body_velocity)
         refresh_flux(grid)
+
+        algorithm.step()
 
         if step % control.writeInterval == 0 or step == n_steps:
             write_step_outputs(

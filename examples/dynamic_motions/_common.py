@@ -59,18 +59,67 @@ def write_square_prism_stl(
     return path
 
 
+def immersed_wall_velocity(
+    grid: AxisProjectedGrid,
+    patch_name: str = "_default",
+) -> list[float]:
+    """
+    Return the Dirichlet velocity prescribed on the immersed patch.
+
+    This is the rigid-body velocity in the lab frame. The example scripts
+    use the same vector for the geometric translation so the wall motion
+    and the IBM pose stay consistent.
+
+    Parameters
+    ----------
+    grid : AxisProjectedGrid
+        Grid whose velocity field holds the immersed-wall BC.
+    patch_name : str, default ``_default``
+        Immersed patch name.
+
+    Returns
+    -------
+    list of float
+        Lab-frame wall velocity ``[ux, uy, uz]``.
+    """
+    field = grid.get_cellfield("U")
+    if field is None:
+        raise RuntimeError("velocity field U is not registered")
+    bc = field.bcs.get(patch_name)
+    if not isinstance(bc, DirichletBC):
+        raise RuntimeError(
+            f"immersed patch {patch_name!r} must use a Dirichlet wall"
+        )
+    return [float(v) for v in bc.value.tolist()]
+
+
 def set_immersed_wall_velocity(
     grid: AxisProjectedGrid,
     velocity: list[float],
     patch_name: str = "_default",
 ) -> None:
-    """Set the Dirichlet wall velocity on the immersed patch."""
+    """
+    Set the Dirichlet wall velocity on the immersed patch.
+
+    Mutating ``bc.value`` does not change the field data token, so the
+    cached boundary state is cleared explicitly.
+
+    Parameters
+    ----------
+    grid : AxisProjectedGrid
+        Grid whose velocity field holds the immersed-wall BC.
+    velocity : list of float
+        Lab-frame wall velocity ``[ux, uy, uz]``.
+    patch_name : str, default ``_default``
+        Immersed patch name.
+    """
     field = grid.get_cellfield("U")
     if field is None:
         return
     bc = field.bcs.get(patch_name)
     if isinstance(bc, DirichletBC):
         bc.value = torch.tensor(velocity, dtype=grid.dtype, device=grid.device)
+        field.fv_cache.clear_boundary_states()
 
 
 def refresh_flux(grid: IGridBase, *, update_internal: bool = True) -> None:

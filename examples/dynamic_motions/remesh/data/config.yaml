@@ -1,10 +1,12 @@
-# Moving square prism whose AMR band follows the body.
-# Large +x translation leaves the initial refined region, so remesh
-# rebuilds the background octree around the current pose.
+# Translating square prism whose AMR band follows the body.
+# Rest pose [0.4, 0.6] x [0.4, 0.6]; U_wall = (1.5, 0, 0) for 0.20
+# (travel 0.30). No travel corridor: remesh rebuilds around the pose.
 version: 0.0.1
 
 inlet_speed: &inlet_speed 1.0
+body_speed: &body_speed 1.5
 flow_velocity: &flow_velocity [*inlet_speed, 0.0, 0.0]
+body_velocity: &body_velocity [*body_speed, 0.0, 0.0]
 
 fluxel:
   domain:
@@ -84,7 +86,7 @@ simulator:
         wall:
           type: dirichlet
           patches: [_default]
-          value: [0.0, 0.0, 0.0]
+          value: *body_velocity
     p:
       # Kinematic pressure (p/rho): L^2/T^2
       dimension: {L: 2, T: -2}
@@ -106,9 +108,8 @@ simulator:
           type: empty
           patches: [z_minus, z_plus]
         wall:
-          type: neumann
+          type: fixed_flux_pressure
           patches: [_default]
-          value: [0.0]
   properties:
     transport:
       type: newtonian

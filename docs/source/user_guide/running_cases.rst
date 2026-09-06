@@ -75,12 +75,14 @@ root.
      - Notes
    * - ``update_ib``
      - ``uv run examples/dynamic_motions/update_ib/run.py``
-     - Fixed background mesh; IBM data is refreshed as the body translates
-       inside a refined travel band.
+     - Short +x translation of a square prism on a fixed mesh. A refined
+       corridor covers the path; the immersed Dirichlet equals the body
+       velocity. Geometry is updated before each PISO step.
    * - ``remesh``
      - ``uv run examples/dynamic_motions/remesh/run.py``
-     - AMR follows the body. ``U``, ``p``, and ``phi`` are mapped from the
-       previous mesh after each remesh.
+     - Same translating prism, but AMR follows the body. ``U``, ``p``, and
+       ``phi`` are mapped after each remesh; the wall velocity matches the
+       translation.
 
 Outputs
 -------
