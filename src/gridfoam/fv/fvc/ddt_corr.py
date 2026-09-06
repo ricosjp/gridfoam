@@ -7,19 +7,24 @@ from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.fv.kernels.face_geometry import face_geometry
+from gridfoam.fv.schemes.ddt import ddt_coefficients
 
 
 def ddt_corr(
     U: CellField, phi: FaceField
 ) -> Float[torch.Tensor, " F_single 1"]:
     """
-    Euler time-derivative flux correction on single-sided internal faces.
+    Euler/backward flux correction on single-sided internal faces.
 
     Implements OpenFOAM ``EulerDdtScheme::fvcDdtPhiCorr``:
 
     ``ddtCorr = ddtCouplingCoeff * (phi^0 - U^0_f & Sf) / dt``,
 
     ``ddtCouplingCoeff = 1 - min(|phi^0 - U^0_f & Sf| / (|phi^0| + eps), 1)``.
+
+    Backward uses ``b*phiCorr_old - c*phiCorr_older`` with the same time
+    weights as ``fvm.ddt``. The coupling coefficient is computed from only
+    the immediately previous level, as in OpenCFD v2606.
 
     The term re-introduces the previous time-level face flux into the
     predicted flux ``phiHbyA`` (pre-multiplied by ``interpolate(rAU)`` by
@@ -47,6 +52,23 @@ def ddt_corr(
     phi0 = phi.old_single_data
     phi_corr = phi0 - torch.sum(U0_f * geo.Sf_s, dim=1, keepdim=True)
 
+    _, b, c = ddt_coefficients(U)
+    history_correction = b * phi_corr
+    if c != 0.0:
+        if phi.older_single_data is None or phi.previous_dt != U.previous_dt:
+            raise ValueError(
+                "backward ddtCorr requires synchronized U and phi histories"
+            )
+        assert U.older_data is not None
+        U00 = U.older_data
+        U00_f = (
+            geo.w_s * U00[geo.owner_s] + (1.0 - geo.w_s) * U00[geo.neighbour_s]
+        )
+        older_correction = phi.older_single_data - torch.sum(
+            U00_f * geo.Sf_s, dim=1, keepdim=True
+        )
+        history_correction = history_correction - c * older_correction
+
     eps = torch.finfo(phi_corr.dtype).tiny
     coupling = 1.0 - torch.clamp(phi_corr.abs() / (phi0.abs() + eps), max=1.0)
-    return coupling * phi_corr / grid.dt
+    return coupling * history_correction / grid.dt

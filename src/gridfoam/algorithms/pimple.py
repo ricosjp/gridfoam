@@ -228,7 +228,8 @@ class PIMPLE(AlgorithmBase):
             self.p_ref_value = algorithm_config.pRefValue
 
         correct_flux(self.phi, self.U, update_internal=True)
-        self.phi.update_history()
+        self.U.update_history(reset=True)
+        self.phi.update_history(reset=True)
 
     @property
     def grid(self) -> IGridBase:

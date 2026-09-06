@@ -199,6 +199,8 @@ class fvSchemesConfig(BaseModel, frozen=True):
         Scheme for the ddt.
         Currently supported schemes:
             - EULER: Euler scheme.
+            - BACKWARD: BDF2 with Euler startup when two old levels are
+              unavailable. Keys are ``ddt(<field>)`` or ``default``.
     """
     gradSchemes: dict[str, GradScheme] | None = None
     """

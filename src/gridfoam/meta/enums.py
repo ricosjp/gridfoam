@@ -105,9 +105,11 @@ class DdtScheme(StrEnum):
     """
     Type of the time derivative scheme.
     - EULER: Euler scheme.
+    - BACKWARD: Second-order backward differentiation (BDF2).
     """
 
     EULER = auto()
+    BACKWARD = auto()
 
 
 class GradScheme(StrEnum):

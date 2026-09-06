@@ -177,7 +177,7 @@ class CellField(GeometricField):
         # Self-register in the grid field registry.
         grid.register_cellfield(self)
 
-        self.update_history()
+        self.update_history(reset=True)
 
     def sync_to_grid_topology(self, *, topology_changed: bool = False) -> None:
         """
@@ -191,6 +191,9 @@ class CellField(GeometricField):
         """
         n_cells = self.grid.num_cells
         if (not topology_changed) and self._data.shape[0] == n_cells:
+            # IBM updates reset face history even on a fixed background
+            # mesh; restart cell history too so ddt and ddtCorr agree.
+            self.update_history(reset=True)
             return
         self._data = torch.zeros(
             (n_cells, self.num_components),
@@ -198,7 +201,7 @@ class CellField(GeometricField):
             device=self.grid.device,
         )
         self.fv_cache.clear()
-        self.update_history()
+        self.update_history(reset=True)
 
     def reset_data(self, init_value: list[float]):
         """
@@ -213,14 +216,22 @@ class CellField(GeometricField):
         self._data[:] = torch.tensor(
             init_value, dtype=self.grid.dtype, device=self.grid.device
         ).view(1, self.num_components)
+        self.update_history(reset=True)
 
-    def update_history(self):
+    def update_history(self, *, reset: bool = False):
         """
-        Update time history at the end of a time step.
+        Advance time history once per completed time step.
+
+        Use ``reset=True`` after setting initial values or remapping a mesh;
+        this discards the second old level and restarts BDF2 with Euler.
         """
         if self._role == FieldRole.TRANSIENT:
+            self._older_data = None if reset else self._old_data
+            self._previous_dt = None if reset else self.grid.dt
             self._old_data = self._data.clone()
             return
+        self._older_data = None
+        self._previous_dt = None
         self._old_data = self._data
 
     def add_boundary_conditions(self, bcs: dict[PatchName, BoundaryCondition]):
@@ -297,6 +308,16 @@ class CellField(GeometricField):
         """Previous time-level values with shape ``[C, k]``."""
         return self._old_data
 
+    @property
+    def older_data(self) -> torch.Tensor | None:
+        """Second old time level, or None after initialization/remapping."""
+        return self._older_data
+
+    @property
+    def previous_dt(self) -> float | None:
+        """Time interval between the two stored old levels."""
+        return self._previous_dt
+
     def state_token(self) -> tuple[int, ...]:
         """
         Fingerprint of the current cell data used for cache invalidation.
@@ -334,6 +355,10 @@ class CellField(GeometricField):
             self._old_data = self._data
         else:
             self._old_data = self._old_data.to(
+                device=device, non_blocking=non_blocking
+            )
+        if self._older_data is not None:
+            self._older_data = self._older_data.to(
                 device=device, non_blocking=non_blocking
             )
         return self
@@ -425,9 +450,9 @@ class FaceField(GeometricField):
         # Self-register in the grid field registry.
         grid.register_facefield(self)
 
-        self.update_history()
+        self.update_history(reset=True)
 
-    def update_history(self) -> None:
+    def update_history(self, *, reset: bool = False) -> None:
         """
         Store the current single-sided face values as the old time level.
 
@@ -437,12 +462,24 @@ class FaceField(GeometricField):
         producers (potential-flow initialisation, diagnostics), so the role
         is not used to decide whether to copy.
         """
+        self._older_single_data = None if reset else self._old_single_data
+        self._previous_dt = None if reset else self.grid.dt
         self._old_single_data = self._single_data.clone()
 
     @property
     def old_single_data(self) -> Float[torch.Tensor, " F_single k"]:
         """Previous time-level single-sided values, ``[F_single, k]``."""
         return self._old_single_data
+
+    @property
+    def older_single_data(self) -> torch.Tensor | None:
+        """Second old single-sided flux, or None after history reset."""
+        return self._older_single_data
+
+    @property
+    def previous_dt(self) -> float | None:
+        """Time interval between the two stored old flux levels."""
+        return self._previous_dt
 
     def state_token(self) -> tuple[int, ...]:
         """
@@ -501,7 +538,7 @@ class FaceField(GeometricField):
             self._single_data = full[new_mask]
             self._num_single_sided = int(new_mask.sum().item())
         # The previous time level is undefined on the new face set.
-        self.update_history()
+        self.update_history(reset=True)
 
     # ================================
     # Grid Accessors
@@ -676,6 +713,10 @@ class FaceField(GeometricField):
         self._old_single_data = self._old_single_data.to(
             device=device, non_blocking=non_blocking
         )
+        if self._older_single_data is not None:
+            self._older_single_data = self._older_single_data.to(
+                device=device, non_blocking=non_blocking
+            )
         self._domain_bnd_data = self._domain_bnd_data.to(
             device=device, non_blocking=non_blocking
         )

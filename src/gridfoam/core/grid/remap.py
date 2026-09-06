@@ -91,8 +91,8 @@ def map_volume_fields(
     cell_idx = _nearest_indices(snapshot.cell_centers, grid.cell_centers)
     u_field.data = snapshot.u[cell_idx]
     p_field.data = snapshot.p[cell_idx]
-    u_field.update_history()
-    p_field.update_history()
+    u_field.update_history(reset=True)
+    p_field.update_history(reset=True)
 
     src_faces = snapshot.face_centers[snapshot.single_mask]
     src_sf = snapshot.sf[snapshot.single_mask]
@@ -111,6 +111,7 @@ def map_volume_fields(
         grid.domain_bnd_face_centers,
         grid.domain_bnd_Sf,
     )
+    phi.update_history(reset=True)
 
 
 def _nearest_indices(

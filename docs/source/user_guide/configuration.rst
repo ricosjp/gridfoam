@@ -36,8 +36,8 @@ Simulator blocks
    Discretization schemes for time derivatives, gradients, divergence,
    surface-normal gradients, and Laplacian terms. ``divSchemes``,
    ``gradSchemes`` (default ``leastsquare``), ``snGradSchemes`` and
-   ``laplacianSchemes`` (default ``corrected``) are actively dispatched;
-   ``ddtSchemes`` is accepted but not yet wired to a runtime operator.
+   ``laplacianSchemes`` (default ``corrected``) are actively dispatched.
+   ``ddtSchemes`` selects ``euler`` (default) or ``backward`` (BDF2).
    On an octree grid the ``corrected`` schemes add the explicit skewness
    correction on hanging-node (2:1) faces only; ``uncorrected`` skips it.
 
@@ -61,6 +61,46 @@ pass of the last pressure corrector (every PISO/PIMPLE outer iteration).
 
 Boundary patches may use reserved domain names such as ``x_minus`` and
 ``x_plus``, or custom patch names for immersed surfaces.
+
+Second-order time integration
+-----------------------------
+
+Use ``backward`` for second-order backward differentiation (BDF2), following
+OpenCFD OpenFOAM v2606's stationary-volume time coefficients:
+
+.. code-block:: yaml
+
+   simulator:
+     fvSchemes:
+       ddtSchemes:
+         default: backward
+
+Field-specific keys such as ``ddt(U): backward`` override ``default``.
+Existing configurations retain Euler. For constant time steps BDF2 uses
+``(1.5*q_new - 2*q_old + 0.5*q_older) / deltaT``; the coefficients also
+account for unequal consecutive step sizes. The built-in runner still uses
+a fixed ``deltaT``; adaptive time-step selection is not added by this option.
+
+``fvm.ddt`` and PISO/PIMPLE's ``fvc.ddt_corr`` use the same time weights.
+Cell fields using ``backward`` must have role ``TRANSIENT``. Two previous
+levels and the previous interval are retained. The first step uses Euler
+because there is only one previous level. PISO/PIMPLE update their histories
+once per completed time step, regardless of the number of correctors.
+Constructing a new algorithm starts fresh history from the current values.
+
+For manual scalar solves, set the initial data and call
+``field.update_history(reset=True)`` before the first step. After each
+completed solve, call ``field.update_history()`` once, while ``grid.dt``
+still refers to that completed step. For manual velocity/flux coupling,
+advance or reset ``U`` and ``phi`` histories together. Inconsistent BDF2
+histories raise an error in ``ddt_corr``.
+
+Remeshing and IBM geometry synchronization discard the second history
+level and restart with Euler. Repeated geometry changes therefore do not
+retain second-order time accuracy. This implementation assumes stationary
+cell volumes between stored time levels; it does not add moving-volume
+ALE/GCL time terms or conservative transfer of two old mesh histories.
+Stored old levels remain connected to autograd for transient sensitivities.
 
 Discontinuous diffusion coefficients
 -----------------------------------

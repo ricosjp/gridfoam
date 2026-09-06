@@ -413,6 +413,10 @@ class AxisProjectedGrid(IGridBase):
     def sim_config(self) -> SimulatorConfig:
         return self._sim_config
 
+    @sim_config.setter
+    def sim_config(self, value: SimulatorConfig) -> None:
+        self._sim_config = value
+
     @property
     def surface_mesh(self) -> gl.TensorMesh[Any]:
         if self._mesh_path is None:
