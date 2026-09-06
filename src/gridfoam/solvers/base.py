@@ -151,7 +151,7 @@ def is_converged(
     norm_res : Float[torch.Tensor, " 1"]
         Current residual norm.
     """
-    return bool((norm_res <= thresh).item())
+    return bool((norm_res < thresh).item())
 
 
 def residual_threshold(
@@ -174,6 +174,6 @@ def residual_threshold(
     Returns
     -------
     Float[torch.Tensor, " 1"]
-        Residual convergence threshold ``atol + rtol * ref_norm``.
+        Residual convergence threshold ``max(atol, rtol * ref_norm)``.
     """
-    return atol + rtol * ref_norm
+    return torch.maximum(torch.full_like(ref_norm, atol), rtol * ref_norm)

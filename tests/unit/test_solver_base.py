@@ -22,9 +22,16 @@ def test_is_converged_false_when_above_threshold():
 
 
 def test_residual_threshold_combines_atol_rtol():
-    # Effective tolerance is atol + rtol * reference_norm.
+    # OR criteria use the larger threshold, not their sum.
     atol, rtol = 1e-8, 1e-6
     ref = torch.tensor([10.0])
     out = residual_threshold(atol, rtol, ref)
-    expected = atol + rtol * ref
+    expected = rtol * ref
     assert torch.allclose(out, expected)
+
+
+def test_residual_between_max_and_sum_does_not_converge():
+    threshold = residual_threshold(0.1, 0.1, torch.tensor([1.0]))
+    assert not is_converged(threshold, torch.tensor([0.15]))
+    assert not is_converged(threshold, torch.tensor([0.1]))
+    assert is_converged(threshold, torch.tensor([0.09]))

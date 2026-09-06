@@ -9,6 +9,7 @@ and the SIMPLEC (``consistent``) formulation.
 from __future__ import annotations
 
 import pathlib
+from unittest.mock import Mock
 
 import pytest
 import torch
@@ -39,6 +40,7 @@ from gridfoam.meta.enums import (
     BoundaryConditionType,
     DomainBoundaryPatch,
 )
+from gridfoam.solvers.factory import create_solver
 
 
 def _simple(consistent: bool = False) -> SIMPLEAlgorithm:
@@ -262,6 +264,46 @@ def test_pressure_initial_residual_is_measured_before_solve(
     assert result.initial_residual == pytest.approx(expected)
     assert result.initial_residual > 0.1
     assert field_initial_residual(result.matrix, p) < 1e-8
+
+
+@pytest.mark.parametrize("pimple", [False, True])
+def test_final_pressure_solver_only_on_last_nonorthogonal_pass(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, pimple: bool
+):
+    algorithm = (
+        PIMPLEAlgorithm(
+            type=AlgorithmType.PIMPLE,
+            nOuterCorrectors=2,
+            nCorrectors=2,
+            nNonOrthogonalCorrectors=2,
+        )
+        if pimple
+        else PISOAlgorithm(
+            type=AlgorithmType.PISO,
+            nCorrectors=2,
+            nNonOrthogonalCorrectors=2,
+        )
+    )
+    config = channel_flow_config(tmp_path, algorithm)
+    grid = create_grid(config)
+    algo = PIMPLE(grid) if pimple else PISO(grid)
+    regular = algo.solvers["p"]
+    final = create_solver(config.simulator.fvSolution.solvers["p"])
+    algo.solvers["pFinal"] = final
+    calls = Mock()
+    normal_spy = Mock(wraps=regular.solve)
+    final_spy = Mock(wraps=final.solve)
+    calls.attach_mock(normal_spy, "regular")
+    calls.attach_mock(final_spy, "final")
+    monkeypatch.setattr(regular, "solve", normal_spy)
+    monkeypatch.setattr(final, "solve", final_spy)
+
+    algo.step()
+
+    expected = ["regular"] * 5 + ["final"]
+    assert [call[0] for call in calls.mock_calls] == expected * (
+        2 if pimple else 1
+    )
 
 
 def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path):

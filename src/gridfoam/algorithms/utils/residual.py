@@ -14,10 +14,7 @@ def field_initial_residual(
     field: CellField,
 ) -> float:
     """
-    Compute an OpenFOAM-style normalized linear-system residual.
-
-    ``|A*psi - b|_2 / (|b|_2 + eps)`` using the current field values as
-    ``psi``.
+    Compute the RHS-normalized L2 residual ``|A*psi - b|_2 / (|b|_2 + eps)``.
 
     Parameters
     ----------
@@ -63,13 +60,9 @@ def residual_satisfied(
     initial_residual: float,
 ) -> bool:
     """
-    Check whether a residual meets OpenFOAM ``residualControl`` criteria.
-
-    Convergence requires both:
-
-    - ``residual <= tolerance`` (absolute), and
-    - ``residual <= rel_tolerance * initial_residual`` when
-      ``rel_tolerance > 0``.
+    OpenFOAM ``residualControl``: ``residual < tolerance``, or
+    ``residual < rel_tolerance * initial_residual`` when
+    ``rel_tolerance > 0``.
 
     Parameters
     ----------
@@ -85,10 +78,10 @@ def residual_satisfied(
     Returns
     -------
     bool
-        ``True`` when the absolute and relative criteria are satisfied.
+        ``True`` when the absolute or relative criterion is satisfied.
     """
-    if residual > tolerance:
-        return False
-    if rel_tolerance > 0.0 and residual > rel_tolerance * initial_residual:
-        return False
-    return True
+    if residual < tolerance:
+        return True
+    if rel_tolerance > 0.0 and residual < rel_tolerance * initial_residual:
+        return True
+    return False

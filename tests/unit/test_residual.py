@@ -39,11 +39,14 @@ def test_continuity_residual_matches_div_norm(
     assert residual >= 0.0
 
 
-def test_residual_satisfied_absolute_and_relative():
-    # Convergence check must pass under absolute-only or relative thresholds.
+def test_residual_satisfied_absolute_or_relative():
+    # OpenFOAM residualControl: absTol or relTol, not both.
     assert residual_satisfied(1e-9, 1e-6, 0.0, 1.0)
     assert not residual_satisfied(1e-3, 1e-6, 0.0, 1.0)
-    assert residual_satisfied(1e-7, 1e-6, 0.1, 1e-3)
+    # Absolute miss, relative hit.
+    assert residual_satisfied(5e-5, 1e-6, 0.1, 1e-3)
+    # Absolute hit, relative miss.
+    assert residual_satisfied(1e-7, 1e-6, 0.1, 1e-8)
     assert not residual_satisfied(2e-4, 1e-6, 0.1, 1e-3)
 
 

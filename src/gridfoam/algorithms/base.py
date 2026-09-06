@@ -59,6 +59,10 @@ class AlgorithmBase(ABC):
         for solver in self.solvers.values():
             solver.grad_mode = grad_mode
 
+    def has_simulation_converged(self) -> bool:
+        """Return whether convergence should end the entire simulation."""
+        return False
+
     def attach_diagnostics(self, diagnostics: DiagnosticsCollector) -> None:
         """
         Attach a diagnostics collector for per-step CSV recording.

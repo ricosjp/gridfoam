@@ -252,8 +252,8 @@ class PIMPLE(AlgorithmBase):
         Returns
         -------
         bool
-            ``True`` when every monitored field meets absolute and relative
-            tolerances after an outer corrector.
+            ``True`` when residualControl passed and the final outer
+            iteration of this time step has run.
         """
         return self._outer_converged
 
@@ -262,20 +262,13 @@ class PIMPLE(AlgorithmBase):
         field_name: str,
         residual: float,
     ) -> None:
-        """Store the current residual and capture the first value as initial."""
+        """Store the current residual and the first value of this time step."""
         if field_name not in self._initial_residuals:
             self._initial_residuals[field_name] = residual
         self._current_residuals[field_name] = residual
 
-    def _check_outer_convergence(self) -> bool:
-        """
-        Return whether all configured ``residualControl`` fields are satisfied.
-
-        Returns
-        -------
-        bool
-            ``True`` when every monitored field meets its tolerances.
-        """
+    def _check_outer_convergence(self, *, allow_relative: bool = True) -> bool:
+        """Return True when every residualControl field has converged."""
         if not self._residual_control:
             return False
 
@@ -287,7 +280,7 @@ class PIMPLE(AlgorithmBase):
             if not residual_satisfied(
                 residual,
                 entry.tolerance,
-                entry.rel_tolerance,
+                entry.rel_tolerance if allow_relative else 0.0,
                 initial,
             ):
                 return False
@@ -304,10 +297,20 @@ class PIMPLE(AlgorithmBase):
 
         solve_stats: dict[str, tuple[SolveStats, ...]] = {}
         self._outer_converged = False
+        self._initial_residuals.clear()
+        self._current_residuals.clear()
         # =========================================================
         # PIMPLE outer loop
         # =========================================================
         for outer in range(self.n_outer_correctors):
+            # Previous outer vs residualControl, skipping first and last.
+            # A pass runs this outer as the extra final iteration.
+            final_after_convergence = (
+                0 < outer < self.n_outer_correctors - 1
+                and self._check_outer_convergence(allow_relative=outer > 1)
+            )
+            if final_after_convergence:
+                self._outer_converged = True
             logger.debug(
                 "PIMPLE outer loop %d/%d",
                 outer + 1,
@@ -329,7 +332,7 @@ class PIMPLE(AlgorithmBase):
             UEqn_mat.source = original_source - grad_p.data * grid.cell_volumes
 
             # Solve momentum predictor (obtain U*)
-            if self.U.name in self._residual_control and outer == 0:
+            if self.U.name in self._residual_control:
                 self._record_residual(
                     self.U.name,
                     field_initial_residual(UEqn_mat, self.U),
@@ -390,19 +393,23 @@ class PIMPLE(AlgorithmBase):
                     self.p,
                     self.rAtU,
                     div_phi_hbya,
-                    p_solver,
+                    self.solvers[self.p.name],
                     n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
                     p_needs_ref=self.p_needs_ref,
                     p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
                     p_ref_value=self.p_ref_value if self.p_needs_ref else None,
+                    final_solver=p_solver,
                 )
                 solve_stats[self.p.name] = p_result.stats
 
-                # OpenFOAM reports the first corrector's initial residual of
-                # the outer iteration for residualControl.
-                if self.p.name in self._residual_control and inner == 0:
-                    self._record_residual(
-                        self.p.name, p_result.initial_residual
+                # Baseline: first solve. Current: last solve's initial residual.
+                if self.p.name in self._residual_control:
+                    if inner == 0:
+                        self._record_residual(
+                            self.p.name, p_result.initial_residual
+                        )
+                    self._current_residuals[self.p.name] = (
+                        p_result.last_initial_residual
                     )
 
                 # phi = phiHbyA - pEqn.flux(); U = HbyA - rAtU grad(p)
@@ -429,8 +436,7 @@ class PIMPLE(AlgorithmBase):
             if "phi" in self._residual_control:
                 self._record_residual("phi", continuity_residual(self.phi))
 
-            if self._check_outer_convergence():
-                self._outer_converged = True
+            if final_after_convergence:
                 logger.info(
                     "PIMPLE outer loop converged at outer=%d",
                     outer + 1,

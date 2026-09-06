@@ -52,13 +52,15 @@ class PressureSolveResult:
     stats : tuple[SolveStats, ...]
         Linear-solver statistics of the last pass.
     initial_residual : float
-        Normalised residual of the first pass evaluated with the pressure
-        field *before* solving, as used by ``residualControl``.
+        Residual before the first pressure solve (PIMPLE baseline, SIMPLE).
+    last_initial_residual : float
+        Residual before the last non-orthogonal solve (PIMPLE current).
     """
 
     matrix: FvMatrix
     stats: tuple[SolveStats, ...]
     initial_residual: float
+    last_initial_residual: float
 
 
 def solve_pressure_poisson(
@@ -71,6 +73,7 @@ def solve_pressure_poisson(
     p_needs_ref: bool,
     p_ref_cell: int | None = None,
     p_ref_value: float | None = None,
+    final_solver: LinearSolver | None = None,
 ) -> PressureSolveResult:
     """
     Solve the pressure Poisson equation with non-orthogonal correctors.
@@ -98,15 +101,18 @@ def solve_pressure_poisson(
         Reference cell index for pressure.
     p_ref_value : float | None, optional
         Reference pressure value.
+    final_solver : LinearSolver | None, optional
+        Solver used only on the last non-orthogonal pass.
 
     Returns
     -------
     PressureSolveResult
-        Final matrix, last solver statistics and the initial residual.
+        Final matrix, solver statistics, and first/last initial residuals.
     """
     p_eqn_mat: FvMatrix | None = None
     last_stats: tuple[SolveStats, ...] | None = None
     initial_residual: float | None = None
+    last_initial_residual: float | None = None
     # Explicit terms enter the matrix in volume-integrated form.
     div_source = div_phi_hbya * p.grid.cell_volumes
     for corr in range(n_non_orthogonal_correctors + 1):
@@ -120,11 +126,17 @@ def solve_pressure_poisson(
                 )
             set_reference_value(p_eqn_mat, p_ref_cell, p_ref_value)
 
+        last_initial_residual = field_initial_residual(p_eqn_mat, p)
         if initial_residual is None:
-            initial_residual = field_initial_residual(p_eqn_mat, p)
+            initial_residual = last_initial_residual
 
         pressure_eq = equation(p, p_eqn_mat)
-        solve_result = solver.solve(pressure_eq)
+        pass_solver = (
+            final_solver
+            if final_solver is not None and corr == n_non_orthogonal_correctors
+            else solver
+        )
+        solve_result = pass_solver.solve(pressure_eq)
         p.data = solve_result.solution
         last_stats = solve_result.stats
 
@@ -138,7 +150,10 @@ def solve_pressure_poisson(
     assert p_eqn_mat is not None
     assert last_stats is not None
     assert initial_residual is not None
-    return PressureSolveResult(p_eqn_mat, last_stats, initial_residual)
+    assert last_initial_residual is not None
+    return PressureSolveResult(
+        p_eqn_mat, last_stats, initial_residual, last_initial_residual
+    )
 
 
 def simplec_rAtU(

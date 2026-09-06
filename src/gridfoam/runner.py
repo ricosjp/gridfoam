@@ -149,22 +149,20 @@ def manual_step(config_path: Path) -> Iterator[StepData]:
 
 def _algorithm_converged(algorithm: AlgorithmBase) -> bool:
     """
-    Return whether an algorithm reports pseudo-time / outer-loop convergence.
+    Return whether convergence ends the entire simulation.
 
-    Algorithms without ``has_converged()`` always return ``False``.
+    A converged PIMPLE outer loop only completes the current time step.
     """
-    has_converged = getattr(algorithm, "has_converged", None)
-    if callable(has_converged):
-        return bool(has_converged())
-    return False
+    return algorithm.has_simulation_converged()
 
 
 def all_run(config_path: Path) -> None:
     """
     Run a full simulation from a YAML configuration file.
 
-    Advances the algorithm each step, stops early when residual control
-    reports convergence, and writes VTU output at the configured interval.
+    Advances the algorithm each step, stops the run on steady SIMPLE
+    residualControl, and writes VTU output at the configured interval
+    (including the last state on a steady exit).
 
     Parameters
     ----------
@@ -173,14 +171,16 @@ def all_run(config_path: Path) -> None:
     """
     for step_data in manual_step(config_path):
         step_data.algorithm.step()
-        if _algorithm_converged(step_data.algorithm):
-            logger.info("Simulation converged at step=%d", step_data.step)
-            break
+        converged = _algorithm_converged(step_data.algorithm)
         write_interval = step_data.control.writeInterval
         end_time = step_data.control.endTime
         deltaT = step_data.control.deltaT
         n_steps = int(end_time / deltaT)
-        if step_data.step % write_interval == 0 or step_data.step == n_steps:
+        if (
+            converged
+            or step_data.step % write_interval == 0
+            or step_data.step == n_steps
+        ):
             output_dir = Path(step_data.control.output.output_dir)
             base_name = step_data.control.output.base_name
             save_export_fields_as_vtu(
@@ -189,3 +189,6 @@ def all_run(config_path: Path) -> None:
                 ugrid=step_data.ugrid,
             )
             logger.info("step=%4d", step_data.step)
+        if converged:
+            logger.info("Simulation converged at step=%d", step_data.step)
+            break

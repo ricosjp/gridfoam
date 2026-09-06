@@ -292,11 +292,12 @@ class PISO(AlgorithmBase):
                 self.p,
                 self.rAtU,
                 div_phi_hbya,
-                p_solver,
+                self.solvers[self.p.name],
                 n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
                 p_needs_ref=self.p_needs_ref,
                 p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,
                 p_ref_value=self.p_ref_value if self.p_needs_ref else None,
+                final_solver=p_solver,
             )
             solve_stats[self.p.name] = p_result.stats
 

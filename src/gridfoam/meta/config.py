@@ -344,7 +344,8 @@ class ResidualControlEntry(BaseModel, frozen=True):
     rel_tolerance: float = Field(default=0.0)
     """
     rel_tolerance : float, default=0.0
-        Relative tolerance multiplier. ``0`` means absolute tolerance only.
+        PIMPLE relative tolerance vs the first residual of the time step.
+        ``0`` disables it. Ignored by SIMPLE.
     """
 
 

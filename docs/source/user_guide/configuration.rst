@@ -44,14 +44,7 @@ Simulator blocks
 ``simulator.fvSolution``
    Pressure--velocity algorithm (SIMPLE, PISO, or PIMPLE), linear solvers per
    field, optional potential-flow initialization, and ``adjustPhi`` behaviour.
-   The coupling follows the OpenFOAM ``pEqn.H`` structure: the predicted
-   flux ``phiHbyA`` is built with ``constrainHbyA`` on every face block,
-   ``adjustPhi`` is applied to it before the pressure solve (only when the
-   pressure level is not fixed by a Dirichlet patch), PISO/PIMPLE add
-   ``ddtCorr``, and ``phi = phiHbyA - pEqn.flux()`` is evaluated on internal
-   and boundary faces. ``consistent: true`` selects the SIMPLEC formulation
-   (``rAtU = 1/(1/A - H1)``) for SIMPLE and PIMPLE. ``residualControl`` for
-   ``p`` uses the residual of the unsolved pressure equation, as in OpenFOAM.
+   ``consistent: true`` selects SIMPLEC (``rAtU = 1/(1/A - H1)``).
 
 ``simulator.conditions``
    Initial field values and boundary conditions per patch.
@@ -62,11 +55,33 @@ Simulator blocks
 Field and solver keys
 ---------------------
 
-Field names in ``fvSolution.solvers`` follow OpenFOAM conventions. A final
-pressure-correction solver can be configured with a ``pFinal`` key.
+Field names in ``fvSolution.solvers`` follow OpenFOAM conventions. A
+``pFinal`` solver, if present, is used only on the last non-orthogonal
+pass of the last pressure corrector (every PISO/PIMPLE outer iteration).
 
 Boundary patches may use reserved domain names such as ``x_minus`` and
 ``x_plus``, or custom patch names for immersed surfaces.
+
+Residual control
+----------------
+
+``residualControl`` lists fields and a ``tolerance`` (absolute). A float
+shorthand is that absolute tolerance.
+
+SIMPLE stops the run when every listed field is below ``tolerance``.
+``rel_tolerance`` is ignored.
+
+PIMPLE uses the same check to end the *time step*, not the run. It tests
+the previous outer iteration before starting the next, skipping the first
+and the scheduled last. A pass still runs one final outer iteration.
+Each field converges if ``residual < tolerance``, or if
+``rel_tolerance > 0`` and
+``residual < rel_tolerance * residual0`` (``residual0`` is the first
+solve of that time step). Pressure uses the initial residual of the last
+pressure solve, including non-orthogonal corrections.
+
+These residuals are RHS-normalized L2, not OpenFOAM's scaled L1. Do not
+copy OpenFOAM tolerance values expecting the same magnitude.
 
 Example excerpt
 ---------------

@@ -247,8 +247,9 @@ class SIMPLE(AlgorithmBase):
         Returns
         -------
         bool
-            ``True`` when every monitored field meets absolute and relative
-            tolerances. Returns ``False`` if ``residualControl`` is empty.
+            ``True`` when every monitored field is below ``tolerance``.
+            ``rel_tolerance`` is ignored. Returns ``False`` if
+            ``residualControl`` is empty.
         """
         if not self._residual_control:
             return False
@@ -261,11 +262,15 @@ class SIMPLE(AlgorithmBase):
             if not residual_satisfied(
                 residual,
                 entry.tolerance,
-                entry.rel_tolerance,
+                0.0,
                 initial,
             ):
                 return False
         return True
+
+    def has_simulation_converged(self) -> bool:
+        """A converged steady SIMPLE iteration ends the simulation."""
+        return self.has_converged()
 
     def _record_residual(
         self,
