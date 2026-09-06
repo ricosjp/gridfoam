@@ -1,4 +1,5 @@
 import argparse
+import gc
 import logging
 import shutil
 import stat
@@ -58,7 +59,9 @@ logger = logging.getLogger("gridfoam.experiments.re_vs_cd")
 
 def configure_run_logger(log_file: Path) -> None:
     formatter = logging.Formatter("%(message)s")
-    logger.handlers.clear()
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
@@ -71,6 +74,20 @@ def configure_run_logger(log_file: Path) -> None:
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+
+def close_run_logger() -> None:
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
+
+
+def release_runtime_memory() -> None:
+    """Drop Python cycles and return unused CUDA caching-allocator blocks."""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
 
 
 class CaseConfig(BaseModel):
@@ -209,43 +226,49 @@ def run_openfoam_case(
 
 
 def calculate_drag_coefficient(config: GridfoamConfig) -> float:
-    grid = create_grid(config)
-
-    phase = None
-    algorithm_config = grid.sim_config.fvSolution.algorithm
-    if isinstance(algorithm_config, ManualAlgorithm):
-        raise ValueError("Manual algorithm has no step sequence")
-    algorithm = create_algorithm(grid, phase)
-
-    output_dir = Path(grid.sim_config.control.output.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    configure_run_logger(output_dir / "run.log")
-
-    base_name = grid.sim_config.control.output.base_name
-    write_interval = grid.sim_config.control.writeInterval
-    end_time = grid.sim_config.control.endTime
-    deltaT = grid.sim_config.control.deltaT
-    n_steps = int(end_time / deltaT)
-
-    ugrid = to_unstructured_grid(grid)
-
-    post_processing = grid.sim_config.post_processing
-    assert post_processing is not None
-    assert post_processing.forceCoeff is not None
-    force_evaluator = ForceEvaluator(grid, phase=phase)
-
-    diagnostics = DiagnosticsCollector.from_config(
-        grid,
-        post_processing,
-        output_dir,
-        n_steps=n_steps,
-        delta_t=deltaT,
-        phase=phase,
-    )
-    if diagnostics is not None:
-        algorithm.attach_diagnostics(diagnostics)
-
+    grid = None
+    algorithm = None
+    ugrid = None
+    force_evaluator = None
+    diagnostics = None
+    cd = float("nan")
     try:
+        grid = create_grid(config)
+
+        phase = None
+        algorithm_config = grid.sim_config.fvSolution.algorithm
+        if isinstance(algorithm_config, ManualAlgorithm):
+            raise ValueError("Manual algorithm has no step sequence")
+        algorithm = create_algorithm(grid, phase)
+
+        output_dir = Path(grid.sim_config.control.output.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        configure_run_logger(output_dir / "run.log")
+
+        base_name = grid.sim_config.control.output.base_name
+        write_interval = grid.sim_config.control.writeInterval
+        end_time = grid.sim_config.control.endTime
+        deltaT = grid.sim_config.control.deltaT
+        n_steps = int(end_time / deltaT)
+
+        ugrid = to_unstructured_grid(grid)
+
+        post_processing = grid.sim_config.post_processing
+        assert post_processing is not None
+        assert post_processing.forceCoeff is not None
+        force_evaluator = ForceEvaluator(grid, phase=phase)
+
+        diagnostics = DiagnosticsCollector.from_config(
+            grid,
+            post_processing,
+            output_dir,
+            n_steps=n_steps,
+            delta_t=deltaT,
+            phase=phase,
+        )
+        if diagnostics is not None:
+            algorithm.attach_diagnostics(diagnostics)
+
         for step in range(1, n_steps + 1):
             algorithm.step()
             if step % write_interval == 0 or step == n_steps:
@@ -274,11 +297,15 @@ def calculate_drag_coefficient(config: GridfoamConfig) -> float:
 
         force_evaluator.write_csv(output_dir / "coefficients.csv")
         force_evaluator.save_surface_mesh(output_dir / "surface_mesh.vtu")
+        cd = force_evaluator.history[-1].Cd.item()
+        return cd
     finally:
         if diagnostics is not None:
             diagnostics.close()
-
-    return force_evaluator.history[-1].Cd.item()
+        close_run_logger()
+        # Drop strong refs before emptying the CUDA caching allocator.
+        del diagnostics, force_evaluator, algorithm, ugrid, grid
+        release_runtime_memory()
 
 
 def parse_args(
@@ -290,7 +317,7 @@ def parse_args(
     parser.add_argument(
         "--solver",
         choices=("gridfoam", "openfoam", "all"),
-        default="all",
+        default="gridfoam",
         help="Which solver family to run.",
     )
     parser.add_argument(
@@ -337,18 +364,23 @@ def _run_case(
     use_mlflow: bool,
     Re: float,
 ) -> None:
-    if use_mlflow:
-        with mlflow.start_run(nested=True, run_name=run_name):
-            run = mlflow.active_run()
-            assert run is not None
-            print(f"  Nested run: {run_name} ({run.info.run_id})")
-            mlflow.log_param("solver", solver)
-            mlflow.log_params(params)
-            mlflow.log_metrics({"Re": Re, "Cd": compute_cd()})
-        return
+    try:
+        if use_mlflow:
+            with mlflow.start_run(nested=True, run_name=run_name):
+                run = mlflow.active_run()
+                assert run is not None
+                print(f"  Nested run: {run_name} ({run.info.run_id})")
+                mlflow.log_param("solver", solver)
+                mlflow.log_params(params)
+                mlflow.log_metrics({"Re": Re, "Cd": compute_cd()})
+            return
 
-    print(f"  Run: {run_name}")
-    print(f"  Cd={compute_cd()}")
+        print(f"  Run: {run_name}")
+        print(f"  Cd={compute_cd()}")
+    finally:
+        # OpenFOAM cases already exit their subprocess; still useful after
+        # gridfoam so the next case starts from a cleared allocator.
+        release_runtime_memory()
 
 
 def run_gridfoam_cases(
@@ -357,19 +389,23 @@ def run_gridfoam_cases(
     for case in cases:
         for Re in re_values:
             config = load_gridfoam_config(case, Re)
-            _run_case(
-                f"gridfoam_{case.name}_{Re:g}",
-                solver="gridfoam",
-                params={
-                    "case_name": case.name,
-                    "mesh_path": case.mesh_path,
-                    "Re": Re,
-                    **config.model_dump(),
-                },
-                compute_cd=partial(calculate_drag_coefficient, config),
-                use_mlflow=use_mlflow,
-                Re=Re,
-            )
+            try:
+                _run_case(
+                    f"gridfoam_{case.name}_{Re:g}",
+                    solver="gridfoam",
+                    params={
+                        "case_name": case.name,
+                        "mesh_path": case.mesh_path,
+                        "Re": Re,
+                        **config.model_dump(),
+                    },
+                    compute_cd=partial(calculate_drag_coefficient, config),
+                    use_mlflow=use_mlflow,
+                    Re=Re,
+                )
+            finally:
+                del config
+                release_runtime_memory()
 
 
 def run_openfoam_cases(
