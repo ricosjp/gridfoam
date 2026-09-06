@@ -165,11 +165,19 @@ class LaplacianScheme(StrEnum):
       on hanging-node faces (OpenFOAM ``Gauss linear corrected``).
     - UNCORRECTED: Orthogonal implicit part only. Cheapest; accepts an
       O(h) flux error on hanging-node faces.
+    - GAUSS_LINEAR_*: OpenFOAM spelling of linear coefficient interpolation
+      with the selected surface-normal gradient correction.
+    - GAUSS_HARMONIC_*: Distance-weighted harmonic coefficient interpolation
+      with the selected correction, for nonnegative scalar diffusivity.
     """
 
     LINEAR = auto()
     CORRECTED = auto()
     UNCORRECTED = auto()
+    GAUSS_LINEAR_CORRECTED = "Gauss linear corrected"
+    GAUSS_LINEAR_UNCORRECTED = "Gauss linear uncorrected"
+    GAUSS_HARMONIC_CORRECTED = "Gauss harmonic corrected"
+    GAUSS_HARMONIC_UNCORRECTED = "Gauss harmonic uncorrected"
 
 
 class SolverType(StrEnum):

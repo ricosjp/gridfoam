@@ -228,6 +228,11 @@ class fvSchemesConfig(BaseModel, frozen=True):
               hanging-node faces.
             - UNCORRECTED: Orthogonal part only.
             - LINEAR: Alias of CORRECTED.
+            - Gauss linear corrected/uncorrected: Explicit linear
+              coefficient interpolation with the chosen correction.
+            - Gauss harmonic corrected/uncorrected: Distance-weighted
+              harmonic coefficient interpolation for nonnegative scalar
+              diffusivity, suitable for face-aligned material jumps.
     """
     snGradSchemes: dict[str, SnGradScheme] | None = None
     """

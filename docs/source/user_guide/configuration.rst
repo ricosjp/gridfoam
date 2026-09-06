@@ -62,6 +62,44 @@ pass of the last pressure corrector (every PISO/PIMPLE outer iteration).
 Boundary patches may use reserved domain names such as ``x_minus`` and
 ``x_plus``, or custom patch names for immersed surfaces.
 
+Discontinuous diffusion coefficients
+-----------------------------------
+
+For a scalar diffusivity that jumps across cell faces, select harmonic
+interpolation for the corresponding Laplacian:
+
+.. code-block:: yaml
+
+   simulator:
+     fvSchemes:
+       laplacianSchemes:
+         default: corrected
+         laplacian(T): Gauss harmonic corrected
+
+This applies to ``fvm.laplacian(gamma, T)``. The lookup key uses the name of
+the transported field (``T``), since ``gamma`` is a tensor or scalar rather
+than a named field in this API. The spelling of the scheme matches OpenCFD
+OpenFOAM v2606; the lookup syntax remains gridfoam's existing syntax.
+
+The face value is ``(d_O + d_N) / (d_O/gamma_O + d_N/gamma_N)``, where the
+distances are measured along the face normal. Thus materials in series
+carry a common diffusion flux even when their coefficients or cell widths
+differ greatly. The same coefficient multiplies the implicit flux and the
+explicit hanging-face correction. ``Gauss harmonic uncorrected`` omits that
+correction. ``Gauss linear corrected`` and ``Gauss linear uncorrected`` are
+also accepted; existing ``linear``, ``corrected`` and ``uncorrected`` values
+retain linear coefficient interpolation.
+
+Harmonic interpolation accepts finite, nonnegative scalar diffusivity.
+A zero coefficient blocks its internal faces; negative or nonfinite values
+raise an error. The all-zero mean has no unique derivative, and the
+implementation uses a finite autograd convention at that point.
+Boundary diffusivity is still the adjacent cell value. This option does
+not locate an interface inside a cell or implement anisotropic diffusion
+or contact resistance. The existing skewness correction also does not
+reconstruct separate gradients on each side of a material interface;
+general skewed discontinuous problems still require convergence checks.
+
 Residual control
 ----------------
 

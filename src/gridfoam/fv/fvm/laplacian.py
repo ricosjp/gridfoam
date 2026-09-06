@@ -1,3 +1,5 @@
+import math
+
 import torch
 from jaxtyping import Float
 
@@ -36,22 +38,52 @@ def search_laplacian_scheme(
         scheme = schemes.get("default")
     if scheme is None:
         return DEFAULT_LAPLACIAN_SCHEME
-    if scheme == LaplacianScheme.LINEAR:
+    if scheme in (
+        LaplacianScheme.LINEAR,
+        LaplacianScheme.GAUSS_LINEAR_CORRECTED,
+    ):
         return LaplacianScheme.CORRECTED
+    if scheme == LaplacianScheme.GAUSS_LINEAR_UNCORRECTED:
+        return LaplacianScheme.UNCORRECTED
     return scheme
 
 
 def _interpolate_gamma(
-    geo: FaceGeometry, gamma: Float[torch.Tensor, " C 1"] | float
+    geo: FaceGeometry,
+    gamma: Float[torch.Tensor, " C 1"] | float,
+    *,
+    harmonic: bool = False,
 ) -> Float[torch.Tensor, " F 1"] | float:
-    """Uncorrected linear interpolation of ``gamma`` to all internal faces."""
+    """Interpolate scalar diffusivity, optionally as series resistances."""
+    if harmonic:
+        valid = (
+            bool(torch.all(torch.isfinite(gamma) & (gamma >= 0)))
+            if isinstance(gamma, torch.Tensor)
+            else math.isfinite(gamma) and gamma >= 0
+        )
+        if not valid:
+            raise ValueError(
+                "Harmonic diffusivity must be finite and nonnegative"
+            )
     if not isinstance(gamma, torch.Tensor):
         return gamma
     # All internal faces, including immersed; those coefficients are zeroed
     # later so the LDU arrays keep internal-face length.
-    return (
-        geo.w_all * gamma[geo.owner] + (1.0 - geo.w_all) * gamma[geo.neighbour]
-    )
+    gamma_o, gamma_n = gamma[geo.owner], gamma[geo.neighbour]
+    w = geo.w_all
+    if not harmonic:
+        return w * gamma_o + (1.0 - w) * gamma_n
+
+    # w = d_Nf / (d_Of + d_Nf), so the resistance weights are reversed:
+    # gamma_f = 1 / ((1-w)/gamma_O + w/gamma_N).
+    # Scale before forming products or reciprocals to avoid overflow.
+    # Zero diffusivity blocks the face; mask denominators before division
+    # so the all-zero case also has finite autograd derivatives.
+    scale = torch.maximum(gamma_o, gamma_n)
+    safe_scale = torch.where(scale > 0, scale, torch.ones_like(scale))
+    denom = w * (gamma_o / safe_scale) + (1.0 - w) * (gamma_n / safe_scale)
+    safe_denom = torch.where(denom > 0, denom, torch.ones_like(denom))
+    return torch.minimum(gamma_o, gamma_n) / safe_denom
 
 
 def _hanging_correction_source(
@@ -90,6 +122,13 @@ def laplacian(
     source and recorded in ``FvMatrix.face_flux_correction``. The
     ``uncorrected`` scheme omits that term.
 
+    Coefficients use linear interpolation by default. The configured
+    ``Gauss harmonic corrected`` / ``Gauss harmonic uncorrected`` options
+    use the series-resistance mean for face-aligned material interfaces.
+    Harmonic coefficients must be finite and nonnegative; a zero cell
+    coefficient blocks diffusion through its internal faces. Boundary
+    coefficients continue to use the adjacent cell's value.
+
     Parameters
     ----------
     gamma : torch.Tensor | float
@@ -110,7 +149,11 @@ def laplacian(
     scheme = search_laplacian_scheme(grid.sim_config, field)
 
     # Interpolate gamma to face centers.
-    gamma_f = _interpolate_gamma(geo, gamma)
+    harmonic = scheme in (
+        LaplacianScheme.GAUSS_HARMONIC_CORRECTED,
+        LaplacianScheme.GAUSS_HARMONIC_UNCORRECTED,
+    )
+    gamma_f = _interpolate_gamma(geo, gamma, harmonic=harmonic)
 
     # Face diffusion coefficient: gamma * |Sf| / |d . n|
     coeff = gamma_f * geo.mag_Sf_all * geo.delta_coeffs_all
@@ -127,7 +170,14 @@ def laplacian(
     mat.diag.index_add_(0, geo.neighbour, -coeff)
 
     # Skewness correction on hanging-node faces (explicit, deferred).
-    if scheme == LaplacianScheme.CORRECTED and geo.num_hanging > 0:
+    if (
+        scheme
+        in (
+            LaplacianScheme.CORRECTED,
+            LaplacianScheme.GAUSS_HARMONIC_CORRECTED,
+        )
+        and geo.num_hanging > 0
+    ):
         correction_src = _hanging_correction_source(field, geo, gamma_f)
         hang = geo.hang_idx
         mat.source.index_add_(0, geo.owner_s[hang], -correction_src)
