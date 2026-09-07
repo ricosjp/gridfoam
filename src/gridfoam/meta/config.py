@@ -28,6 +28,8 @@ from gridfoam.meta.enums import (
 )
 from gridfoam.meta.types import FieldName, PatchName
 
+type TensorValue = float | list[TensorValue]
+
 
 class DomainConfig(BaseModel, frozen=True):
     lower: list[float]
@@ -555,7 +557,7 @@ class BoundaryConditionConfig(BaseModel, frozen=True):
     """
     Target patch names for this boundary condition.
     """
-    value: list[float] | None = None
+    value: TensorValue | None = None
     """
     Numeric payload used by value-based boundary conditions.
     """
@@ -742,9 +744,9 @@ class ConditionConfig(BaseModel, frozen=True):
         Physical dimension of the field as SI base exponents
         (``T``, ``L``, ``M``, ``I``, ``Theta``, ``N``, ``J``).
     """
-    internal: list[float]
+    internal: TensorValue
     """
-    internal : list[float]
+    internal : TensorValue
         Internal condition value for the field.
     """
     boundary: dict[str, BoundaryConditionConfig]

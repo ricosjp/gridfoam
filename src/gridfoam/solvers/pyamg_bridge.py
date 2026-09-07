@@ -8,14 +8,19 @@ from scipy.sparse import csr_array
 
 from gridfoam.core.equation import Equation
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.core.shapes import (
+    component_indices,
+    require_shape,
+    validate_component_shape,
+)
 from gridfoam.meta.config import SolverConfig
 from gridfoam.solvers.base import LinearSolver, SolveResult, SolveStats
 
 
 def _build_csr(
-    diag: Float[torch.Tensor, " C 1"],
-    upper: Float[torch.Tensor, " F 1"],
-    lower: Float[torch.Tensor, " F 1"],
+    diag: Float[torch.Tensor, " C"],
+    upper: Float[torch.Tensor, " F"],
+    lower: Float[torch.Tensor, " F"],
     owner: Int[torch.Tensor, " F"],
     neighbour: Int[torch.Tensor, " F"],
 ) -> csr_array:
@@ -37,9 +42,7 @@ def _build_csr(
         ],
         dim=0,
     )
-    vals = torch.cat(
-        [diag.reshape(-1), upper.reshape(-1), lower.reshape(-1)], dim=0
-    )
+    vals = torch.cat([diag, upper, lower], dim=0)
 
     A_csr = csr_array(
         (
@@ -57,8 +60,8 @@ def _build_csr(
 
 def _solve_csr_components(
     A_csr: csr_array,
-    rhs: Float[torch.Tensor, " C k"],
-    x0: Float[torch.Tensor, " C k"],
+    rhs: Float[torch.Tensor, " C *component_shape"],
+    x0: Float[torch.Tensor, " C *component_shape"],
     *,
     atol: float,
     rtol: float,
@@ -72,15 +75,20 @@ def _solve_csr_components(
     a relative tolerance based on the initial residual, including b=0.
     The hierarchy is built once and reused across cycles and components.
     """
+    validate_component_shape(tuple(rhs.shape[1:]))
+    if A_csr.shape != (rhs.shape[0], rhs.shape[0]):
+        raise ValueError("AMG matrix must be square with one row per cell")
+    require_shape(x0, tuple(rhs.shape), "AMG initial guess")
     b_np = rhs.detach().cpu().numpy()
     x0_np = x0.detach().cpu().numpy()
     x_out = np.zeros_like(b_np)
     ml = None
     stats = []
 
-    for c in range(b_np.shape[1]):
-        b = b_np[:, c]
-        x = np.asarray(x0_np[:, c], dtype=b_np.dtype).copy()
+    for c in component_indices(tuple(rhs.shape[1:])):
+        index = (slice(None), *c)
+        b = b_np[index]
+        x = np.asarray(x0_np[index], dtype=b_np.dtype).copy()
         initial = float(np.linalg.norm(b - A_csr @ x, ord=norm_order))
         threshold = max(atol, rtol * initial)
         final = initial
@@ -93,7 +101,7 @@ def _solve_csr_components(
             x = ml.solve(b, x0=x, tol=0.0, maxiter=1)
             iterations += 1
             final = float(np.linalg.norm(b - A_csr @ x, ord=norm_order))
-        x_out[:, c] = x
+        x_out[index] = x
         stats.append(
             SolveStats(
                 solver="pyamg",
@@ -142,8 +150,8 @@ class PyamgBridgeSolver(LinearSolver):
     def solve_transpose(
         self,
         A_T: FvMatrix,
-        rhs: Float[torch.Tensor, " C k"],
-    ) -> Float[torch.Tensor, " C k"]:
+        rhs: Float[torch.Tensor, " C *component_shape"],
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         A_csr = _build_csr(
             A_T.diag, A_T.upper, A_T.lower, A_T.grid.owner, A_T.grid.neighbour
         )

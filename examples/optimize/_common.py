@@ -33,7 +33,7 @@ def configure_run_logger(
 def set_inlet_dirichlet(
     field: CellField,
     patch: DomainBoundaryPatch,
-    value: Float[torch.Tensor, " k"],
+    value: Float[torch.Tensor, " *component_shape"],
 ) -> None:
     """
     Replace the Dirichlet boundary condition on ``patch``.
@@ -45,7 +45,7 @@ def set_inlet_dirichlet(
     patch : DomainBoundaryPatch
         Domain boundary patch (typically ``X_MINUS`` for inlet).
     value : torch.Tensor
-        Boundary value tensor with shape ``[k]``. May require gradients.
+        Prescribed tensor with shape ``component_shape``; may require gradients.
     """
     field.bcs[patch] = DirichletBC(value)
 
@@ -54,7 +54,7 @@ def patch_cell_mean(
     field: CellField,
     patch: DomainBoundaryPatch,
     *,
-    component: int = 0,
+    component: tuple[int, ...] = (),
 ) -> Float[torch.Tensor, ""]:
     """
     Return the mean cell value adjacent to a domain boundary patch.
@@ -65,8 +65,8 @@ def patch_cell_mean(
         Cell-centered field to sample.
     patch : DomainBoundaryPatch
         Domain boundary patch to average over.
-    component : int, optional
-        Component index for vector fields. Default is 0.
+    component : tuple[int, ...], optional
+        Physical component index, e.g. (0,) for a vector. () for a scalar.
 
     Returns
     -------
@@ -76,15 +76,15 @@ def patch_cell_mean(
     grid = field.grid
     mask = grid.get_domain_bnd_mask(patch)
     owner_cells = grid.domain_bnd_owner[mask]
-    return field.data[owner_cells, component].mean()
+    return field.data[(owner_cells, *component)].mean()
 
 
 @dataclass(frozen=True)
 class FaceFieldSnapshot:
     """Detached copy of the face-field arrays used by channel-flow examples."""
 
-    single_data: Float[torch.Tensor, " F_single k"]
-    domain_bnd_data: Float[torch.Tensor, " F_bnd k"]
+    single_data: Float[torch.Tensor, " F_single *component_shape"]
+    domain_bnd_data: Float[torch.Tensor, " F_bnd *component_shape"]
 
 
 def snapshot_facefield(phi: FaceField) -> FaceFieldSnapshot:

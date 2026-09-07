@@ -80,12 +80,12 @@ simulator:
     p:
       # Kinematic pressure (p/rho): L^2/T^2
       dimension: {L: 2, T: -2}
-      internal: [0.0]
+      internal: 0.0
       boundary:
         wall:
           type: neumann
           patches: [x_minus, x_plus, y_minus, y_plus]
-          value: [0.0]
+          value: 0.0
         empty:
           type: empty
           patches: [z_minus, z_plus]

@@ -22,7 +22,7 @@ def test_nu_returns_tensor_from_config() -> None:
     transport, nu_cfg = _transport()
     nu = transport.nu()
     assert isinstance(nu, torch.Tensor)
-    assert nu.shape == (1,)
+    assert nu.shape == ()
     assert nu.item() == pytest.approx(nu_cfg)
     assert nu.dtype == transport.grid.dtype
     assert nu.device == transport.grid.device
@@ -39,7 +39,7 @@ def test_set_nu_tensor_is_returned_as_same_object() -> None:
     # Autograd leaves stay the same object when already on the grid.
     transport, _ = _transport()
     nu = torch.tensor(
-        [0.05],
+        0.05,
         dtype=transport.grid.dtype,
         device=transport.grid.device,
         requires_grad=True,
@@ -53,7 +53,7 @@ def test_set_nu_float_wraps_as_tensor() -> None:
     transport.set_nu(0.02)
     nu = transport.nu()
     assert isinstance(nu, torch.Tensor)
-    assert nu.shape == (1,)
+    assert nu.shape == ()
     assert nu.item() == pytest.approx(0.02)
 
 
@@ -62,7 +62,7 @@ def test_nu_flows_into_nu_eff_autograd() -> None:
     grid = create_grid(small_gridfoam_config())
     laminar = Laminar(grid)
     nu = torch.tensor(
-        [0.1],
+        0.1,
         dtype=grid.dtype,
         device=grid.device,
         requires_grad=True,

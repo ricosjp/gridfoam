@@ -14,13 +14,16 @@ from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 
 
 def _accumulate_atb(
-    atb: Float[torch.Tensor, " C 3 k"],
+    atb: Float[torch.Tensor, " C *component_shape 3"],
     cells: torch.Tensor,
     d: Float[torch.Tensor, " N 3"],
-    dpsi: Float[torch.Tensor, " N k"],
+    dpsi: Float[torch.Tensor, " N *component_shape"],
 ) -> None:
-    w2 = 1.0 / torch.sum(d * d, dim=1, keepdim=True)
-    atb.index_add_(0, cells, w2[:, :, None] * d[:, :, None] * dpsi[:, None, :])
+    distance2 = torch.sum(d * d, dim=1)
+    w2 = 1.0 / torch.where(distance2 > 0, distance2, torch.ones_like(distance2))
+    weighted_d = w2[:, None] * d
+    atb_face = torch.einsum("n...,nj->n...j", dpsi, weighted_d)
+    atb.index_add_(0, cells, atb_face)
 
 
 def least_squares_gradient(
@@ -28,7 +31,7 @@ def least_squares_gradient(
     geometry: FaceGeometry | None = None,
     *,
     hanging_cells_only: bool = False,
-) -> Float[torch.Tensor, " C k 3"]:
+) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Inverse-distance-squared weighted least-squares gradient.
 
@@ -42,7 +45,7 @@ def least_squares_gradient(
     Parameters
     ----------
     field : CellField
-        Cell-centered field with ``k`` components.
+        Cell-centered field.
     geometry : FaceGeometry or None
         Cached face geometry. Looked up from the grid when ``None``.
     hanging_cells_only : bool, default False
@@ -53,16 +56,18 @@ def least_squares_gradient(
     Returns
     -------
     torch.Tensor
-        Cell gradient with shape ``[C, k, 3]``.
+        Cell gradient with shape ``[C, *component_shape, 3]``.
     """
     grid = field.grid
     geo = geometry if geometry is not None else face_geometry(grid)
-    k = field.num_components
+    component_shape = field.component_shape
     psi = field.data
     centers = grid.cell_centers
 
     atb = torch.zeros(
-        (grid.num_cells, 3, k), dtype=grid.dtype, device=grid.device
+        (grid.num_cells, *component_shape, 3),
+        dtype=grid.dtype,
+        device=grid.device,
     )
 
     if hanging_cells_only:
@@ -73,8 +78,10 @@ def least_squares_gradient(
         neighbour = geo.neighbour_s
     d = centers[neighbour] - centers[owner]
     dpsi = psi[neighbour] - psi[owner]
-    w2 = 1.0 / torch.sum(d * d, dim=1, keepdim=True)
-    atb_face = w2[:, :, None] * d[:, :, None] * dpsi[:, None, :]
+    distance2 = torch.sum(d * d, dim=1)
+    w2 = 1.0 / torch.where(distance2 > 0, distance2, torch.ones_like(distance2))
+    weighted_d = w2[:, None] * d
+    atb_face = torch.einsum("n...,nj->n...j", dpsi, weighted_d)
     atb.index_add_(0, owner, atb_face)
     atb.index_add_(0, neighbour, atb_face)
 
@@ -91,4 +98,4 @@ def least_squares_gradient(
             psi_b = psi_b[select]
         _accumulate_atb(atb, cells, d_bnd, psi_b - psi[cells])
 
-    return torch.bmm(geo.lsq_ata_inv, atb).transpose(1, 2)
+    return torch.einsum("nij,n...j->n...i", geo.lsq_ata_inv, atb)

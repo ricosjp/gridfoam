@@ -19,13 +19,13 @@ def test_adjust_phi_balances_domain_flux(tmp_path: pathlib.Path):
     # When an adjustable outlet exists, inlet/outlet flux imbalance must be
     # removed so the sum of domain-boundary phi is (near) zero.
     grid = create_grid(channel_config(tmp_path))
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
 
     inlet_mask = grid.get_domain_bnd_mask(DomainBoundaryPatch.X_MINUS)
     outlet_mask = grid.get_domain_bnd_mask(DomainBoundaryPatch.X_PLUS)
-    phi.domain_bnd_data[inlet_mask, 0] = -1.0
-    phi.domain_bnd_data[outlet_mask, 0] = 0.8
+    phi.domain_bnd_data[inlet_mask] = -1.0
+    phi.domain_bnd_data[outlet_mask] = 0.8
 
     inlet_velocity = torch.tensor(
         [1.0, 0.0, 0.0], dtype=grid.dtype, device=grid.device
@@ -51,13 +51,13 @@ def test_adjust_phi_skips_scaling_when_no_adjustable_outflow(
 ):
     # With only fixed Dirichlet outlets, adjust_phi must leave phi unchanged.
     grid = create_grid(channel_config(tmp_path))
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
 
     inlet_mask = grid.get_domain_bnd_mask(DomainBoundaryPatch.X_MINUS)
     outlet_mask = grid.get_domain_bnd_mask(DomainBoundaryPatch.X_PLUS)
-    phi.domain_bnd_data[inlet_mask, 0] = -1.0
-    phi.domain_bnd_data[outlet_mask, 0] = 0.5
+    phi.domain_bnd_data[inlet_mask] = -1.0
+    phi.domain_bnd_data[outlet_mask] = 0.5
 
     inlet_velocity = torch.tensor(
         [1.0, 0.0, 0.0], dtype=grid.dtype, device=grid.device

@@ -21,7 +21,7 @@ def test_potential_flow_reduces_divergence(tmp_path: pathlib.Path):
     grid = create_grid(potential_flow_config(tmp_path))
     solver = PotentialFlow(grid)
 
-    phi = get_or_create_facefield(grid, "phi", FieldRole.LOCAL, 1)
+    phi = get_or_create_facefield(grid, "phi", FieldRole.LOCAL, ())
     correct_flux(phi, solver.U, update_internal=True)
     initial = torch.linalg.vector_norm(fvc.div(phi).data, ord=2).item()
 

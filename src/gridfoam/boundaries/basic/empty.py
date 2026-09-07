@@ -28,27 +28,22 @@ class EmptyBC(BoundaryCondition):
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.EMPTY
 
-    def component(self, c: int) -> BoundaryCondition:
-        return self
-
     def evaluate(
         self,
         field: CellField,
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
         grid = field.grid
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
-        fraction = torch.zeros(
-            (n_faces, 1), dtype=grid.dtype, device=grid.device
-        )
+        fraction = torch.zeros((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(
-            (n_faces, field.num_components),
+            (n_faces, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )

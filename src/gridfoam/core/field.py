@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from math import prod
 from typing import Self
 
 import torch
@@ -18,6 +19,8 @@ from gridfoam.core.dimensions import (
 from gridfoam.core.fv_cache import FvFieldCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.shapes import require_shape, validate_component_shape
+from gridfoam.meta.config import TensorValue
 from gridfoam.meta.enums import FieldRole
 from gridfoam.meta.types import PatchName
 
@@ -31,7 +34,7 @@ class GeometricField(ABC):
     """
     Abstract base class for geometric fields on a mesh.
 
-    Holds common metadata such as name, grid, component count, and role.
+    Holds common metadata such as name, grid, physical tensor shape, and role.
 
     Attributes
     ----------
@@ -41,13 +44,20 @@ class GeometricField(ABC):
         Field name, optionally with a phase suffix.
     role : FieldRole
         Temporal role of the field.
+    component_shape : tuple[int, ...]
+        Physical axes: (), (3,), (3, 3), ...; excludes the entity axis.
+    tensor_rank : int
+        Physical tensor rank, ``len(component_shape)``.
     num_components : int
-        Number of field components ``k``.
+        Number of scalar entries in the physical tensor,
+        ``prod(component_shape)``.
     dimension : PhysicalDimensions or None
         Optional physical dimension of the field.
     export : bool
         Whether the field is written to output.
     """
+
+    _component_shape: tuple[int, ...]
 
     @property
     @abstractmethod
@@ -68,10 +78,19 @@ class GeometricField(ABC):
         pass
 
     @property
-    @abstractmethod
+    def component_shape(self) -> tuple[int, ...]:
+        """Physical tensor axes, excluding the entity axis."""
+        return self._component_shape
+
+    @property
+    def tensor_rank(self) -> int:
+        """Physical tensor rank, ``len(component_shape)``."""
+        return len(self.component_shape)
+
+    @property
     def num_components(self) -> int:
-        """Number of field components ``k``."""
-        pass
+        """Number of scalar entries in the physical tensor."""
+        return prod(self.component_shape)
 
     @property
     @abstractmethod
@@ -110,8 +129,13 @@ class CellField(GeometricField):
         Field name, optionally with a phase suffix.
     role : FieldRole
         Temporal role of the field.
+    component_shape : tuple[int, ...]
+        Physical axes: (), (3,), (3, 3), ...; excludes the entity axis.
+    tensor_rank : int
+        Physical tensor rank, ``len(component_shape)``.
     num_components : int
-        Number of field components ``k``.
+        Number of scalar entries in the physical tensor,
+        ``prod(component_shape)``.
     dimension : PhysicalDimensions or None
         Optional physical dimension of the field.
     export : bool
@@ -119,9 +143,9 @@ class CellField(GeometricField):
     bcs : dict[PatchName, BoundaryCondition]
         Boundary conditions keyed by patch name.
     data : torch.Tensor
-        Cell values with shape ``[C, k]``.
+        Cell values with shape ``[C, *component_shape]``.
     old_data : torch.Tensor
-        Previous time-level values with shape ``[C, k]``.
+        Previous time-level values with shape ``[C, *component_shape]``.
     fv_cache : FvFieldCache
         Field-owned FV cache (boundary batches and states).
     """
@@ -131,19 +155,19 @@ class CellField(GeometricField):
         grid: IGridBase,
         name: str,
         role: FieldRole,
-        num_components: int,
+        component_shape: tuple[int, ...],
         dimension: DimensionLike = None,
     ):
         self._grid = grid
         self._name = name
         self._role = role
-        self._num_components = num_components
+        self._component_shape = validate_component_shape(component_shape)
         self._fv_cache = FvFieldCache()
 
         device = grid.device
         dtype = grid.dtype
 
-        shape = (grid.num_cells, num_components)
+        shape = (grid.num_cells, *self.component_shape)
         self._data = torch.zeros(shape, dtype=dtype, device=device)
 
         self._bcs: dict[PatchName, BoundaryCondition] = {}
@@ -196,26 +220,22 @@ class CellField(GeometricField):
             self.update_history(reset=True)
             return
         self._data = torch.zeros(
-            (n_cells, self.num_components),
+            (n_cells, *self.component_shape),
             dtype=self.grid.dtype,
             device=self.grid.device,
         )
         self.fv_cache.clear()
         self.update_history(reset=True)
 
-    def reset_data(self, init_value: list[float]):
-        """
-        Reset data to initial condition.
-        """
-        if len(init_value) != self.num_components:
-            raise ValueError(
-                f"Field {self.name!r}: internal has "
-                f"{len(init_value)} value(s), "
-                f"expected {self.num_components}"
-            )
-        self._data[:] = torch.tensor(
+    def reset_data(self, init_value: TensorValue):
+        """Reset using a uniform physical tensor, without the entity axis."""
+        value = torch.tensor(
             init_value, dtype=self.grid.dtype, device=self.grid.device
-        ).view(1, self.num_components)
+        )
+        require_shape(
+            value, self.component_shape, f"Field {self.name!r} internal"
+        )
+        self._data[:] = value
         self.update_history(reset=True)
 
     def update_history(self, *, reset: bool = False):
@@ -268,11 +288,6 @@ class CellField(GeometricField):
         return self._role
 
     @property
-    def num_components(self) -> int:
-        """Number of field components ``k``."""
-        return self._num_components
-
-    @property
     def dimension(self) -> PhysicalDimensions | None:
         """Optional physical dimension of the field."""
         return self._dimension
@@ -295,17 +310,22 @@ class CellField(GeometricField):
     # Data Accessors
     # ================================
     @property
-    def data(self) -> Float[torch.Tensor, "C k"]:
-        """Cell values with shape ``[C, k]``."""
+    def data(self) -> Float[torch.Tensor, " C *component_shape"]:
+        """Cell values with shape ``[C, *component_shape]``."""
         return self._data
 
     @data.setter
-    def data(self, value: Float[torch.Tensor, "C k"]):
+    def data(self, value: Float[torch.Tensor, " C *component_shape"]):
+        require_shape(
+            value,
+            (self.grid.num_cells, *self.component_shape),
+            f"{self.name}.data",
+        )
         self._data = value
 
     @property
-    def old_data(self) -> Float[torch.Tensor, "C k"]:
-        """Previous time-level values with shape ``[C, k]``."""
+    def old_data(self) -> Float[torch.Tensor, " C *component_shape"]:
+        """Previous time-level values with shape ``[C, *component_shape]``."""
         return self._old_data
 
     @property
@@ -376,8 +396,13 @@ class FaceField(GeometricField):
         Field name, optionally with a phase suffix.
     role : FieldRole
         Temporal role of the field.
+    component_shape : tuple[int, ...]
+        Physical axes: (), (3,), (3, 3), ...; excludes the entity axis.
+    tensor_rank : int
+        Physical tensor rank, ``len(component_shape)``.
     num_components : int
-        Number of field components ``k``.
+        Number of scalar entries in the physical tensor,
+        ``prod(component_shape)``.
     dimension : PhysicalDimensions or None
         Optional physical dimension of the field.
     export : bool
@@ -387,13 +412,13 @@ class FaceField(GeometricField):
     single_mask : torch.Tensor
         Boolean mask of single-sided internal faces, shape ``[F_internal]``.
     single_data : torch.Tensor
-        Values on single-sided internal faces, shape ``[F_single, k]``.
+        Single-sided face values, shape ``[F_single, *component_shape]``.
     immersed_upper : torch.Tensor
-        Upper-side immersed-face values, shape ``[F_immersed, k]``.
+        Upper-side values, shape ``[F_immersed, *component_shape]``.
     immersed_lower : torch.Tensor
-        Lower-side immersed-face values, shape ``[F_immersed, k]``.
+        Lower-side values, shape ``[F_immersed, *component_shape]``.
     domain_bnd_data : torch.Tensor
-        Domain-boundary face values, shape ``[F_bnd, k]``.
+        Domain-boundary face values, shape ``[F_bnd, *component_shape]``.
 
     Notes
     -----
@@ -407,14 +432,14 @@ class FaceField(GeometricField):
         grid: IGridBase,
         name: str,
         role: FieldRole,
-        num_components: int,
+        component_shape: tuple[int, ...],
         dimension: DimensionLike = None,
         export: bool = True,
     ):
         self._grid = grid
         self._name = name
         self._role = role
-        self._num_components = num_components
+        self._component_shape = validate_component_shape(component_shape)
         self._dimension = resolve_field_dimension(name, explicit=dimension)
         self._export = export
 
@@ -422,7 +447,7 @@ class FaceField(GeometricField):
         dtype = grid.dtype
 
         # Domain-boundary data
-        domain_bnd_shape = (grid.num_domain_bnd_faces, num_components)
+        domain_bnd_shape = (grid.num_domain_bnd_faces, *self.component_shape)
         self._domain_bnd_data = torch.zeros(
             domain_bnd_shape, dtype=dtype, device=device
         )
@@ -434,7 +459,10 @@ class FaceField(GeometricField):
         # Immersed-boundary data (double-sided)
         if isinstance(grid, AxisProjectedGrid):
             self._single_mask[grid.ap_is_immersed_faces] = False
-            immersed_bnd_shape = (grid.num_immersed_faces, num_components)
+            immersed_bnd_shape = (
+                grid.num_immersed_faces,
+                *self.component_shape,
+            )
             self._immersed_upper = torch.zeros(
                 immersed_bnd_shape, dtype=dtype, device=device
             )
@@ -444,7 +472,7 @@ class FaceField(GeometricField):
             self._num_single_sided -= grid.num_immersed_faces
 
         # Internal-face data (single-sided subset only)
-        shape = (self._num_single_sided, num_components)
+        shape = (self._num_single_sided, *self.component_shape)
         self._single_data = torch.zeros(shape, dtype=dtype, device=device)
 
         # Self-register in the grid field registry.
@@ -467,8 +495,10 @@ class FaceField(GeometricField):
         self._old_single_data = self._single_data.clone()
 
     @property
-    def old_single_data(self) -> Float[torch.Tensor, " F_single k"]:
-        """Previous time-level single-sided values, ``[F_single, k]``."""
+    def old_single_data(
+        self,
+    ) -> Float[torch.Tensor, " F_single *component_shape"]:
+        """Previous single-sided values, ``[F_single, *component_shape]``."""
         return self._old_single_data
 
     @property
@@ -507,14 +537,14 @@ class FaceField(GeometricField):
         grid = self.grid
         n_internal = grid.num_internal_faces
         n_bnd = grid.num_domain_bnd_faces
-        k = self.num_components
+        component_shape = self.component_shape
         device = grid.device
         dtype = grid.dtype
 
         new_mask = torch.ones(n_internal, dtype=torch.bool, device=device)
         if isinstance(grid, AxisProjectedGrid):
             new_mask[grid.ap_is_immersed_faces] = False
-            immersed_shape = (grid.num_immersed_faces, k)
+            immersed_shape = (grid.num_immersed_faces, *component_shape)
             self._immersed_upper = torch.zeros(
                 immersed_shape, dtype=dtype, device=device
             )
@@ -526,13 +556,17 @@ class FaceField(GeometricField):
             self._single_mask = new_mask
             self._num_single_sided = int(new_mask.sum().item())
             self._single_data = torch.zeros(
-                (self._num_single_sided, k), dtype=dtype, device=device
+                (self._num_single_sided, *component_shape),
+                dtype=dtype,
+                device=device,
             )
             self._domain_bnd_data = torch.zeros(
-                (n_bnd, k), dtype=dtype, device=device
+                (n_bnd, *component_shape), dtype=dtype, device=device
             )
         else:
-            full = torch.zeros((n_internal, k), dtype=dtype, device=device)
+            full = torch.zeros(
+                (n_internal, *component_shape), dtype=dtype, device=device
+            )
             full[self._single_mask] = self._single_data
             self._single_mask = new_mask
             self._single_data = full[new_mask]
@@ -562,11 +596,6 @@ class FaceField(GeometricField):
         return self._role
 
     @property
-    def num_components(self) -> int:
-        """Number of field components ``k``."""
-        return self._num_components
-
-    @property
     def dimension(self) -> PhysicalDimensions | None:
         """Optional physical dimension of the field."""
         return self._dimension
@@ -590,17 +619,26 @@ class FaceField(GeometricField):
         return self._single_mask
 
     @property
-    def single_data(self) -> Float[torch.Tensor, " F_single k"]:
-        """Values on single-sided internal faces ``[F_single, k]``."""
+    def single_data(self) -> Float[torch.Tensor, " F_single *component_shape"]:
+        """Single-sided face values ``[F_single, *component_shape]``."""
         return self._single_data
 
     @single_data.setter
-    def single_data(self, value: Float[torch.Tensor, "F_single k"]):
+    def single_data(
+        self, value: Float[torch.Tensor, " F_single *component_shape"]
+    ):
+        require_shape(
+            value,
+            (self.num_single_sided, *self.component_shape),
+            f"{self.name}.single_data",
+        )
         self._single_data = value
 
     @property
-    def immersed_upper(self) -> Float[torch.Tensor, "F_immersed k"]:
-        """Upper-side immersed-face values, shape ``[F_immersed, k]``."""
+    def immersed_upper(
+        self,
+    ) -> Float[torch.Tensor, " F_immersed *component_shape"]:
+        """Upper-side values, shape ``[F_immersed, *component_shape]``."""
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed upper data is not available for this grid."
@@ -608,16 +646,25 @@ class FaceField(GeometricField):
         return self._immersed_upper
 
     @immersed_upper.setter
-    def immersed_upper(self, value: Float[torch.Tensor, "F_immersed k"]):
+    def immersed_upper(
+        self, value: Float[torch.Tensor, " F_immersed *component_shape"]
+    ):
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed upper data is not available for this grid."
             )
+        require_shape(
+            value,
+            (self.grid.num_immersed_faces, *self.component_shape),
+            f"{self.name}.immersed_upper",
+        )
         self._immersed_upper = value
 
     @property
-    def immersed_lower(self) -> Float[torch.Tensor, "F_immersed k"]:
-        """Lower-side immersed-face values, shape ``[F_immersed, k]``."""
+    def immersed_lower(
+        self,
+    ) -> Float[torch.Tensor, " F_immersed *component_shape"]:
+        """Lower-side values, shape ``[F_immersed, *component_shape]``."""
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed lower data is not available for this grid."
@@ -625,27 +672,41 @@ class FaceField(GeometricField):
         return self._immersed_lower
 
     @immersed_lower.setter
-    def immersed_lower(self, value: Float[torch.Tensor, "F_immersed k"]):
+    def immersed_lower(
+        self, value: Float[torch.Tensor, " F_immersed *component_shape"]
+    ):
         if not isinstance(self.grid, AxisProjectedGrid):
             raise ValueError(
                 "Immersed lower data is not available for this grid."
             )
+        require_shape(
+            value,
+            (self.grid.num_immersed_faces, *self.component_shape),
+            f"{self.name}.immersed_lower",
+        )
         self._immersed_lower = value
 
     @property
-    def domain_bnd_data(self) -> Float[torch.Tensor, "F_bnd k"]:
-        """Domain-boundary face values, shape ``[F_bnd, k]``."""
+    def domain_bnd_data(self) -> Float[torch.Tensor, " F_bnd *component_shape"]:
+        """Domain-boundary face values, shape ``[F_bnd, *component_shape]``."""
         return self._domain_bnd_data
 
     @domain_bnd_data.setter
-    def domain_bnd_data(self, value: Float[torch.Tensor, "F_bnd k"]):
+    def domain_bnd_data(
+        self, value: Float[torch.Tensor, " F_bnd *component_shape"]
+    ):
+        require_shape(
+            value,
+            (self.grid.num_domain_bnd_faces, *self.component_shape),
+            f"{self.name}.domain_bnd_data",
+        )
         self._domain_bnd_data = value
 
     def packed_n_rows(self) -> int:
-        """Packed layout row count (feature axis ``k`` is not included)."""
+        """Packed layout entity count, excluding the physical tensor axes."""
         return sum(block.shape[0] for block in self._pack_blocks())
 
-    def pack(self) -> Float[torch.Tensor, "N k"]:
+    def pack(self) -> Float[torch.Tensor, " N *component_shape"]:
         """
         Concatenate face blocks along axis 0.
 
@@ -655,31 +716,28 @@ class FaceField(GeometricField):
         """
         return torch.cat(self._pack_blocks(), dim=0)
 
-    def unpack(self, packed: Float[torch.Tensor, "N k"]) -> None:
+    def unpack(
+        self, packed: Float[torch.Tensor, " N *component_shape"]
+    ) -> None:
         """
         Write a packed tensor back into the face blocks.
 
         Parameters
         ----------
         packed : torch.Tensor
-            Packed values with shape ``[N, k]``.
+            Packed values with shape ``[N, *component_shape]``.
 
         Raises
         ------
         ValueError
-            If the row count differs from ``packed_n_rows()`` or the feature
-            axis ``k`` differs from ``num_components``.
+            If the row count differs from ``packed_n_rows()`` or the physical
+            tensor axes differ from ``component_shape``.
         """
-        n_rows = self.packed_n_rows()
-        n_features = self.num_components
-        if packed.shape[0] != n_rows:
-            raise ValueError(
-                f"packed has {packed.shape[0]} rows, expected {n_rows}"
-            )
-        if packed.shape[1] != n_features:
-            raise ValueError(
-                f"packed has {packed.shape[1]} features, expected {n_features}"
-            )
+        require_shape(
+            packed,
+            (self.packed_n_rows(), *self.component_shape),
+            f"{self.name}.packed",
+        )
         offset = 0
         for block in self._pack_blocks():
             n_block = block.shape[0]
@@ -752,7 +810,7 @@ def packed_face_n_rows(grid: IGridBase) -> int:
     Returns
     -------
     int
-        Number of rows ``N`` in ``[N, k]`` packed face tensors.
+        Number of rows ``N`` in ``[N, *component_shape]`` packed face tensors.
     """
     if isinstance(grid, AxisProjectedGrid):
         n_single = grid.num_internal_faces - grid.num_immersed_faces
@@ -766,7 +824,7 @@ def get_or_create_cellfield(
     grid: IGridBase,
     name: str,
     role: FieldRole,
-    num_components: int,
+    component_shape: tuple[int, ...],
     dimension: DimensionLike = None,
 ) -> CellField:
     """
@@ -780,8 +838,8 @@ def get_or_create_cellfield(
         Field name, optionally with a phase suffix.
     role : FieldRole
         Temporal role required for the field.
-    num_components : int
-        Number of components ``k``.
+    component_shape : tuple[int, ...]
+        Physical tensor axes; () for a scalar.
     dimension : PhysicalDimensions or dict[str, float or int] or None, optional
         Optional physical dimension of the field.
 
@@ -793,7 +851,9 @@ def get_or_create_cellfield(
     Raises
     ------
     AssertionError
-        If an existing field has a mismatched ``role`` or ``num_components``.
+        If an existing field has a mismatched ``role``.
+    ValueError
+        If the physical tensor shape does not match.
     DimensionMismatchError
         If an existing field has an incompatible dimension.
     """
@@ -804,11 +864,15 @@ def get_or_create_cellfield(
             grid=grid,
             name=name,
             role=role,
-            num_components=num_components,
+            component_shape=component_shape,
             dimension=dimension,
         )
     assert field.role == role
-    assert field.num_components == num_components
+    if field.component_shape != component_shape:
+        raise ValueError(
+            f"Field {name!r}: component_shape {field.component_shape}, "
+            f"expected {component_shape}"
+        )
     assert_compatible(field.dimension, resolved, f"cell field {name!r}")
     return field
 
@@ -817,7 +881,7 @@ def get_or_create_facefield(
     grid: IGridBase,
     name: str,
     role: FieldRole,
-    num_components: int,
+    component_shape: tuple[int, ...],
     dimension: DimensionLike = None,
     export: bool = True,
 ) -> FaceField:
@@ -832,8 +896,8 @@ def get_or_create_facefield(
         Field name, optionally with a phase suffix.
     role : FieldRole
         Temporal role required for the field.
-    num_components : int
-        Number of components ``k``.
+    component_shape : tuple[int, ...]
+        Physical tensor axes; () for a scalar.
     dimension : PhysicalDimensions or dict[str, float or int] or None, optional
         Optional physical dimension of the field.
     export : bool, optional
@@ -858,12 +922,16 @@ def get_or_create_facefield(
             grid=grid,
             name=name,
             role=role,
-            num_components=num_components,
+            component_shape=component_shape,
             dimension=dimension,
             export=export,
         )
     assert field.role == role
-    assert field.num_components == num_components
+    if field.component_shape != component_shape:
+        raise ValueError(
+            f"Field {name!r}: component_shape {field.component_shape}, "
+            f"expected {component_shape}"
+        )
     assert_compatible(field.dimension, resolved, f"face field {name!r}")
     assert field.export == export
     return field

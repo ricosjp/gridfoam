@@ -78,23 +78,23 @@ def pulse_metrics(scheme: DivScheme, refined: bool) -> dict[str, float]:
         }
     )
     grid = create_grid(config)
-    q = CellField(grid, "q", FieldRole.TRANSIENT, 1)
+    q = CellField(grid, "q", FieldRole.TRANSIENT, ())
     q.add_boundary_conditions(
         {
             patch: (
-                DirichletBC(torch.zeros(1, dtype=grid.dtype))
+                DirichletBC(torch.zeros((), dtype=grid.dtype))
                 if patch == DomainBoundaryPatch.X_MINUS
-                else NeumannBC(torch.zeros(1, dtype=grid.dtype))
+                else NeumannBC(torch.zeros((), dtype=grid.dtype))
             )
             for patch in DomainBoundaryPatch
         }
     )
-    x = grid.cell_centers[:, :1]
+    x = grid.cell_centers[:, 0]
     q.data = ((x >= pulse_left) & (x < pulse_right)).to(grid.dtype)
     q.update_history(reset=True)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX)
-    phi.single_data = grid.Sf[phi.single_mask, :1]
-    phi.domain_bnd_data = grid.domain_bnd_Sf[:, :1]
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, (), dimension=DIM_VOL_FLUX)
+    phi.single_data = grid.Sf[phi.single_mask, 0]
+    phi.domain_bnd_data = grid.domain_bnd_Sf[:, 0]
     solver = create_solver(
         SolverConfig(
             method=SolverType.BiCGSTAB,

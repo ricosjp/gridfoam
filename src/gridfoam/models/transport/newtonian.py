@@ -6,6 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.shapes import require_shape
 from gridfoam.models.transport.base import TransportModel
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class NewtonianTransport(TransportModel):
     Constant-viscosity Newtonian transport model.
 
     The case-file value ``properties.transport.nu`` is stored as a tensor
-    of shape ``[1]`` on the grid device. Replace it with ``set_nu`` to
+    of shape ``()`` on the grid device. Replace it with ``set_nu`` to
     keep an autograd leaf (including ``nn.Parameter``) in the graph.
 
     Parameters
@@ -25,13 +26,13 @@ class NewtonianTransport(TransportModel):
         Computational grid that owns device, dtype, and simulator config.
     """
 
-    _nu: Float[torch.Tensor, " 1"]
+    _nu: Float[torch.Tensor, ""]
 
     def __init__(self, grid: IGridBase):
         super().__init__(grid)
         self.set_nu(float(grid.sim_config.properties.transport.nu))
 
-    def nu(self) -> Float[torch.Tensor, " 1"]:
+    def nu(self) -> Float[torch.Tensor, ""]:
         """
         Return molecular kinematic viscosity.
 
@@ -42,28 +43,29 @@ class NewtonianTransport(TransportModel):
         Returns
         -------
         torch.Tensor
-            Kinematic viscosity ``nu`` with shape ``[1]``.
+            Kinematic viscosity ``nu`` with shape ``()``.
         """
         return self._nu.to(dtype=self.grid.dtype, device=self.grid.device)
 
-    def set_nu(self, nu: float | Float[torch.Tensor, " 1"]) -> None:
+    def set_nu(self, nu: float | Float[torch.Tensor, ""]) -> None:
         """
         Replace the stored kinematic viscosity.
 
         A tensor is stored as-is so that ``nn.Parameter`` identity is
-        kept. A float is wrapped as a tensor of shape ``[1]`` on the
+        kept. A float is wrapped as a tensor of shape ``()`` on the
         grid device.
 
         Parameters
         ----------
         nu : float or torch.Tensor
-            New kinematic viscosity. Tensors must have shape ``[1]``.
+            New kinematic viscosity. Tensors must have shape ``()``.
         """
         if isinstance(nu, torch.Tensor):
+            require_shape(nu, (), "uniform viscosity")
             self._nu = nu
             return
         self._nu = torch.tensor(
-            [float(nu)],
+            float(nu),
             dtype=self.grid.dtype,
             device=self.grid.device,
         )

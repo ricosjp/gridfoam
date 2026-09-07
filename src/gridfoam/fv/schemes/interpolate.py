@@ -46,7 +46,7 @@ def linear(field: CellField) -> FaceField:
         grid,
         f"{field.name}_f",
         FieldRole.LOCAL,
-        field.num_components,
+        field.component_shape,
         dimension=field.dimension,
     )
 

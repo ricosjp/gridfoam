@@ -21,7 +21,7 @@ def test_field_initial_residual_zero_for_exact_solution(
 ):
     # Residual must be zero when the field satisfies the Laplacian system.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_res", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_res", role=FieldRole.LOCAL, component_shape=())
     mat = fvm.laplacian(1.0, p)
     p.data.fill_(0.0)
     mat.source.fill_(0.0)
@@ -33,7 +33,7 @@ def test_continuity_residual_matches_div_norm(
 ):
     # Continuity residual must be a non-negative scalar from div(phi).
     grid = small_axis_projected_grid
-    phi = FaceField(grid, "phi_res", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi_res", role=FieldRole.LOCAL, component_shape=())
     phi.single_data = torch.randn_like(phi.single_data)
     residual = continuity_residual(phi)
     assert residual >= 0.0
@@ -55,7 +55,7 @@ def test_fvmatrix_residual_nonzero_for_mismatch(
 ):
     # A field that does not satisfy Ax=b must yield a positive residual.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_bad", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_bad", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
     mat.diag.fill_(2.0)
     mat.source.fill_(1.0)

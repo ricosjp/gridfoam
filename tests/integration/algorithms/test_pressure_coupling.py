@@ -77,7 +77,7 @@ def _assert_boundary_flux_matches_velocity_bcs(
     ) | grid.get_domain_bnd_mask(DomainBoundaryPatch.Z_PLUS)
     # Dirichlet inlet U = (1, 0, 0) against the outward normal -x.
     expected_inlet = -torch.linalg.vector_norm(
-        grid.domain_bnd_Sf[inlet], dim=1, keepdim=True
+        grid.domain_bnd_Sf[inlet], dim=1, keepdim=False
     )
     torch.testing.assert_close(
         phi.domain_bnd_data[inlet], expected_inlet, atol=1e-12, rtol=0.0
@@ -200,7 +200,7 @@ def test_constrain_hbya_imposes_velocity_flux_on_fixed_patches(
     ) | grid.get_domain_bnd_mask(DomainBoundaryPatch.Y_PLUS)
 
     expected_inlet = -torch.linalg.vector_norm(
-        grid.domain_bnd_Sf[inlet], dim=1, keepdim=True
+        grid.domain_bnd_Sf[inlet], dim=1, keepdim=False
     )
     torch.testing.assert_close(
         algo.phi_hbya.domain_bnd_data[inlet], expected_inlet
@@ -209,7 +209,7 @@ def test_constrain_hbya_imposes_velocity_flux_on_fixed_patches(
     expected_outlet = torch.sum(
         HbyA.data[grid.domain_bnd_owner[outlet]] * grid.domain_bnd_Sf[outlet],
         dim=1,
-        keepdim=True,
+        keepdim=False,
     )
     torch.testing.assert_close(
         algo.phi_hbya.domain_bnd_data[outlet], expected_outlet
@@ -246,7 +246,7 @@ def test_pressure_initial_residual_is_measured_before_solve(
     rAtU = algo.rAtU
     rAtU.data = torch.ones_like(rAtU.data)
     p.data = torch.zeros_like(p.data)
-    div_source = torch.sin(grid.cell_centers[:, :1] * 3.0)
+    div_source = torch.sin(grid.cell_centers[:, 0] * 3.0)
 
     p_eqn = -fvm.laplacian(rAtU.data, p)
     p_eqn.source = p_eqn.source - div_source * grid.cell_volumes
@@ -336,8 +336,8 @@ def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path):
 
 def test_ddt_corr_vanishes_for_consistent_old_flux(tmp_path: pathlib.Path):
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
-    U = CellField(grid, "U_ddt", FieldRole.TRANSIENT, 3)
-    phi = FaceField(grid, "phi_ddt", FieldRole.LOCAL, 1)
+    U = CellField(grid, "U_ddt", FieldRole.TRANSIENT, (3,))
+    phi = FaceField(grid, "phi_ddt", FieldRole.LOCAL, ())
     single = phi.single_mask
 
     # Hanging faces use a skew-corrected interpolation, so restrict the
@@ -345,7 +345,7 @@ def test_ddt_corr_vanishes_for_consistent_old_flux(tmp_path: pathlib.Path):
     U.data = torch.ones_like(U.data)
     U.update_history()
     phi.single_data = torch.sum(
-        fvc.interpolate(U).single_data * grid.Sf[single], dim=1, keepdim=True
+        fvc.interpolate(U).single_data * grid.Sf[single], dim=1, keepdim=False
     )
     phi.update_history()
     corr = fvc.ddt_corr(U, phi)
@@ -356,7 +356,7 @@ def test_ddt_corr_vanishes_for_consistent_old_flux(tmp_path: pathlib.Path):
     phi.update_history()
     corr = fvc.ddt_corr(U, phi)
     phi_corr = phi.old_single_data - torch.sum(
-        fvc.interpolate(U).single_data * grid.Sf[single], dim=1, keepdim=True
+        fvc.interpolate(U).single_data * grid.Sf[single], dim=1, keepdim=False
     )
     assert bool(torch.all(corr.abs() <= phi_corr.abs() / grid.dt + 1e-12))
     assert float(corr.abs().max()) > 0.0

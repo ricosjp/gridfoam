@@ -130,7 +130,7 @@ def solve_steady_temperature(
 
 
 def outlet_temperature_loss(
-    inlet_temperature: Float[torch.Tensor, " 1"],
+    inlet_temperature: Float[torch.Tensor, ""],
     T: CellField,
     phi: FaceField,
     alpha: float,
@@ -159,7 +159,7 @@ def check_gradient_fd(
 
     def eval_loss(value: float) -> float:
         inlet = torch.tensor(
-            [value],
+            value,
             dtype=grid.dtype,
             device=grid.device,
         )
@@ -182,7 +182,7 @@ def check_gradient_fd(
     ) / (2.0 * eps)
 
     inlet = torch.tensor(
-        [inlet_temperature_init],
+        inlet_temperature_init,
         dtype=grid.dtype,
         device=grid.device,
         requires_grad=True,
@@ -392,9 +392,9 @@ def main() -> None:
     U_name = make_field_name("U")
     phi_name = make_field_name("phi")
 
-    U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
-    T = get_or_create_cellfield(grid, T_name, FieldRole.LOCAL, 1)
-    phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, 1)
+    U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, (3,))
+    T = get_or_create_cellfield(grid, T_name, FieldRole.LOCAL, ())
+    phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, ())
 
     correct_flux(phi, U, update_internal=True)
     logger.info("using fixed converged flow field (U, phi)")
@@ -413,7 +413,7 @@ def main() -> None:
         )
 
     inlet_temperature = torch.tensor(
-        [INLET_TEMPERATURE_INIT],
+        INLET_TEMPERATURE_INIT,
         dtype=grid.dtype,
         device=grid.device,
         requires_grad=True,

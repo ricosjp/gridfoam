@@ -5,17 +5,19 @@ from __future__ import annotations
 import torch
 from jaxtyping import Float, Int
 
+from gridfoam.core.shapes import sum_physical
+
 
 def assemble_ldu_grads(
-    lambda_t: Float[torch.Tensor, " C k"],
-    x: Float[torch.Tensor, " C k"],
+    lambda_t: Float[torch.Tensor, " C *component_shape"],
+    x: Float[torch.Tensor, " C *component_shape"],
     owner: Int[torch.Tensor, " F"],
     neighbour: Int[torch.Tensor, " F"],
 ) -> tuple[
-    Float[torch.Tensor, " C 1"],
-    Float[torch.Tensor, " F 1"],
-    Float[torch.Tensor, " F 1"],
-    Float[torch.Tensor, " C k"],
+    Float[torch.Tensor, " C"],
+    Float[torch.Tensor, " F"],
+    Float[torch.Tensor, " F"],
+    Float[torch.Tensor, " C *component_shape"],
 ]:
     """
     Assemble gradients of ``x = A^{-1} b`` w.r.t. LDU coefficients and ``b``.
@@ -30,9 +32,9 @@ def assemble_ldu_grads(
     Parameters
     ----------
     lambda_t : torch.Tensor
-        Adjoint variable with shape ``[C, k]``.
+        Adjoint variable with shape ``[C, *component_shape]``.
     x : torch.Tensor
-        Primal solution with shape ``[C, k]``.
+        Primal solution with shape ``[C, *component_shape]``.
     owner : torch.Tensor
         Owner cell indices per internal face.
     neighbour : torch.Tensor
@@ -44,8 +46,8 @@ def assemble_ldu_grads(
         ``(grad_diag, grad_upper, grad_lower, grad_source)``.
     """
     return (
-        -(lambda_t * x).sum(dim=1, keepdim=True),
-        -(lambda_t[owner] * x[neighbour]).sum(dim=1, keepdim=True),
-        -(lambda_t[neighbour] * x[owner]).sum(dim=1, keepdim=True),
+        -sum_physical(lambda_t * x),
+        -sum_physical(lambda_t[owner] * x[neighbour]),
+        -sum_physical(lambda_t[neighbour] * x[owner]),
         lambda_t,
     )

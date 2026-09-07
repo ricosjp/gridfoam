@@ -7,10 +7,12 @@ from jaxtyping import Float
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.shapes import broadcast_entity, require_shape
 from gridfoam.fv.boundary_ops import (
-    BoundaryFaceKind,
+    boundary_value_gradient_coefficient,
     evaluate_boundary_state,
     iter_boundary_batches,
+    outward_boundary_Sf,
 )
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
@@ -52,10 +54,10 @@ def search_laplacian_scheme(
 @overload
 def _interpolate_gamma(
     geo: FaceGeometry,
-    gamma: Float[torch.Tensor, " C 1"],
+    gamma: Float[torch.Tensor, " C"],
     *,
     harmonic: bool = False,
-) -> Float[torch.Tensor, " F 1"]: ...
+) -> Float[torch.Tensor, " F"]: ...
 
 
 @overload
@@ -66,10 +68,10 @@ def _interpolate_gamma(
 
 def _interpolate_gamma(
     geo: FaceGeometry,
-    gamma: Float[torch.Tensor, " C 1"] | float,
+    gamma: Float[torch.Tensor, " C"] | float,
     *,
     harmonic: bool = False,
-) -> Float[torch.Tensor, " F 1"] | float:
+) -> Float[torch.Tensor, " F"] | float:
     """Interpolate scalar diffusivity, optionally as series resistances."""
     if harmonic:
         valid = (
@@ -105,8 +107,8 @@ def _interpolate_gamma(
 def _hanging_correction_source(
     field: CellField,
     geo: FaceGeometry,
-    gamma_f: Float[torch.Tensor, " F 1"] | float,
-) -> Float[torch.Tensor, " F_hang k"]:
+    gamma_f: Float[torch.Tensor, " F"] | float,
+) -> Float[torch.Tensor, " F_hang *component_shape"]:
     """
     Explicit skewness-correction flux on hanging-node faces.
 
@@ -121,11 +123,14 @@ def _hanging_correction_source(
         gamma_hang = gamma_f[hang_faces]
     else:
         gamma_hang = gamma_f
-    return gamma_hang * geo.mag_Sf_s[geo.hang_idx] * correction
+    coeff = broadcast_entity(
+        gamma_hang * geo.mag_Sf_s[geo.hang_idx], correction
+    )
+    return coeff * correction
 
 
 def laplacian(
-    gamma: Float[torch.Tensor, " C 1"] | float, field: CellField
+    gamma: Float[torch.Tensor, " C"] | float, field: CellField
 ) -> FvMatrix:
     """
     Build the diffusion (Laplacian) matrix term.
@@ -159,6 +164,8 @@ def laplacian(
     FvMatrix
         Coefficient matrix assembled from diffusion term.
     """
+    if isinstance(gamma, torch.Tensor):
+        require_shape(gamma, (field.grid.num_cells,), "diffusivity")
     mat = FvMatrix(field)
     grid = field.grid
     geo = face_geometry(grid)
@@ -176,7 +183,7 @@ def laplacian(
 
     # Cut immersed split faces for dual-sided IBM treatment.
     if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
-        coeff = coeff.masked_fill(grid.ap_is_immersed_faces[:, None], 0.0)
+        coeff = coeff.masked_fill(grid.ap_is_immersed_faces, 0.0)
 
     mat.upper = coeff
     mat.lower = coeff
@@ -202,14 +209,13 @@ def laplacian(
         # Store the explicit correction so that ``FvMatrix.flux`` reproduces
         # the full discrete face flux (OpenFOAM ``faceFluxCorrectionPtr``).
         face_flux_correction = torch.zeros(
-            (geo.num_single, field.num_components),
+            (geo.num_single, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )
         face_flux_correction.index_add_(0, hang, correction_src)
         mat.face_flux_correction = face_flux_correction
 
-    # Domain boundaries
     for batch in iter_boundary_batches(field):
         f, ref_v, ref_g, _ = evaluate_boundary_state(field, batch)
         gamma_bnd = (
@@ -217,49 +223,19 @@ def laplacian(
             if isinstance(gamma, torch.Tensor)
             else gamma
         )
-        # Domain boundaries
-        if batch.face_kind == BoundaryFaceKind.DOMAIN:
-            mag_Sf_bnd = torch.linalg.vector_norm(
-                grid.domain_bnd_Sf[batch.face_mask], dim=1, keepdim=True
-            )
-            c_dirichlet = gamma_bnd * mag_Sf_bnd / batch.mag_d
-            c_neumann = gamma_bnd * mag_Sf_bnd
-            diag = -f * c_dirichlet
-            src = f * c_dirichlet * ref_v + (1.0 - f) * c_neumann * ref_g
-            mat.diag.index_add_(0, batch.target_cells, diag)
-            mat.source.index_add_(0, batch.target_cells, -src)
-            continue
-
-        # Immersed boundaries
-        if isinstance(grid, AxisProjectedGrid):
-            immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
-            mag_Sf_bnd = torch.linalg.vector_norm(
-                immersed_Sf[batch.face_mask], dim=1, keepdim=True
-            )
-            c_dirichlet = gamma_bnd * mag_Sf_bnd / batch.mag_d
-            c_neumann = gamma_bnd * mag_Sf_bnd
-            if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-                wb = grid.ap_owner_weights[batch.face_mask, 0:1]
-                w = grid.ap_owner_weights[batch.face_mask, 1:2]
-
-                diag = c_dirichlet * (w - 1.0 + wb * (1.0 - f))
-                src = wb * (
-                    f * c_dirichlet * ref_v + (1.0 - f) * c_neumann * ref_g
-                )
-                mat.diag.index_add_(0, batch.target_cells, diag)
-                mat.source.index_add_(0, batch.target_cells, -src)
-                continue
-
-            elif batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
-                wb = grid.ap_neighbour_weights[batch.face_mask, 0:1]
-                w = grid.ap_neighbour_weights[batch.face_mask, 1:2]
-
-                diag = c_dirichlet * (w - 1.0 + wb * (1.0 - f))
-                src = wb * (
-                    f * c_dirichlet * ref_v + (1.0 - f) * c_neumann * ref_g
-                )
-                mat.diag.index_add_(0, batch.target_cells, diag)
-                mat.source.index_add_(0, batch.target_cells, -src)
-                continue
+        area = torch.linalg.vector_norm(outward_boundary_Sf(grid, batch), dim=1)
+        conductance = gamma_bnd * area
+        # (u_b - u_P) / d already includes the ghost reconstruction's 1/theta.
+        # Constrain near Dirichlet cells after assembling the full equation.
+        c_value = conductance * boundary_value_gradient_coefficient(
+            field, batch, f
+        )
+        c_gradient = conductance * (1.0 - f)
+        src = (
+            broadcast_entity(c_value, ref_v) * ref_v
+            + broadcast_entity(c_gradient, ref_g) * ref_g
+        )
+        mat.diag.index_add_(0, batch.target_cells, -c_value)
+        mat.source.index_add_(0, batch.target_cells, -src)
 
     return mat

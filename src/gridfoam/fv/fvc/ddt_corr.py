@@ -10,9 +10,7 @@ from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.schemes.ddt import ddt_coefficients
 
 
-def ddt_corr(
-    U: CellField, phi: FaceField
-) -> Float[torch.Tensor, " F_single 1"]:
+def ddt_corr(U: CellField, phi: FaceField) -> Float[torch.Tensor, " F_single"]:
     """
     Euler/backward flux correction on single-sided internal faces.
 
@@ -43,14 +41,19 @@ def ddt_corr(
     Returns
     -------
     torch.Tensor
-        Flux correction with shape ``[F_single, 1]``.
+        Flux correction with shape ``[F_single]``.
     """
+    if U.component_shape != (3,) or phi.component_shape != ():
+        raise ValueError("ddt_corr requires vector U and scalar phi")
     grid = U.grid
     geo = face_geometry(grid)
     U0 = U.old_data
-    U0_f = geo.w_s * U0[geo.owner_s] + (1.0 - geo.w_s) * U0[geo.neighbour_s]
+    U0_f = (
+        geo.w_s[:, None] * U0[geo.owner_s]
+        + (1.0 - geo.w_s)[:, None] * U0[geo.neighbour_s]
+    )
     phi0 = phi.old_single_data
-    phi_corr = phi0 - torch.sum(U0_f * geo.Sf_s, dim=1, keepdim=True)
+    phi_corr = phi0 - torch.sum(U0_f * geo.Sf_s, dim=1)
 
     _, b, c = ddt_coefficients(U)
     history_correction = b * phi_corr
@@ -62,10 +65,11 @@ def ddt_corr(
         assert U.older_data is not None
         U00 = U.older_data
         U00_f = (
-            geo.w_s * U00[geo.owner_s] + (1.0 - geo.w_s) * U00[geo.neighbour_s]
+            geo.w_s[:, None] * U00[geo.owner_s]
+            + (1.0 - geo.w_s)[:, None] * U00[geo.neighbour_s]
         )
         older_correction = phi.older_single_data - torch.sum(
-            U00_f * geo.Sf_s, dim=1, keepdim=True
+            U00_f * geo.Sf_s, dim=1
         )
         history_correction = history_correction - c * older_correction
 

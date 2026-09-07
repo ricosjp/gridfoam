@@ -180,7 +180,7 @@ def _axis_projected_grid_with_ib(tmp_path: Path) -> AxisProjectedGrid:
 def test_pack_row_count_without_immersed_blocks() -> None:
     # Non-AP grids pack only single-sided and domain-boundary faces.
     grid = _NonAxisProjectedGrid()
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     n_expected = phi.num_single_sided + grid.num_domain_bnd_faces
     assert phi.pack().shape[0] == n_expected
     assert packed_face_n_rows(grid) == n_expected
@@ -190,7 +190,7 @@ def test_pack_row_count_without_immersed_blocks() -> None:
 def test_pack_row_count_on_axis_projected_grid(tmp_path: Path) -> None:
     # AP layout adds both immersed sides: F_single + F_bnd + 2 * F_immersed.
     grid = _axis_projected_grid_with_ib(tmp_path)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     n_expected = (
         phi.num_single_sided
         + grid.num_domain_bnd_faces
@@ -205,7 +205,7 @@ def test_pack_row_count_on_axis_projected_grid(tmp_path: Path) -> None:
 def test_unpack_roundtrip_preserves_blocks(tmp_path: Path) -> None:
     # unpack(pack(phi)) restores every face block.
     grid = _axis_projected_grid_with_ib(tmp_path)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 2)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, (3,))
     phi.single_data[:] = 1.0
     phi.domain_bnd_data[:] = 2.0
     phi.immersed_upper[:] = 3.0
@@ -228,22 +228,24 @@ def test_unpack_rejects_wrong_row_count(
 ) -> None:
     # Row count must match packed_n_rows.
     phi = FaceField(
-        small_axis_projected_grid, "phi_pack_bad", FieldRole.LOCAL, 1
+        small_axis_projected_grid, "phi_pack_bad", FieldRole.LOCAL, ()
     )
     packed = phi.pack()
-    with pytest.raises(ValueError, match="rows"):
+    with pytest.raises(ValueError, match="shape"):
         phi.unpack(packed[:-1])
 
 
-def test_unpack_rejects_wrong_feature_count(
+def test_unpack_rejects_wrong_tensor_axes(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
-    # Feature axis k must match num_components.
-    phi = FaceField(small_axis_projected_grid, "phi_pack_k", FieldRole.LOCAL, 1)
+    # Physical axes must match component_shape.
+    phi = FaceField(
+        small_axis_projected_grid, "phi_pack_k", FieldRole.LOCAL, ()
+    )
     packed = torch.zeros(
         (phi.packed_n_rows(), 2), dtype=phi.grid.dtype, device=phi.grid.device
     )
-    with pytest.raises(ValueError, match="features"):
+    with pytest.raises(ValueError, match="shape"):
         phi.unpack(packed)
 
 
@@ -252,7 +254,7 @@ def test_pack_layout_is_single_then_bnd_then_immersed(
 ) -> None:
     # Packed axis-0 order is [single | domain_bnd | upper | lower].
     grid = _axis_projected_grid_with_ib(tmp_path)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     phi.single_data[:] = 1.0
     phi.domain_bnd_data[:] = 2.0
     phi.immersed_upper[:] = 3.0
@@ -268,3 +270,32 @@ def test_pack_layout_is_single_then_bnd_then_immersed(
         phi.immersed_upper,
     )
     assert torch.equal(packed[n_single + n_bnd + n_ib :], phi.immersed_lower)
+
+
+@pytest.mark.parametrize("component_shape", [(), (3,), (3, 3)])
+def test_immersed_tensor_boundary_diffusion(
+    tmp_path: Path, component_shape: tuple[int, ...]
+) -> None:
+    from gridfoam.boundaries.basic.dirichlet import DirichletBC
+    from gridfoam.fv import fvc, fvm
+
+    grid = _axis_projected_grid_with_ib(tmp_path)
+    q = CellField(grid, "q_tensor_ib", FieldRole.LOCAL, component_shape)
+    value = torch.arange(1, q.num_components + 1, dtype=grid.dtype).reshape(
+        component_shape
+    )
+    q.data[:] = value
+    bc = DirichletBC(value)
+    q.add_boundary_conditions(dict.fromkeys(DomainBoundaryPatch, bc))
+    q.add_boundary_conditions(dict.fromkeys(grid.patch_name_to_id, bc))
+    face = fvc.interpolate(q)
+    for block in (face.immersed_upper, face.immersed_lower):
+        assert block.shape == (grid.num_immersed_faces, *component_shape)
+        torch.testing.assert_close(block, value.expand_as(block))
+    mat = fvm.laplacian(0.2, q)
+    torch.testing.assert_close(
+        mat.multiply(q.data), mat.source, atol=1e-12, rtol=1e-12
+    )
+    for mask in (grid.ap_owner_near_boundary, grid.ap_neighbour_near_boundary):
+        assert mask.shape == (grid.num_immersed_faces,)
+        assert mask.dtype == torch.bool

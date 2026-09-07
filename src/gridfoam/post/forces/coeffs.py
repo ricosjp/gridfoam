@@ -26,18 +26,18 @@ class ForceCoeffs:
     """
 
     time: float
-    Cd: Float[torch.Tensor, " 1"]
-    Cd_f: Float[torch.Tensor, " 1"]
-    Cd_r: Float[torch.Tensor, " 1"]
-    Cl: Float[torch.Tensor, " 1"]
-    Cl_f: Float[torch.Tensor, " 1"]
-    Cl_r: Float[torch.Tensor, " 1"]
-    CmPitch: Float[torch.Tensor, " 1"]
-    CmRoll: Float[torch.Tensor, " 1"]
-    CmYaw: Float[torch.Tensor, " 1"]
-    Cs: Float[torch.Tensor, " 1"]
-    Cs_f: Float[torch.Tensor, " 1"]
-    Cs_r: Float[torch.Tensor, " 1"]
+    Cd: Float[torch.Tensor, ""]
+    Cd_f: Float[torch.Tensor, ""]
+    Cd_r: Float[torch.Tensor, ""]
+    Cl: Float[torch.Tensor, ""]
+    Cl_f: Float[torch.Tensor, ""]
+    Cl_r: Float[torch.Tensor, ""]
+    CmPitch: Float[torch.Tensor, ""]
+    CmRoll: Float[torch.Tensor, ""]
+    CmYaw: Float[torch.Tensor, ""]
+    Cs: Float[torch.Tensor, ""]
+    Cs_f: Float[torch.Tensor, ""]
+    Cs_r: Float[torch.Tensor, ""]
 
     @classmethod
     def from_force_moment(
@@ -50,16 +50,12 @@ class ForceCoeffs:
         force_scale: float,
         moment_scale: float,
     ) -> ForceCoeffs:
-        Cd = torch.sum(force * coord.e1, dim=0, keepdim=True) / force_scale
-        Cs = torch.sum(force * coord.e2, dim=0, keepdim=True) / force_scale
-        Cl = torch.sum(force * coord.e3, dim=0, keepdim=True) / force_scale
-        CmRoll = (
-            torch.sum(moment * coord.e1, dim=0, keepdim=True) / moment_scale
-        )
-        CmPitch = (
-            torch.sum(moment * coord.e2, dim=0, keepdim=True) / moment_scale
-        )
-        CmYaw = torch.sum(moment * coord.e3, dim=0, keepdim=True) / moment_scale
+        Cd = torch.sum(force * coord.e1, dim=0) / force_scale
+        Cs = torch.sum(force * coord.e2, dim=0) / force_scale
+        Cl = torch.sum(force * coord.e3, dim=0) / force_scale
+        CmRoll = torch.sum(moment * coord.e1, dim=0) / moment_scale
+        CmPitch = torch.sum(moment * coord.e2, dim=0) / moment_scale
+        CmYaw = torch.sum(moment * coord.e3, dim=0) / moment_scale
 
         return cls(
             time=time,

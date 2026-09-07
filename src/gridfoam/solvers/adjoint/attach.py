@@ -13,8 +13,8 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.solvers.adjoint.ldu_grads import assemble_ldu_grads
 
 SolveTransposeFn = Callable[
-    [FvMatrix, Float[torch.Tensor, " C k"]],
-    Float[torch.Tensor, " C k"],
+    [FvMatrix, Float[torch.Tensor, " C *component_shape"]],
+    Float[torch.Tensor, " C *component_shape"],
 ]
 
 
@@ -29,16 +29,16 @@ class _AttachImplicitAdjoint(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx: Any,  # noqa: ANN401
-        diag: Float[torch.Tensor, " C 1"],
-        upper: Float[torch.Tensor, " F 1"],
-        lower: Float[torch.Tensor, " F 1"],
-        source: Float[torch.Tensor, " C k"],
-        sol: Float[torch.Tensor, " C k"],
+        diag: Float[torch.Tensor, " C"],
+        upper: Float[torch.Tensor, " F"],
+        lower: Float[torch.Tensor, " F"],
+        source: Float[torch.Tensor, " C *component_shape"],
+        sol: Float[torch.Tensor, " C *component_shape"],
         owner: torch.Tensor,
         neighbour: torch.Tensor,
         field: CellField,
         solve_transpose: SolveTransposeFn,
-    ) -> Float[torch.Tensor, " C k"]:
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         ctx.save_for_backward(diag, upper, lower, owner, neighbour, sol)
         ctx.field = field
         ctx.solve_transpose = solve_transpose
@@ -47,7 +47,7 @@ class _AttachImplicitAdjoint(torch.autograd.Function):
     @staticmethod
     def backward(
         ctx: Any,  # noqa: ANN401
-        *grad_outputs: Float[torch.Tensor, " C k"],
+        *grad_outputs: Float[torch.Tensor, " C *component_shape"],
     ) -> tuple[torch.Tensor | None, ...]:
         grad_output = grad_outputs[0]
         diag, upper, lower, owner, neighbour, x = ctx.saved_tensors
@@ -79,10 +79,10 @@ class _AttachImplicitAdjoint(torch.autograd.Function):
 
 def attach_implicit_adjoint(
     A: FvMatrix,
-    solution: Float[torch.Tensor, " C k"],
+    solution: Float[torch.Tensor, " C *component_shape"],
     *,
     solve_transpose: SolveTransposeFn,
-) -> Float[torch.Tensor, " C k"]:
+) -> Float[torch.Tensor, " C *component_shape"]:
     """
     Attach an implicit adjoint to a detached linear-solve solution.
 
@@ -95,9 +95,9 @@ def attach_implicit_adjoint(
     A : FvMatrix
         Primal matrix whose coefficients participate in the autograd graph.
     solution : torch.Tensor
-        Detached primal solution with shape ``[C, k]``.
+        Detached primal solution with shape ``[C, *component_shape]``.
     solve_transpose : callable
-        Solves ``A_T y = rhs`` and returns ``y`` with shape ``[C, k]``.
+        Solves ``A_T y = rhs``, returning shape ``[C, *component_shape]``.
     """
     return cast(
         torch.Tensor,

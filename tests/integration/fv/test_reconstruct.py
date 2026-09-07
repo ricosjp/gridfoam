@@ -22,10 +22,10 @@ def _uniform_case(
     grid: IGridBase, U_ref: tuple[float, float, float]
 ) -> tuple[FaceField, torch.Tensor]:
     U_vec = torch.tensor(U_ref, dtype=grid.dtype, device=grid.device)
-    phi = FaceField(grid, "phi_uniform_rec", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi_uniform_rec", FieldRole.LOCAL, ())
     single_mask = phi.single_mask
-    phi.single_data = (grid.Sf[single_mask] @ U_vec).reshape(-1, 1)
-    phi.domain_bnd_data = (grid.domain_bnd_Sf @ U_vec).reshape(-1, 1)
+    phi.single_data = grid.Sf[single_mask] @ U_vec
+    phi.domain_bnd_data = grid.domain_bnd_Sf @ U_vec
     return phi, U_vec
 
 
@@ -34,7 +34,7 @@ def test_reconstruct_recovers_uniform_velocity_on_refined_grid():
     # coarse cells whose faces are split into hanging-node sub-faces.
     grid = refined_grid()
     phi, U_vec = _uniform_case(grid, (1.0, 0.5, -0.25))
-    U = CellField(grid, "U_rec", FieldRole.LOCAL, 3)
+    U = CellField(grid, "U_rec", FieldRole.LOCAL, (3,))
 
     u_data = fvc.reconstruct(phi, U)
 
@@ -49,17 +49,17 @@ def test_reconstruct_recovers_linear_velocity_on_3d_refined_grid():
     grid = refined_3d_grid(GradScheme.LEASTSQUARE)
     scale = torch.tensor([1.0, 2.0, -3.0], dtype=grid.dtype, device=grid.device)
 
-    phi = FaceField(grid, "phi_linear_rec", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi_linear_rec", FieldRole.LOCAL, ())
     single_mask = phi.single_mask
     U_faces = grid.face_centers[single_mask] * scale
     phi.single_data = torch.sum(
-        U_faces * grid.Sf[single_mask], dim=1, keepdim=True
+        U_faces * grid.Sf[single_mask], dim=1, keepdim=False
     )
     U_bnd = grid.domain_bnd_face_centers * scale
     phi.domain_bnd_data = torch.sum(
-        U_bnd * grid.domain_bnd_Sf, dim=1, keepdim=True
+        U_bnd * grid.domain_bnd_Sf, dim=1, keepdim=False
     )
-    U = CellField(grid, "U_rec_linear", FieldRole.LOCAL, 3)
+    U = CellField(grid, "U_rec_linear", FieldRole.LOCAL, (3,))
 
     u_data = fvc.reconstruct(phi, U)
 

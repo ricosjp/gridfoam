@@ -14,13 +14,9 @@ Subclass ``boundaries.base.BoundaryCondition`` and implement:
 ``type``
    The corresponding ``BoundaryConditionType``.
 
-``component(c)``
-   A scalar condition for component ``c``. This must remain valid for scalar
-   equations assembled from a vector field.
-
 ``evaluate(field, patch_name, side)``
-   Return ``(fraction, ref_value, ref_grad)`` with shapes ``[F_patch, 1]``,
-   ``[F_patch, k]``, and ``[F_patch, k]``.
+   Return ``(fraction, ref_value, ref_grad)`` with shapes ``[F_patch]``,
+   ``[F_patch, *component_shape]``, and ``[F_patch, *component_shape]``.
 
 ``fraction=1`` represents a Dirichlet contribution and ``fraction=0`` a
 Neumann contribution. Mixed conditions may return values between zero and one.
@@ -37,9 +33,6 @@ Implementation outline
        @property
        def type(self):
            return BoundaryConditionType.EXAMPLE
-
-       def component(self, c):
-           return ExampleBC(self.value[c : c + 1])
 
        def evaluate(self, field, patch_name, side=FaceSide.UPPER):
            mask = get_mask(field.grid, patch_name, side)
@@ -71,7 +64,6 @@ Testing checklist
 
 Test:
 
-* scalar and vector ``component`` behavior;
 * output shapes, dtype, and device;
 * domain-boundary masks;
 * both immersed ``FaceSide`` values when supported;

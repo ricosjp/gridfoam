@@ -48,14 +48,14 @@ def test_two_material_diffusion_matches_exact_solution(
         }
     )
     grid = create_grid(config)
-    field = CellField(grid, "T", FieldRole.LOCAL, 1)
+    field = CellField(grid, "T", FieldRole.LOCAL, ())
     field.add_boundary_conditions(
         {
-            DomainBoundaryPatch.X_MINUS: DirichletBC(torch.tensor([0.0])),
-            DomainBoundaryPatch.X_PLUS: DirichletBC(torch.tensor([1.0])),
+            DomainBoundaryPatch.X_MINUS: DirichletBC(torch.tensor(0.0)),
+            DomainBoundaryPatch.X_PLUS: DirichletBC(torch.tensor(1.0)),
         }
     )
-    x = grid.cell_centers[:, :1]
+    x = grid.cell_centers[:, 0]
     gamma = torch.where(
         x < 0.5, torch.ones_like(x), torch.full_like(x, contrast)
     )
@@ -64,7 +64,7 @@ def test_two_material_diffusion_matches_exact_solution(
     field.data = exact
     mat = fvm.laplacian(gamma, field)
     geo = face_geometry(grid)
-    expected_flux = flux_density * geo.Sf_s[:, :1]
+    expected_flux = flux_density * geo.Sf_s[:, 0]
     torch.testing.assert_close(
         mat.flux(exact), expected_flux, atol=2e-9, rtol=1e-8
     )
@@ -101,7 +101,7 @@ def test_harmonic_insulating_interface_and_positive_coefficient_gradients():
     grid = create_grid(refined_config())
     geo = face_geometry(grid)
     gamma = torch.where(
-        grid.cell_centers[:, :1] < 0.5, 0.0, 2.0
+        grid.cell_centers[:, 0] < 0.5, 0.0, 2.0
     ).requires_grad_()
     values = _interpolate_gamma(geo, gamma, harmonic=True)
     blocked = (gamma[geo.owner] == 0) | (gamma[geo.neighbour] == 0)
@@ -109,9 +109,7 @@ def test_harmonic_insulating_interface_and_positive_coefficient_gradients():
     (gradient,) = torch.autograd.grad(values.sum(), gamma)
     assert torch.isfinite(gradient).all()
 
-    positive = torch.linspace(
-        1.0, 3.0, grid.num_cells, dtype=grid.dtype
-    ).reshape(-1, 1)
+    positive = torch.linspace(1.0, 3.0, grid.num_cells, dtype=grid.dtype)
     positive.requires_grad_()
 
     def interpolate(g: torch.Tensor) -> torch.Tensor:
@@ -135,10 +133,10 @@ def test_corrected_harmonic_flux_uses_same_coefficient_for_hanging_correction():
     )
     grid = create_grid(refined_config(fv_schemes=schemes))
     geo = face_geometry(grid)
-    field = CellField(grid, "psi", FieldRole.LOCAL, 1)
+    field = CellField(grid, "psi", FieldRole.LOCAL, ())
     x = grid.cell_centers
-    field.data = x[:, :1] ** 2 + x[:, 1:2]
-    gamma = 1.0 + x[:, :1]
+    field.data = x[:, 0] ** 2 + x[:, 1]
+    gamma = 1.0 + x[:, 0]
     gamma_f = _interpolate_gamma(geo, gamma, harmonic=True)[geo.single_idx]
     mat = fvm.laplacian(gamma, field)
     assert mat.face_flux_correction is not None
@@ -163,8 +161,8 @@ def test_gauss_linear_alias_preserves_existing_laplacian(correction: str):
                 )
             )
         )
-        field = CellField(grid, "psi", FieldRole.LOCAL, 1)
-        field.data = grid.cell_centers[:, :1] ** 2
+        field = CellField(grid, "psi", FieldRole.LOCAL, ())
+        field.data = grid.cell_centers[:, 0] ** 2
         matrices.append(fvm.laplacian(1.0 + field.data, field))
     for attr in ("diag", "upper", "lower", "source"):
         torch.testing.assert_close(

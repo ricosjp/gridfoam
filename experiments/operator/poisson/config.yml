@@ -46,7 +46,7 @@ simulator:
       - name: wall
         type: dirichlet
         patches: [x_minus, x_plus, y_minus, y_plus, z_minus, z_plus]
-        value: [0.0]
+        value: 0.0
   properties:
     nu: 1.0
   device: cuda

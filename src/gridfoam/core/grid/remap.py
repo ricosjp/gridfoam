@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import torch
 
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.shapes import broadcast_entity
 
 
 @dataclass(frozen=True)
@@ -133,15 +134,15 @@ def _mapped_flux(
 ) -> torch.Tensor:
     """Map volumetric flux onto new faces with area-vector rescaling."""
     n_dst = dst_xyz.shape[0]
-    n_comp = src_phi.shape[1]
+    component_shape = src_phi.shape[1:]
     if n_dst == 0:
-        return src_phi.new_zeros((0, n_comp))
+        return src_phi.new_zeros((0, *component_shape))
     if src_xyz.shape[0] == 0:
-        return src_phi.new_zeros((n_dst, n_comp))
+        return src_phi.new_zeros((n_dst, *component_shape))
     idx = _nearest_indices(src_xyz, dst_xyz)
     src_sf_m = src_sf[idx]
-    denom = torch.sum(src_sf_m * src_sf_m, dim=1, keepdim=True).clamp_min(
-        1.0e-30
-    )
-    scale = torch.sum(dst_sf * src_sf_m, dim=1, keepdim=True) / denom
-    return src_phi[idx] * scale
+    denom = torch.sum(src_sf_m * src_sf_m, dim=1).clamp_min(1.0e-30)
+    factor = torch.sum(dst_sf * src_sf_m, dim=1) / denom
+    mapped_values = src_phi[idx]
+    factor_view = broadcast_entity(factor, mapped_values)
+    return factor_view * mapped_values

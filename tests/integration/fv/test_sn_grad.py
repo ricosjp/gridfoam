@@ -23,7 +23,7 @@ def test_sn_grad_corrected_is_exact_for_linear_field():
         field, gradient = linear_scalar_field(grid)
 
         result = sn_grad(field)
-        expected = gradient[grid.axis[result.single_mask]].reshape(-1, 1)
+        expected = gradient[grid.axis[result.single_mask]]
         torch.testing.assert_close(
             result.single_data, expected, atol=1e-12, rtol=1e-12
         )
@@ -41,7 +41,7 @@ def test_sn_grad_uncorrected_scheme_skips_hanging_correction():
     geo = face_geometry(grid)
 
     result = sn_grad(field).single_data
-    expected = gradient[grid.axis[geo.single_idx]].reshape(-1, 1)
+    expected = gradient[grid.axis[geo.single_idx]]
 
     regular = torch.ones(geo.num_single, dtype=torch.bool)
     regular[geo.hang_idx] = False
@@ -65,7 +65,7 @@ def test_sn_grad_scheme_lookup_prefers_field_specific_key():
     assert field.name == "psi"
 
     result = sn_grad(field)
-    expected = gradient[grid.axis[result.single_mask]].reshape(-1, 1)
+    expected = gradient[grid.axis[result.single_mask]]
     torch.testing.assert_close(
         result.single_data, expected, atol=1e-12, rtol=1e-12
     )

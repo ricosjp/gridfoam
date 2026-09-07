@@ -6,6 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.meta.enums import PreconditionerType
 
 
@@ -42,15 +43,15 @@ class Preconditioner(ABC):
 
     @abstractmethod
     def apply(
-        self, r: Float[torch.Tensor, " C k"]
-    ) -> Float[torch.Tensor, " C k"]:
+        self, r: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         """
         Apply preconditioning and return ``z = M^{-1} r``.
 
         Parameters
         ----------
         r : torch.Tensor
-            Residual vector with shape ``[C, k]``.
+            Residual vector with shape ``[C, *component_shape]``.
 
         Returns
         -------
@@ -67,8 +68,8 @@ class NonePreconditioner(Preconditioner):
         pass
 
     def apply(
-        self, r: Float[torch.Tensor, " C k"]
-    ) -> Float[torch.Tensor, " C k"]:
+        self, r: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         return r
 
 
@@ -89,6 +90,7 @@ class JacobiPreconditioner(Preconditioner):
         )
 
     def apply(
-        self, r: Float[torch.Tensor, " C k"]
-    ) -> Float[torch.Tensor, " C k"]:
-        return r * self.inv_diag
+        self, r: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " C *component_shape"]:
+        inv_diag = broadcast_entity(self.inv_diag, r)
+        return inv_diag * r

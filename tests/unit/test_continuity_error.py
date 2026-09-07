@@ -16,11 +16,11 @@ def test_compute_continuity_error_matches_volume_weighted_div(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
     grid = small_axis_projected_grid
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.fill_(0.01)
     phi.domain_bnd_data.fill_(0.01)
 
-    volumes = grid.cell_volumes.reshape(-1, 1)
+    volumes = grid.cell_volumes
     cont_err = fvc.div(phi).data
     total_volume = torch.sum(volumes)
     expected_local = (
@@ -40,12 +40,12 @@ def test_compute_continuity_error_zero_flux_is_zero(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
     grid = small_axis_projected_grid
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.zero_()
     phi.domain_bnd_data.zero_()
 
     local_error, global_error = compute_continuity_error(
-        phi, grid.cell_volumes.reshape(-1, 1), grid.dt
+        phi, grid.cell_volumes, grid.dt
     )
 
     assert local_error == 0.0

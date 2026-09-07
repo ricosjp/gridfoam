@@ -43,40 +43,37 @@ class SlipBC(BoundaryCondition):
         # flux is fixed to zero, so ``constrainHbyA`` must not extrapolate.
         return False
 
-    def component(self, c: int) -> BoundaryCondition:
-        return self
-
     def evaluate(
         self,
         field: CellField,
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
+        if field.component_shape not in ((), (3,)):
+            raise ValueError("SlipBC supports scalar and vector fields")
         grid = field.grid
 
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
 
-        fraction = torch.ones(
-            (n_faces, 1), dtype=grid.dtype, device=grid.device
-        )
+        fraction = torch.ones((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(
-            (n_faces, field.num_components),
+            (n_faces, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )
         ref_g = torch.zeros(
-            (n_faces, field.num_components),
+            (n_faces, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )
         # For scalar fields (e.g., pressure), use simple zero-gradient Neumann.
-        if field.num_components == 1:
-            return fraction, ref_v, ref_g
+        if field.component_shape == ():
+            return torch.zeros_like(fraction), ref_v, ref_g
 
         # For vector fields (e.g., velocity), compute virtual Neumann gradient.
         if isinstance(patch_name, DomainBoundaryPatch):
@@ -98,12 +95,8 @@ class SlipBC(BoundaryCondition):
             )
 
         n_vec = torch.sign(Sf_bnd)
-
-        psi_O = field.data[target_cells]  # [F_patch k]
-        psi_O_dot_n = torch.sum(
-            psi_O * n_vec, dim=1, keepdim=True
-        )  # [F_patch 1]
-
-        ref_v = psi_O - psi_O_dot_n * n_vec
+        psi_O = field.data[target_cells]
+        normal_velocity = (psi_O * n_vec).sum(dim=-1)
+        ref_v = psi_O - normal_velocity[:, None] * n_vec
 
         return fraction, ref_v, ref_g

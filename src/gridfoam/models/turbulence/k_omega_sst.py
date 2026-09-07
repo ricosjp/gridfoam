@@ -28,9 +28,9 @@ class KOmegaSST(TurbulenceModel):
     def __init__(self, grid: IGridBase):
         super().__init__(grid)
 
-        self.k = get_or_create_cellfield(self.grid, "k", FieldRole.LOCAL, 1)
+        self.k = get_or_create_cellfield(self.grid, "k", FieldRole.LOCAL, ())
         self.omega = get_or_create_cellfield(
-            self.grid, "omega", FieldRole.TRANSIENT, 1
+            self.grid, "omega", FieldRole.TRANSIENT, ()
         )
 
         # Standard k-omega SST constants.
@@ -70,14 +70,14 @@ class KOmegaSST(TurbulenceModel):
 
         # self.nu_t.data = k_val / omega_val
 
-    def nu_eff(self) -> Float[torch.Tensor, " C 1"]:
+    def nu_eff(self) -> Float[torch.Tensor, " C"]:
         """
         Return effective viscosity ``nu + nu_t``.
 
         Returns
         -------
         torch.Tensor
-            Effective viscosity per cell with shape ``[C, 1]``.
+            Effective viscosity per cell with shape ``[C]``.
         """
         nu_eff_value = self.transport.nu() + self.nu_t.data
         nu_eff_min = torch.min(nu_eff_value).item()

@@ -40,12 +40,12 @@ def test_remesh_maps_u_p_from_old_cell_centers(tmp_path: Path) -> None:
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
 
-    u_field = CellField(grid, "U", FieldRole.TRANSIENT, 3)
-    p_field = CellField(grid, "p", FieldRole.LOCAL, 1)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    u_field = CellField(grid, "U", FieldRole.TRANSIENT, (3,))
+    p_field = CellField(grid, "p", FieldRole.LOCAL, ())
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     u_field.data[:] = 0.0
     u_field.data[:, 0] = grid.cell_centers[:, 0]
-    p_field.data[:, 0] = grid.cell_centers[:, 1]
+    p_field.data[:] = grid.cell_centers[:, 1]
     phi.single_data[:] = 1.0
     phi.domain_bnd_data[:] = 0.5
 
@@ -57,7 +57,7 @@ def test_remesh_maps_u_p_from_old_cell_centers(tmp_path: Path) -> None:
     map_volume_fields(grid, snapshot)
 
     ux_err = (u_field.data[:, 0] - grid.cell_centers[:, 0]).abs().max()
-    p_err = (p_field.data[:, 0] - grid.cell_centers[:, 1]).abs().max()
+    p_err = (p_field.data[:] - grid.cell_centers[:, 1]).abs().max()
     assert ux_err.item() < 0.3
     assert p_err.item() < 0.3
     assert phi.single_data.shape[0] == phi.num_single_sided

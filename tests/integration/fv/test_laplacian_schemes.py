@@ -21,7 +21,7 @@ from gridfoam.meta.enums import FieldRole, GradScheme, LaplacianScheme
 
 def _exact_flux(grid: IGridBase, gradient: torch.Tensor) -> torch.Tensor:
     geo = face_geometry(grid)
-    return geo.mag_Sf_s * gradient[grid.axis[geo.single_idx]].reshape(-1, 1)
+    return geo.mag_Sf_s * gradient[grid.axis[geo.single_idx]]
 
 
 def test_corrected_laplacian_flux_is_exact_for_linear_field():
@@ -45,10 +45,10 @@ def test_corrected_laplacian_matches_sn_grad_path_on_refined_mesh():
     # so correct_phi via (-pEqn).flux stays consistent with snGrad.
     grid = refined_grid()
     geo = face_geometry(grid)
-    psi = CellField(grid, "psi_rand", FieldRole.LOCAL, 1)
+    psi = CellField(grid, "psi_rand", FieldRole.LOCAL, ())
     torch.manual_seed(3)
     psi.data = torch.randn_like(psi.data)
-    gamma = CellField(grid, "gamma_rand", FieldRole.LOCAL, 1)
+    gamma = CellField(grid, "gamma_rand", FieldRole.LOCAL, ())
     gamma.data = torch.rand_like(psi.data) + 0.5
 
     flux = fvm.laplacian(gamma.data, psi).flux(psi.data)

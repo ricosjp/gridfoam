@@ -43,8 +43,8 @@ def test_to_preserves_topology_scalars() -> None:
 def test_to_cuda_moves_geometry_and_registered_fields() -> None:
     # Geometry and registered field buffers share the runtime device.
     grid = _fresh_grid()
-    u = CellField(grid, "U", FieldRole.LOCAL, 3)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    u = CellField(grid, "U", FieldRole.LOCAL, (3,))
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     u.data[:] = 1.25
     phi.single_data[:] = 0.5
     u_cpu = u.data.detach().cpu().clone()

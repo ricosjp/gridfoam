@@ -44,8 +44,8 @@ class ForceEvaluator:
         # Reuse the solver's existing U/p fields regardless of their role
         # (SIMPLE registers U as LOCAL, PIMPLE as TRANSIENT). Fall back to
         # creating LOCAL fields when they do not exist yet.
-        self.U = self._resolve_field(grid, U_name, 3)
-        self.p = self._resolve_field(grid, p_name, 1)
+        self.U = self._resolve_field(grid, U_name, (3,))
+        self.p = self._resolve_field(grid, p_name, ())
 
         self.history: list[ForceCoeffs] = []
 
@@ -53,14 +53,16 @@ class ForceEvaluator:
     def _resolve_field(
         grid: IGridBase,
         name: str,
-        num_components: int,
+        component_shape: tuple[int, ...],
     ) -> CellField:
         """Return the existing cell field or create a LOCAL one if absent."""
         field = grid.get_cellfield(name)
         if field is not None:
+            if field.component_shape != component_shape:
+                raise ValueError(f"Unexpected component_shape for {name}")
             return field
         return get_or_create_cellfield(
-            grid, name, FieldRole.LOCAL, num_components
+            grid, name, FieldRole.LOCAL, component_shape
         )
 
     def evaluate(

@@ -91,7 +91,7 @@ def adjust_phi(
         if not torch.any(mask):
             continue
 
-        phip = phi.domain_bnd_data[mask, 0]
+        phip = phi.domain_bnd_data[mask]
         inflow = phip < 0.0
         outflow = phip > 0.0
 
@@ -116,10 +116,10 @@ def adjust_phi(
         if not torch.any(mask):
             continue
 
-        phip = phi.domain_bnd_data[mask, 0]
+        phip = phi.domain_bnd_data[mask]
         outflow = phip > 0.0
         if torch.any(outflow):
-            phi.domain_bnd_data[mask, 0] = torch.where(
+            phi.domain_bnd_data[mask] = torch.where(
                 outflow,
                 phip * mass_corr,
                 phip,

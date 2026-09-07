@@ -129,11 +129,11 @@ def test_uniform_pressure_gives_zero_force_on_closed_body(
         output_dir=tmp_path / "out",
     )
     grid = create_grid(config)
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
+    U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
+    p = CellField(grid, "p", role=FieldRole.LOCAL, component_shape=())
     p.data.fill_(2.5)
     add_dirichlet_bc(U, "_default", [0.0, 0.0, 0.0])
-    add_neumann_bc(p, "_default", [0.0])
+    add_neumann_bc(p, "_default", 0.0)
 
     assert config.simulator.post_processing is not None
     assert config.simulator.post_processing.forceCoeff is not None
@@ -194,14 +194,12 @@ def _run_pressure_jump(
         nu=0.0,
     )
     grid = create_grid(config)
-    U = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
-    p = CellField(grid, "p", role=FieldRole.LOCAL, num_components=1)
+    U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
+    p = CellField(grid, "p", role=FieldRole.LOCAL, component_shape=())
     z = grid.cell_centers[:, 2]
-    p.data = (
-        torch.where(z > 0.5, p_above, p_below).unsqueeze(-1).to(p.data.dtype)
-    )
+    p.data = torch.where(z > 0.5, p_above, p_below).to(p.data.dtype)
     add_dirichlet_bc(U, "_default", [0.0, 0.0, 0.0])
-    add_neumann_bc(p, "_default", [0.0])
+    add_neumann_bc(p, "_default", 0.0)
 
     assert config.simulator.post_processing is not None
     assert config.simulator.post_processing.forceCoeff is not None

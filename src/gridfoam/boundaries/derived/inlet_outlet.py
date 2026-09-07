@@ -9,6 +9,7 @@ from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.name import make_field_name
+from gridfoam.core.shapes import require_shape
 from gridfoam.meta.enums import (
     BoundaryConditionType,
     DomainBoundaryPatch,
@@ -32,7 +33,7 @@ class InletOutletBC(BoundaryCondition):
 
     Parameters
     ----------
-    inlet_value : Float[torch.Tensor, " k"]
+    inlet_value : Float[torch.Tensor, " *component_shape"]
         Fixed value applied during reverse inflow.
     phi_builtin_key : str, optional
         Builtin key to lookup the face flux field.
@@ -40,7 +41,7 @@ class InletOutletBC(BoundaryCondition):
 
     def __init__(
         self,
-        inlet_value: Float[torch.Tensor, " k"],
+        inlet_value: Float[torch.Tensor, " *component_shape"],
         phase: str | None = None,
     ):
         self.inlet_value = inlet_value
@@ -50,12 +51,6 @@ class InletOutletBC(BoundaryCondition):
     @property
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.INLET_OUTLET
-
-    def component(self, c: int) -> BoundaryCondition:
-        return InletOutletBC(
-            self.inlet_value[c : c + 1],
-            phase=self.phase,
-        )
 
     def dependencies(self, field: CellField) -> tuple[GeometricField, ...]:
         phi = field.grid.get_facefield(self.phi_name)
@@ -67,21 +62,20 @@ class InletOutletBC(BoundaryCondition):
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
+        require_shape(self.inlet_value, field.component_shape, "inlet value")
         grid = field.grid
 
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
 
         # Default behavior is Neumann (outflow).
-        fraction = torch.zeros(
-            (n_faces, 1), dtype=grid.dtype, device=grid.device
-        )
+        fraction = torch.zeros((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(
-            (n_faces, field.num_components),
+            (n_faces, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )
@@ -113,7 +107,7 @@ class InletOutletBC(BoundaryCondition):
             )
 
         # Detect inflow region (phi < 0).
-        is_inflow = phi_bnd[:, 0] < 0.0
+        is_inflow = phi_bnd < 0.0
 
         # fraction: 1.0 for inflow (Dirichlet), 0.0 for outflow (Neumann).
         fraction[is_inflow] = 1.0
@@ -123,6 +117,6 @@ class InletOutletBC(BoundaryCondition):
             dtype=grid.dtype,
             device=grid.device,
         )
-        ref_v[is_inflow] = inlet_value[None, :]
+        ref_v[is_inflow] = inlet_value
 
         return fraction, ref_v, ref_g

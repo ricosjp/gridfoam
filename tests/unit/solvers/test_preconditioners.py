@@ -20,11 +20,11 @@ def test_jacobi_preconditioner_scales_by_inverse_diag(
 ):
     # Jacobi preconditioning must multiply the residual by 1/diag.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_jac", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_jac", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
     mat.diag = torch.ones_like(mat.diag) * 4.0
     pre = create_preconditioner(PreconditionerType.JACOBI, mat)
-    r = torch.ones((grid.num_cells, 1), dtype=grid.dtype, device=grid.device)
+    r = torch.ones((grid.num_cells,), dtype=grid.dtype, device=grid.device)
     z = pre.apply(r)
     assert torch.allclose(z, r * 0.25)
 
@@ -34,10 +34,10 @@ def test_none_preconditioner_is_identity(
 ):
     # NONE preconditioner must return the residual unchanged.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_none", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_none", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
     pre = create_preconditioner(PreconditionerType.NONE, mat)
-    r = torch.randn((grid.num_cells, 1), dtype=grid.dtype, device=grid.device)
+    r = torch.randn((grid.num_cells,), dtype=grid.dtype, device=grid.device)
     assert torch.allclose(pre.apply(r), r)
 
 
@@ -46,7 +46,7 @@ def test_create_preconditioner_rejects_unknown_type(
 ):
     # Factory must reject values outside ``PreconditionerType`` at runtime.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_bad", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_bad", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
     with pytest.raises(BeartypeCallHintParamViolation):
         create_preconditioner(

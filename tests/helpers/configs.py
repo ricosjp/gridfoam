@@ -228,7 +228,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
                 ),
                 "p": ConditionConfig(
                     dimension=dimension_config(DIM_KIN_PRESSURE),
-                    internal=[0.0],
+                    internal=0.0,
                     boundary={
                         "walls": BoundaryConditionConfig(
                             type=BoundaryConditionType.NEUMANN,
@@ -238,7 +238,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
                                 "y_minus",
                                 "y_plus",
                             ],
-                            value=[0.0],
+                            value=0.0,
                         ),
                     },
                 ),
@@ -307,7 +307,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
                 ),
                 "p": ConditionConfig(
                     dimension=dimension_config(DIM_KIN_PRESSURE),
-                    internal=[0.0],
+                    internal=0.0,
                     boundary={
                         "walls": BoundaryConditionConfig(
                             type=BoundaryConditionType.NEUMANN,
@@ -317,7 +317,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
                                 "y_minus",
                                 "y_plus",
                             ],
-                            value=[0.0],
+                            value=0.0,
                         ),
                     },
                 ),
@@ -362,12 +362,12 @@ def channel_flow_config(
                 DomainBoundaryPatch.Y_MINUS.value,
                 DomainBoundaryPatch.Y_PLUS.value,
             ],
-            value=[0.0],
+            value=0.0,
         ),
         "outlet": BoundaryConditionConfig(
             type=p_outlet,
             patches=[DomainBoundaryPatch.X_PLUS.value],
-            value=[0.0],
+            value=0.0,
         ),
     }
     refinement_regions = (
@@ -447,7 +447,7 @@ def channel_flow_config(
                 ),
                 "p": ConditionConfig(
                     dimension=dimension_config(DIM_KIN_PRESSURE),
-                    internal=[0.0],
+                    internal=0.0,
                     boundary=p_bcs,
                 ),
             },

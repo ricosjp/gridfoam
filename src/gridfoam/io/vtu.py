@@ -99,10 +99,10 @@ def update_export_cell_data(
         if field is None or not field.export:
             continue
         values = field.data.detach().cpu().numpy()
-        if values.shape[1] == 1:
-            ugrid.cell_data[field.name] = values[:, 0]
-        else:
-            ugrid.cell_data[field.name] = values
+        if field.tensor_rank > 1:
+            # VTK stores tensor components in a flat tuple per cell.
+            values = values.reshape(grid.num_cells, field.num_components)
+        ugrid.cell_data[field.name] = values
 
 
 def save_export_fields_as_vtu(

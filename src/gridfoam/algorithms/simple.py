@@ -68,7 +68,7 @@ class SIMPLE(AlgorithmBase):
     U : CellField
         Velocity field with shape ``[C, 3]``.
     p : CellField
-        Pressure field with shape ``[C, 1]``.
+        Pressure field with shape ``[C]``.
     phi : FaceField
         Volumetric face flux.
     phi_hbya : FaceField
@@ -109,7 +109,7 @@ class SIMPLE(AlgorithmBase):
     """Velocity field with shape ``[C, 3]``."""
 
     p: CellField
-    """Pressure field with shape ``[C, 1]``."""
+    """Pressure field with shape ``[C]``."""
 
     phi: FaceField
     """Volumetric face flux."""
@@ -160,30 +160,30 @@ class SIMPLE(AlgorithmBase):
         HbyA_name = make_field_name("HbyA", phase=phase)
 
         self.U = get_or_create_cellfield(
-            grid, U_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+            grid, U_name, FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
         )
         self.p = get_or_create_cellfield(
-            grid, p_name, FieldRole.LOCAL, 1, dimension=DIM_KIN_PRESSURE
+            grid, p_name, FieldRole.LOCAL, (), dimension=DIM_KIN_PRESSURE
         )
         self.phi = get_or_create_facefield(
-            grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
+            grid, phi_name, FieldRole.LOCAL, (), dimension=DIM_VOL_FLUX
         )
         self.phi_hbya = get_or_create_facefield(
             grid,
             phi_hbya_name,
             FieldRole.LOCAL,
-            1,
+            (),
             dimension=DIM_VOL_FLUX,
             export=False,
         )
         self.rAU = get_or_create_cellfield(
-            grid, rAU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+            grid, rAU_name, FieldRole.LOCAL, (), dimension=DIM_RAU
         )
         self.rAtU = get_or_create_cellfield(
-            grid, rAtU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+            grid, rAtU_name, FieldRole.LOCAL, (), dimension=DIM_RAU
         )
         self.HbyA = get_or_create_cellfield(
-            grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+            grid, HbyA_name, FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
         )
 
         self._solvers = {
@@ -304,9 +304,8 @@ class SIMPLE(AlgorithmBase):
         A_old = UEqn_mat.diag.clone()
         UEqn_mat.diag = A_old / self.alpha_U
 
-        relax_source = (
-            ((1.0 - self.alpha_U) / self.alpha_U) * A_old * self.U.data
-        )
+        relax_coeff = ((1.0 - self.alpha_U) / self.alpha_U) * A_old
+        relax_source = relax_coeff[:, None] * self.U.data
         UEqn_mat.source = UEqn_mat.source + relax_source
 
         # Keep the original source without pressure-gradient contribution
@@ -314,7 +313,9 @@ class SIMPLE(AlgorithmBase):
 
         # Add pressure-gradient source term to RHS (-grad(p) * V)
         grad_p = fvc.grad(self.p)
-        UEqn_mat.source = UEqn_mat.source - grad_p.data * grid.cell_volumes
+        UEqn_mat.source = (
+            UEqn_mat.source - grid.cell_volumes[:, None] * grad_p.data
+        )
 
         if self.U.name in self._residual_control:
             self._record_residual(
@@ -335,7 +336,7 @@ class SIMPLE(AlgorithmBase):
 
         # Compute HbyA with H() using source without pressure gradient
         UEqn_mat.source = original_source
-        self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
+        self.HbyA.data = self.rAU.data[:, None] * UEqn_mat.H(self.U.data)
 
         # phiHbyA = flux(constrainHbyA(HbyA, U)) on every face block
         compute_phi_hbya(self.phi_hbya, self.HbyA, self.U)

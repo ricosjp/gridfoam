@@ -12,16 +12,16 @@ def _accumulate_reconstruct(
     denom: Float[torch.Tensor, " C 3"],
     cells: torch.Tensor,
     Sf: Float[torch.Tensor, " F 3"],
-    flux: Float[torch.Tensor, " F 1"],
+    flux: Float[torch.Tensor, " F"],
 ) -> None:
     """
     Accumulate ``n_hat * phi`` and diagonal ``|Sf| n n^T`` for ``cells``.
     """
-    mag_Sf = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
-    n_hat = Sf / mag_Sf
-    numer.index_add_(0, cells, n_hat * flux)
+    mag_Sf = torch.linalg.vector_norm(Sf, dim=1)
+    n_hat = Sf / mag_Sf[:, None]
+    numer.index_add_(0, cells, flux[:, None] * n_hat)
     # Diagonal of |Sf| n n^T; exact for axis-aligned faces.
-    denom.index_add_(0, cells, mag_Sf * n_hat * n_hat)
+    denom.index_add_(0, cells, mag_Sf[:, None] * n_hat * n_hat)
 
 
 def reconstruct(
@@ -57,9 +57,9 @@ def reconstruct(
     torch.Tensor
         Reconstructed velocity data with shape ``[num_cells, 3]``.
     """
-    if phi.num_components != 1:
+    if phi.component_shape != ():
         raise ValueError("phi must be a scalar face flux field.")
-    if U.num_components != 3:
+    if U.component_shape != (3,):
         raise ValueError("U must be a 3-component velocity field.")
     if phi.grid is not U.grid:
         raise ValueError("phi and U must share the same grid.")

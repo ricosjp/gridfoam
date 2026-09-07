@@ -31,7 +31,7 @@ implements:
    Solve or update the closure model after the flow fields change.
 
 ``nu_eff()``
-   Return effective viscosity with shape ``[C, 1]``.
+   Return effective viscosity with shape ``[C]``.
 
 The base class creates the configured transport model and registers a
 cell-centred ``nu_t`` field. Use ``get_or_create_cellfield`` and

@@ -54,7 +54,7 @@ def test_decay_has_expected_temporal_order(scheme: str, minimum_ratio: float):
     for n in (20, 40, 80):
         grid = _grid(scheme)
         _set_dt(grid, 1.0 / n)
-        field = CellField(grid, "q", FieldRole.TRANSIENT, 1)
+        field = CellField(grid, "q", FieldRole.TRANSIENT, ())
         field.data.fill_(1.0)
         field.update_history(reset=True)
         for _ in range(n):
@@ -62,14 +62,14 @@ def test_decay_has_expected_temporal_order(scheme: str, minimum_ratio: float):
             mat = fvm.ddt(field)
             field.data = mat.source / (mat.diag + grid.cell_volumes)
             field.update_history()
-        errors.append(abs(field.data[0, 0].item() - math.exp(-1.0)))
+        errors.append(abs(field.data[0].item() - math.exp(-1.0)))
     assert errors[0] / errors[1] > minimum_ratio
     assert errors[1] / errors[2] > minimum_ratio
 
 
 def test_backward_variable_steps_are_exact_for_quadratic_and_constant_fields():
     grid = _grid("backward")
-    field = CellField(grid, "q", FieldRole.TRANSIENT, 1)
+    field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     field.data.fill_(0.0)
     field.update_history(reset=True)
     assert ddt_coefficients(field) == (1.0, 1.0, 0.0)
@@ -83,7 +83,7 @@ def test_backward_variable_steps_are_exact_for_quadratic_and_constant_fields():
     torch.testing.assert_close(derivative, torch.ones_like(derivative))
     assert ddt_coefficients(field) == pytest.approx((1.6, 2.5, 0.9))
 
-    field.reset_data([3.0])
+    field.reset_data(3.0)
     assert field.older_data is None
     assert ddt_coefficients(field) == (1.0, 1.0, 0.0)
     field.update_history()
@@ -93,7 +93,7 @@ def test_backward_variable_steps_are_exact_for_quadratic_and_constant_fields():
 
 def test_backward_source_differentiates_both_old_levels():
     grid = _grid("backward")
-    field = CellField(grid, "q", FieldRole.TRANSIENT, 1)
+    field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     older = torch.full_like(field.data, 1.0, requires_grad=True)
     old = torch.full_like(field.data, 2.0, requires_grad=True)
     field.data = older
@@ -110,11 +110,11 @@ def test_backward_source_differentiates_both_old_levels():
 def test_ddt_corr_uses_consistent_variable_step_history(scheme: str):
     grid = _grid(scheme)
     geo = face_geometry(grid)
-    U = CellField(grid, "U", FieldRole.TRANSIENT, 3)
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    U = CellField(grid, "U", FieldRole.TRANSIENT, (3,))
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
 
     U.data.fill_(1.0)
-    flux_older = geo.Sf_s.sum(dim=1, keepdim=True)
+    flux_older = geo.Sf_s.sum(dim=1, keepdim=False)
     delta_older = 0.5 * flux_older.abs()
     phi.single_data = flux_older + delta_older
     U.update_history(reset=True)
@@ -148,7 +148,7 @@ def test_ddt_corr_uses_consistent_variable_step_history(scheme: str):
 
 def test_ddt_field_override_and_topology_history_restart():
     grid = _grid("backward")
-    field = CellField(grid, "q", FieldRole.TRANSIENT, 1)
+    field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     field.update_history()
     assert ddt_coefficients(field) == (1.5, 2.0, 0.5)
     grid.sim_config = grid.sim_config.model_copy(
@@ -166,7 +166,7 @@ def test_ddt_field_override_and_topology_history_restart():
 
 def test_backward_rejects_nontransient_field():
     grid = _grid("backward")
-    field = CellField(grid, "q", FieldRole.LOCAL, 1)
+    field = CellField(grid, "q", FieldRole.LOCAL, ())
     with pytest.raises(ValueError, match="TRANSIENT"):
         fvm.ddt(field)
 
@@ -176,17 +176,17 @@ def test_backward_diffusion_has_second_order_time_convergence():
     for n in (10, 20, 40):
         grid = _grid("backward")
         _set_dt(grid, 0.5 / n)
-        field = CellField(grid, "T", FieldRole.TRANSIENT, 1)
+        field = CellField(grid, "T", FieldRole.TRANSIENT, ())
         field.add_boundary_conditions(
             {
-                patch: DirichletBC(torch.zeros(1, dtype=grid.dtype))
+                patch: DirichletBC(torch.zeros((), dtype=grid.dtype))
                 for patch in (
                     DomainBoundaryPatch.X_MINUS,
                     DomainBoundaryPatch.X_PLUS,
                 )
             }
         )
-        mode = torch.sin(math.pi * grid.cell_centers[:, :1])
+        mode = torch.sin(math.pi * grid.cell_centers[:, 0])
         field.data = mode.clone()
         field.update_history(reset=True)
         solver = create_solver(

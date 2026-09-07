@@ -29,10 +29,10 @@ def _diagonally_dominant_system(
     seed: int = 0,
 ) -> tuple[
     Equation,
-    Float[torch.Tensor, " C 1"],
-    Float[torch.Tensor, " F 1"],
-    Float[torch.Tensor, " F 1"],
-    Float[torch.Tensor, " C 1"],
+    Float[torch.Tensor, " C"],
+    Float[torch.Tensor, " F"],
+    Float[torch.Tensor, " F"],
+    Float[torch.Tensor, " C"],
 ]:
     """
     Build a diagonally-dominant scalar LDU system in float64.
@@ -41,28 +41,28 @@ def _diagonally_dominant_system(
     """
     dtype = torch.float64
     device = grid.device
-    p = CellField(grid, name, role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, name, role=FieldRole.LOCAL, component_shape=())
     # Force float64 storage even if the grid fixture uses another dtype.
-    p.data = torch.zeros((grid.num_cells, 1), dtype=dtype, device=device)
+    p.data = torch.zeros((grid.num_cells,), dtype=dtype, device=device)
     fv_matrix = FvMatrix(p)
     n_faces = grid.num_internal_faces
     n_cells = grid.num_cells
 
     torch.manual_seed(seed)
-    upper = 0.1 * torch.rand(n_faces, 1, dtype=dtype, device=device)
+    upper = 0.1 * torch.rand(n_faces, dtype=dtype, device=device)
     lower = (
         upper.clone()
         if symmetric
-        else (0.05 * torch.rand(n_faces, 1, dtype=dtype, device=device))
+        else (0.05 * torch.rand(n_faces, dtype=dtype, device=device))
     )
 
     # Accumulate off-diagonal magnitude per cell for diagonal dominance.
-    off_diag = torch.zeros(n_cells, 1, dtype=dtype, device=device)
+    off_diag = torch.zeros(n_cells, dtype=dtype, device=device)
     off_diag.index_add_(0, grid.owner, upper.abs())
     off_diag.index_add_(0, grid.neighbour, lower.abs())
     diag = off_diag + 1.0
 
-    source = torch.randn(n_cells, 1, dtype=dtype, device=device)
+    source = torch.randn(n_cells, dtype=dtype, device=device)
 
     fv_matrix.diag = diag
     fv_matrix.upper = upper
@@ -123,7 +123,7 @@ def test_as_transpose_matches_dot(
 ):
     # y·(Ax) must equal (Aᵀy)·x for a random non-symmetric LDU matrix.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_tr", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_tr", role=FieldRole.LOCAL, component_shape=())
     A = FvMatrix(p)
     torch.manual_seed(1)
     A.diag = torch.randn_like(A.diag)

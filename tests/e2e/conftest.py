@@ -313,17 +313,17 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                     ),
                     "p": ConditionConfig(
                         dimension=dimension_config(DIM_KIN_PRESSURE),
-                        internal=[0.0],
+                        internal=0.0,
                         boundary={
                             "inlet": BoundaryConditionConfig(
                                 type=BoundaryConditionType.NEUMANN,
                                 patches=["x_minus"],
-                                value=[0.0],
+                                value=0.0,
                             ),
                             "outlet": BoundaryConditionConfig(
                                 type=BoundaryConditionType.DIRICHLET,
                                 patches=["x_plus"],
-                                value=[0.0],
+                                value=0.0,
                             ),
                             "slip": BoundaryConditionConfig(
                                 type=BoundaryConditionType.NEUMANN,
@@ -333,12 +333,12 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                                     "z_minus",
                                     "z_plus",
                                 ],
-                                value=[0.0],
+                                value=0.0,
                             ),
                             "body": BoundaryConditionConfig(
                                 type=BoundaryConditionType.NEUMANN,
                                 patches=["_default"],
-                                value=[0.0],
+                                value=0.0,
                             ),
                         },
                     ),
@@ -371,7 +371,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
 def add_dirichlet_bc() -> Callable[..., None]:
     """Return a callable that attaches a Dirichlet boundary condition."""
 
-    def _add(field: CellField, patch: str, value: list[float]) -> None:
+    def _add(field: CellField, patch: str, value: float | list[float]) -> None:
         bc = DirichletBC(
             torch.tensor(
                 value, dtype=field.grid.dtype, device=field.grid.device
@@ -386,7 +386,7 @@ def add_dirichlet_bc() -> Callable[..., None]:
 def add_neumann_bc() -> Callable[..., None]:
     """Return a callable that attaches a Neumann boundary condition."""
 
-    def _add(field: CellField, patch: str, value: list[float]) -> None:
+    def _add(field: CellField, patch: str, value: float | list[float]) -> None:
         bc = NeumannBC(
             torch.tensor(
                 value, dtype=field.grid.dtype, device=field.grid.device

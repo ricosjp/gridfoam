@@ -1,5 +1,6 @@
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.schemes.ddt import ddt_coefficients
 
 
@@ -33,6 +34,7 @@ def ddt(field: CellField) -> FvMatrix:
     if c != 0.0:
         assert field.older_data is not None
         history = history - c * field.older_data
-    mat.source += vol_over_dt * history
+    vol_over_dt_view = broadcast_entity(vol_over_dt, history)
+    mat.source += vol_over_dt_view * history
 
     return mat

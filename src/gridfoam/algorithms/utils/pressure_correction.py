@@ -28,8 +28,9 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.boundary_ops import (
-    BoundaryState,
     boundary_block,
+    boundary_fixed_value_mask,
+    boundary_normal_gradient,
     iter_boundary_states,
     outward_boundary_Sf,
 )
@@ -66,7 +67,7 @@ class PressureSolveResult:
 def solve_pressure_poisson(
     p: CellField,
     rAtU: CellField,
-    div_phi_hbya: Float[torch.Tensor, " C 1"],
+    div_phi_hbya: Float[torch.Tensor, " C"],
     solver: LinearSolver,
     *,
     n_non_orthogonal_correctors: int,
@@ -126,11 +127,11 @@ def solve_pressure_poisson(
                 )
             set_reference_value(p_eqn_mat, p_ref_cell, p_ref_value)
 
-        last_initial_residual = field_initial_residual(p_eqn_mat, p)
+        pressure_eq = equation(p, p_eqn_mat)
+        last_initial_residual = field_initial_residual(pressure_eq.fv_matrix, p)
         if initial_residual is None:
             initial_residual = last_initial_residual
 
-        pressure_eq = equation(p, p_eqn_mat)
         pass_solver = (
             final_solver
             if final_solver is not None and corr == n_non_orthogonal_correctors
@@ -161,7 +162,7 @@ def simplec_rAtU(
     rAU: CellField,
     *,
     bounded: bool = True,
-) -> Float[torch.Tensor, " C 1"]:
+) -> Float[torch.Tensor, " C"]:
     """
     SIMPLEC pressure-equation coefficient ``rAtU = 1 / (1/rAU - H1)``.
 
@@ -182,7 +183,7 @@ def simplec_rAtU(
     Returns
     -------
     torch.Tensor
-        ``rAtU`` cell values with shape ``[C, 1]``.
+        ``rAtU`` cell values with shape ``[C]``.
     """
     inv = 1.0 / rAU.data - UEqn_mat.H1()
     if bounded:
@@ -190,18 +191,10 @@ def simplec_rAtU(
     return 1.0 / inv
 
 
-def _boundary_sn_grad(
-    state: BoundaryState, p_data: Float[torch.Tensor, " C k"]
-) -> Float[torch.Tensor, " F_any k"]:
-    """Boundary-normal gradient ``(psi_b - p_P) / |d|``."""
-    batch = state.batch
-    return (state.psi_b - p_data[batch.target_cells]) / batch.mag_d
-
-
 def _add_boundary_sn_grad_flux(
     face_field: FaceField,
     p: CellField,
-    cell_coeff: Float[torch.Tensor, " C 1"],
+    cell_coeff: Float[torch.Tensor, " C"],
     *,
     sign: float,
 ) -> None:
@@ -209,17 +202,16 @@ def _add_boundary_sn_grad_flux(
     Add ``sign * coeff_P * |Sf| * snGrad(p)_b`` on every pressure boundary.
     """
     grid = p.grid
-    p_data = p.data
     for state in iter_boundary_states(p):
         batch = state.batch
         mag_Sf = torch.linalg.vector_norm(
-            outward_boundary_Sf(grid, batch), dim=1, keepdim=True
+            outward_boundary_Sf(grid, batch), dim=1
         )
         correction = (
             sign
             * cell_coeff[batch.target_cells]
             * mag_Sf
-            * _boundary_sn_grad(state, p_data)
+            * boundary_normal_gradient(p, state)
         )
         block = boundary_block(face_field, batch.face_kind)
         block[batch.face_mask] = block[batch.face_mask] + correction
@@ -272,7 +264,7 @@ def apply_simplec(
     _add_boundary_sn_grad_flux(phi_hbya, p, d_r, sign=1.0)
 
     grad_p = fvc.grad(p)
-    HbyA.data = HbyA.data - (rAU.data - rAtU.data) * grad_p.data
+    HbyA.data = HbyA.data - (rAU.data - rAtU.data)[:, None] * grad_p.data
 
 
 def correct_phi(
@@ -308,6 +300,39 @@ def correct_phi(
     phi.single_data = phi_hbya.single_data - flux_p
     _copy_boundary_flux(phi, phi_hbya)
     _add_boundary_sn_grad_flux(phi, p, rAtU.data, sign=-1.0)
+    _close_fixed_cell_flux(phi, p)
+
+
+def _close_fixed_cell_flux(phi: FaceField, p: CellField) -> None:
+    """Recover the undetermined Dirichlet flux on cells fixed by snapping.
+
+    Their Poisson rows have been replaced by p_P = p_b. The original cell
+    balance determines the total boundary flux instead. Split that flux
+    over near Dirichlet faces by area; other cells/faces are unchanged.
+    """
+    selected = []
+    area_sum = torch.zeros_like(p.grid.cell_volumes)
+    for state in iter_boundary_states(p):
+        batch = state.batch
+        fixed = boundary_fixed_value_mask(p, batch, state.fraction)
+        if not bool(torch.any(fixed)):
+            continue
+        area = torch.linalg.vector_norm(
+            outward_boundary_Sf(p.grid, batch), dim=1
+        )
+        area = torch.where(fixed, area, torch.zeros_like(area))
+        area_sum.index_add_(0, batch.target_cells, area)
+        selected.append((batch, area))
+    if not selected:
+        return
+    imbalance = fvc.div(phi).data * p.grid.cell_volumes
+    for batch, area in selected:
+        total = area_sum[batch.target_cells]
+        fraction = area / torch.where(total > 0, total, torch.ones_like(total))
+        block = boundary_block(phi, batch.face_kind)
+        block[batch.face_mask] = (
+            block[batch.face_mask] - fraction * imbalance[batch.target_cells]
+        )
 
 
 def correct_velocity(
@@ -333,4 +358,4 @@ def correct_velocity(
         Pressure field used for the gradient correction.
     """
     grad_p = fvc.grad(p)
-    U.data = HbyA.data - rAtU.data * grad_p.data
+    U.data = HbyA.data - rAtU.data[:, None] * grad_p.data

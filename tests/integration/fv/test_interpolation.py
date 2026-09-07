@@ -29,9 +29,7 @@ def test_linear_internal_face_values_is_exact_on_uniform_mesh():
     geo = face_geometry(grid)
 
     values = linear_internal_face_values(field)
-    expected = (grid.face_centers[geo.single_mask] @ gradient + 7.0).reshape(
-        -1, 1
-    )
+    expected = grid.face_centers[geo.single_mask] @ gradient + 7.0
 
     torch.testing.assert_close(values, expected, atol=1e-12, rtol=1e-12)
 
@@ -54,8 +52,8 @@ def test_correct_internal_values_improve_on_offset_faces():
     field, gradient = linear_scalar_field(grid)
     geo = face_geometry(grid)
     centroid = (
-        geo.w_s * grid.cell_centers[geo.owner_s]
-        + (1.0 - geo.w_s) * grid.cell_centers[geo.neighbour_s]
+        geo.w_s[:, None] * grid.cell_centers[geo.owner_s]
+        + (1.0 - geo.w_s)[:, None] * grid.cell_centers[geo.neighbour_s]
     )
     offset = grid.face_centers[geo.single_mask] - centroid
     offset_faces = torch.linalg.vector_norm(offset, dim=1) > 0.0
@@ -64,9 +62,7 @@ def test_correct_internal_values_improve_on_offset_faces():
     base_values = linear_internal_face_values(field)
     grad_data = gradient.expand(grid.num_cells, -1)
     corrected = correct_internal_values(field, base_values, grad_data)
-    expected = (grid.face_centers[geo.single_mask] @ gradient + 7.0).reshape(
-        -1, 1
-    )
+    expected = grid.face_centers[geo.single_mask] @ gradient + 7.0
 
     base_error = (
         (base_values[offset_faces] - expected[offset_faces]).abs().max().item()
@@ -85,9 +81,7 @@ def test_interpolate_is_exact_on_uniform_mesh():
     geo = face_geometry(grid)
 
     interpolated = interpolate(field)
-    expected = (grid.face_centers[geo.single_mask] @ gradient + 7.0).reshape(
-        -1, 1
-    )
+    expected = grid.face_centers[geo.single_mask] @ gradient + 7.0
 
     torch.testing.assert_close(
         interpolated.single_data, expected, atol=1e-12, rtol=1e-12
@@ -104,9 +98,7 @@ def test_interpolate_is_exact_on_hanging_faces_of_refined_mesh():
 
     base_values = linear_internal_face_values(field)
     corrected = interpolate(field).single_data
-    expected = (grid.face_centers[geo.single_idx] @ gradient + 7.0).reshape(
-        -1, 1
-    )
+    expected = grid.face_centers[geo.single_idx] @ gradient + 7.0
 
     hang = geo.hang_idx
     assert (base_values[hang] - expected[hang]).abs().max().item() > 1e-3
@@ -117,7 +109,7 @@ def test_interpolate_extrapolates_boundary_faces_without_bcs():
     # A derived field without boundary conditions (e.g. grad(p), HbyA) must
     # receive zero-gradient extrapolated boundary values instead of zeros.
     grid = refined_grid()
-    field = CellField(grid, "derived_no_bc", FieldRole.LOCAL, 2)
+    field = CellField(grid, "derived_no_bc", FieldRole.LOCAL, (3,))
     field.data = torch.randn_like(field.data)
 
     interpolated = interpolate(field)
@@ -152,7 +144,7 @@ def test_interpolate_vector_field_preserves_components():
     # Vector interpolation must keep component count and fill each component
     # independently from the cell values.
     grid = create_grid(small_gridfoam_config())
-    field = CellField(grid, "U_interp", FieldRole.LOCAL, 3)
+    field = CellField(grid, "U_interp", FieldRole.LOCAL, (3,))
     field.data = grid.cell_centers.clone()
 
     interpolated = interpolate(field)

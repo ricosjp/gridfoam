@@ -31,10 +31,10 @@ def linear_scalar_field(
         grid,
         name=name,
         role=FieldRole.LOCAL,
-        num_components=1,
+        component_shape=(),
     )
     grad_vec = torch.tensor(gradient, dtype=grid.dtype, device=grid.device)
-    field.data = (grid.cell_centers @ grad_vec + offset).reshape(-1, 1)
+    field.data = grid.cell_centers @ grad_vec + offset
 
     bcs: dict[PatchName, BoundaryCondition] = {}
     for patch in DomainBoundaryPatch:
@@ -42,7 +42,7 @@ def linear_scalar_field(
         axis = direction.value // 2
         sign = 2.0 * (direction.value % 2) - 1.0
         normal_grad = torch.tensor(
-            [sign * gradient[axis]], dtype=grid.dtype, device=grid.device
+            sign * gradient[axis], dtype=grid.dtype, device=grid.device
         )
         bcs[patch] = NeumannBC(normal_grad)
     field.add_boundary_conditions(bcs)

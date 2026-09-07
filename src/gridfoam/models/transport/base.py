@@ -33,14 +33,14 @@ class TransportModel(ABC):
         self.grid = grid
 
     @abstractmethod
-    def nu(self) -> Float[torch.Tensor, " 1"]:
+    def nu(self) -> Float[torch.Tensor, ""]:
         """
         Return molecular kinematic viscosity.
 
         Returns
         -------
         torch.Tensor
-            Kinematic viscosity ``nu`` with shape ``[1]``. Broadcasts
-            against cell fields such as ``nu_t`` with shape ``[C, 1]``.
+            Kinematic viscosity ``nu`` with shape ``()``. Broadcasts
+            against cell fields such as ``nu_t`` with shape ``[C]``.
         """
         pass

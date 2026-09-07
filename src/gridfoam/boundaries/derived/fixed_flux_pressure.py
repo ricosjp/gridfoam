@@ -10,6 +10,7 @@ from gridfoam.boundaries.utils import get_mask
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.meta.enums import (
     BoundaryConditionType,
     DomainBoundaryPatch,
@@ -27,7 +28,7 @@ else:
 
 def _face_block(
     face_field: FaceField, patch_name: PatchName, side: FaceSide
-) -> Float[torch.Tensor, " F_any k"]:
+) -> Float[torch.Tensor, " F_any *component_shape"]:
     """Storage block of ``face_field`` for ``patch_name`` / ``side``."""
     if isinstance(patch_name, DomainBoundaryPatch):
         return face_field.domain_bnd_data
@@ -47,7 +48,7 @@ def _outward_patch_geometry(
     tuple[
         Int[torch.Tensor, " F_patch"],
         Float[torch.Tensor, " F_patch 3"],
-        Float[torch.Tensor, " F_patch 1"],
+        Float[torch.Tensor, " F_patch"],
     ]
     | None
 ):
@@ -63,7 +64,6 @@ def _outward_patch_geometry(
             grid.domain_bnd_face_centers[mask]
             - grid.cell_centers[target_cells],
             dim=1,
-            keepdim=True,
         )
         return target_cells, Sf_out, mag_d
 
@@ -89,8 +89,8 @@ def _boundary_face_value(
     patch_name: PatchName,
     side: FaceSide,
     target_cells: Int[torch.Tensor, " F_patch"],
-    mag_d: Float[torch.Tensor, " F_patch 1"],
-) -> Float[torch.Tensor, " F_patch k"] | None:
+    mag_d: Float[torch.Tensor, " F_patch"],
+) -> Float[torch.Tensor, " F_patch *component_shape"] | None:
     """
     Face value implied by ``field``'s boundary condition on this patch.
 
@@ -103,15 +103,18 @@ def _boundary_face_value(
         return None
     fraction, ref_v, ref_g = bc.evaluate(field, patch_name, side=side)
     psi_O = field.data[target_cells]
-    return fraction * ref_v + (1.0 - fraction) * (psi_O + ref_g * mag_d)
+    f = broadcast_entity(fraction, psi_O)
+    distance = broadcast_entity(mag_d, psi_O)
+    neumann_value = psi_O + distance * ref_g
+    return f * ref_v + (1.0 - f) * neumann_value
 
 
 def _safe_sn_grad(
-    flux_pred: Float[torch.Tensor, " F_patch 1"],
-    flux_target: Float[torch.Tensor, " F_patch 1"],
-    coeff: Float[torch.Tensor, " F_patch 1"],
-    mag_Sf: Float[torch.Tensor, " F_patch 1"],
-) -> Float[torch.Tensor, " F_patch 1"]:
+    flux_pred: Float[torch.Tensor, " F_patch"],
+    flux_target: Float[torch.Tensor, " F_patch"],
+    coeff: Float[torch.Tensor, " F_patch"],
+    mag_Sf: Float[torch.Tensor, " F_patch"],
+) -> Float[torch.Tensor, " F_patch"]:
     """``(flux_pred - flux_target) / (coeff * |Sf|)`` with zero-safe denom."""
     denom = coeff * mag_Sf
     return torch.where(
@@ -159,9 +162,6 @@ class FixedFluxPressure(BoundaryCondition):
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.FIXED_FLUX_PRESSURE
 
-    def component(self, c: int) -> BoundaryCondition:
-        return self
-
     def _coefficient_field(self, grid: IGridBase) -> CellField | None:
         rAtU = grid.get_cellfield(self.rAtU_name)
         if rAtU is not None:
@@ -188,20 +188,20 @@ class FixedFluxPressure(BoundaryCondition):
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
+        if field.component_shape != ():
+            raise ValueError("FixedFluxPressure requires a scalar field")
         grid = field.grid
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
 
         # Neumann-style BC: fraction is always zero.
-        fraction = torch.zeros(
-            (n_faces, 1), dtype=grid.dtype, device=grid.device
-        )
+        fraction = torch.zeros((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(
-            (n_faces, field.num_components),
+            (n_faces, *field.component_shape),
             dtype=grid.dtype,
             device=grid.device,
         )
@@ -223,15 +223,13 @@ class FixedFluxPressure(BoundaryCondition):
         if geometry is None:
             return fraction, ref_v, ref_g
         target_cells, Sf_out, mag_d = geometry
-        mag_Sf = torch.linalg.vector_norm(Sf_out, dim=1, keepdim=True)
+        mag_Sf = torch.linalg.vector_norm(Sf_out, dim=1)
 
         if phi_hbya is not None:
             flux_pred = _face_block(phi_hbya, patch_name, side)[mask]
         else:
             assert HbyA is not None
-            flux_pred = torch.sum(
-                HbyA.data[target_cells] * Sf_out, dim=1, keepdim=True
-            )
+            flux_pred = torch.sum(HbyA.data[target_cells] * Sf_out, dim=1)
 
         flux_target = None
         if U is not None:
@@ -239,7 +237,7 @@ class FixedFluxPressure(BoundaryCondition):
                 U, patch_name, side, target_cells, mag_d
             )
             if psi_b is not None:
-                flux_target = torch.sum(psi_b * Sf_out, dim=1, keepdim=True)
+                flux_target = torch.sum(psi_b * Sf_out, dim=1)
         if flux_target is None:
             if phi is None:
                 return fraction, ref_v, ref_g
@@ -250,5 +248,5 @@ class FixedFluxPressure(BoundaryCondition):
         grad_n = _safe_sn_grad(
             flux_pred, flux_target, coeff.data[target_cells], mag_Sf
         )
-        ref_g = grad_n.expand(-1, field.num_components)
+        ref_g = grad_n
         return fraction, ref_v, ref_g

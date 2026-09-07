@@ -80,20 +80,20 @@ simulator:
     p:
       # Kinematic pressure (p/rho): L^2/T^2
       dimension: {L: 2, T: -2}
-      internal: [0.0]
+      internal: 0.0
       boundary:
         inflow:
           type: dirichlet
           patches: [x_minus]
-          value: [2.0]
+          value: 2.0
         outflow:
           type: dirichlet
           patches: [x_plus]
-          value: [0.0]
+          value: 0.0
         wall:
           type: neumann
           patches: [y_minus, y_plus]
-          value: [0.0]
+          value: 0.0
         empty:
           type: empty
           patches: [z_minus, z_plus]

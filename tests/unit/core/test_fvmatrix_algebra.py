@@ -14,7 +14,7 @@ def test_fvmatrix_add_sub_neg(small_axis_projected_grid: AxisProjectedGrid):
     # Element-wise add, subtract, and unary negation must act on all
     # coefficient blocks (diag, upper, lower, source) independently.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_alg", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_alg", role=FieldRole.LOCAL, component_shape=())
     a = FvMatrix(p)
     b = FvMatrix(p)
     torch.manual_seed(0)
@@ -41,11 +41,11 @@ def test_fvmatrix_A_and_H_operators(
     # ``A()`` returns the diagonal scaled by inverse cell volume; ``H(x)``
     # must produce a source-like vector with the same shape as ``x``.
     grid = small_axis_projected_grid
-    p = CellField(grid, "p_ah", role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, "p_ah", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
     mat.diag.fill_(3.0)
     mat.source.fill_(1.0)
-    x = torch.ones((grid.num_cells, 1), dtype=grid.dtype, device=grid.device)
+    x = torch.ones((grid.num_cells,), dtype=grid.dtype, device=grid.device)
     Aop = mat.A()
     assert torch.allclose(Aop, mat.diag / grid.cell_volumes)
     H = mat.H(x)

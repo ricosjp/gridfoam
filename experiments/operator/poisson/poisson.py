@@ -102,7 +102,7 @@ def assemble_poisson_matrix(p: CellField) -> FvMatrix:
     z = cell_centers[:, 2]
 
     poisson_mat = fvm.laplacian(1.0, p)
-    poisson_mat.source += source_term(x, y, z).unsqueeze(-1) * grid.cell_volumes
+    poisson_mat.source += source_term(x, y, z) * grid.cell_volumes
     return poisson_mat
 
 
@@ -115,9 +115,9 @@ def compute_errors(
     Parameters
     ----------
     p_num : torch.Tensor
-        Numerical solution with shape ``[C, 1]``.
+        Numerical solution with shape ``[C]``.
     p_ref : torch.Tensor
-        Reference solution with shape ``[C, 1]``.
+        Reference solution with shape ``[C]``.
 
     Returns
     -------
@@ -167,7 +167,7 @@ def solve_poisson_case(
     grid = create_grid_from_config(config)
 
     p_name = make_field_name("p")
-    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
+    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, ())
     p_solver = create_solver(grid.sim_config.fvSolution.solvers[p_name])
 
     cell_centers = grid.cell_centers
@@ -179,17 +179,17 @@ def solve_poisson_case(
     poisson_eq = equation(p, poisson_mat)
     p.data = p_solver.solve(poisson_eq).solution
 
-    p_ref = p_exact(x, y, z).unsqueeze(-1)
+    p_ref = p_exact(x, y, z)
     errors = compute_errors(p.data, p_ref)
 
     if save_vtu:
         p_exact_name = make_field_name("p_exact")
         diff_name = make_field_name("diff")
         p_exact_field = get_or_create_cellfield(
-            grid, p_exact_name, FieldRole.LOCAL, 1
+            grid, p_exact_name, FieldRole.LOCAL, ()
         )
         diff_field = get_or_create_cellfield(
-            grid, diff_name, FieldRole.LOCAL, 1
+            grid, diff_name, FieldRole.LOCAL, ()
         )
         p_exact_field.export = True
         diff_field.export = True

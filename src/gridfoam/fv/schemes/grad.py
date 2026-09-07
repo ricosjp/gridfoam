@@ -13,12 +13,14 @@ from gridfoam.fv.schemes.interpolate import linear as interpolate_linear
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import GradScheme
 
-GradSchemeFunc = Callable[[CellField], Float[torch.Tensor, " C k 3"]]
+GradSchemeFunc = Callable[
+    [CellField], Float[torch.Tensor, " C *component_shape 3"]
+]
 
 DEFAULT_GRAD_SCHEME = GradScheme.LEASTSQUARE
 
 
-def linear(field: CellField) -> Float[torch.Tensor, " C k 3"]:
+def linear(field: CellField) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Green-Gauss gradient from hierarchy-aware linear face values.
 
@@ -31,19 +33,21 @@ def linear(field: CellField) -> Float[torch.Tensor, " C k 3"]:
     Parameters
     ----------
     field : CellField
-        Cell-centered field with ``k`` components.
+        Cell-centered field.
 
     Returns
     -------
     torch.Tensor
-        Cell-centered gradient with shape ``[C, k, 3]``.
+        Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     """
     geo = face_geometry(field.grid)
     psi_f = interpolate_linear(field)
     return assemble_gauss_gradient(field.grid, psi_f, geo)
 
 
-def leastsquare(field: CellField) -> Float[torch.Tensor, " C k 3"]:
+def leastsquare(
+    field: CellField,
+) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Weighted least-squares gradient.
 
@@ -57,12 +61,12 @@ def leastsquare(field: CellField) -> Float[torch.Tensor, " C k 3"]:
     Parameters
     ----------
     field : CellField
-        Cell-centered field with ``k`` components.
+        Cell-centered field.
 
     Returns
     -------
     torch.Tensor
-        Cell-centered gradient with shape ``[C, k, 3]``.
+        Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     """
     return least_squares_gradient(field)
 
@@ -92,7 +96,7 @@ def _search_grad_scheme(
     return grad_scheme
 
 
-def eval_grad(field: CellField) -> Float[torch.Tensor, " C k 3"]:
+def eval_grad(field: CellField) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Evaluate the configured cell-centered gradient as a tensor.
 
@@ -102,12 +106,12 @@ def eval_grad(field: CellField) -> Float[torch.Tensor, " C k 3"]:
     Parameters
     ----------
     field : CellField
-        Target cell-centered field with ``k`` components.
+        Target cell-centered field.
 
     Returns
     -------
     torch.Tensor
-        Cell-centered gradient with shape ``[C, k, 3]``.
+        Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     """
     scheme = _search_grad_scheme(field.grid.sim_config, field)
     return get_grad_scheme(scheme)(field)

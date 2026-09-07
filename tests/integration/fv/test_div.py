@@ -23,9 +23,9 @@ def _uniform_divergence_flux(grid: IGridBase) -> FaceField:
     def flux(face_centers: torch.Tensor, Sf: torch.Tensor) -> torch.Tensor:
         U = torch.zeros_like(face_centers)
         U[:, 0] = face_centers[:, 0]
-        return torch.sum(U * Sf, dim=1, keepdim=True)
+        return torch.sum(U * Sf, dim=1, keepdim=False)
 
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     single_mask = phi.single_mask
     phi.single_data = flux(grid.face_centers[single_mask], grid.Sf[single_mask])
     phi.domain_bnd_data = flux(grid.domain_bnd_face_centers, grid.domain_bnd_Sf)
@@ -48,10 +48,10 @@ def test_div_is_normalized_by_cell_volume():
 def test_div_of_divergence_free_flux_vanishes():
     # Uniform velocity ``U = (1, 0, 0)`` → ``phi = Sf_x`` has zero divergence.
     grid = refined_grid()
-    phi = FaceField(grid, "phi_uniform", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi_uniform", FieldRole.LOCAL, ())
     single_mask = phi.single_mask
-    phi.single_data = grid.Sf[single_mask][:, :1]
-    phi.domain_bnd_data = grid.domain_bnd_Sf[:, :1]
+    phi.single_data = grid.Sf[single_mask][:, 0]
+    phi.domain_bnd_data = grid.domain_bnd_Sf[:, 0]
 
     div_phi = fvc.div(phi)
 

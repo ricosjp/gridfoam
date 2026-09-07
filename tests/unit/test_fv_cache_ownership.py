@@ -30,7 +30,7 @@ def test_boundary_batches_are_cached_on_field_fv_cache(
     tmp_path: pathlib.Path,
 ):
     grid = create_grid(channel_config(tmp_path))
-    field = CellField(grid, "U", FieldRole.TRANSIENT, 3)
+    field = CellField(grid, "U", FieldRole.TRANSIENT, (3,))
     batches1 = tuple(iter_boundary_batches(field))
     assert len(batches1) > 0
     assert field.fv_cache.boundary_batches == batches1

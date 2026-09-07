@@ -131,8 +131,8 @@ def test_update_ib_resizes_facefield_immersed_buffers(tmp_path: Path) -> None:
 
     n_cells = grid.num_cells
     n_faces = grid.num_internal_faces
-    cell = CellField(grid, "T", FieldRole.LOCAL, 1)
-    face = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    cell = CellField(grid, "T", FieldRole.LOCAL, ())
+    face = FaceField(grid, "phi", FieldRole.LOCAL, ())
     cell.data[:] = 1.0
     preserved = face.single_data.clone()
     preserved[:] = 2.0
@@ -155,7 +155,7 @@ def test_remesh_rebuilds_topology_for_uniform_mesh() -> None:
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
-    cell = CellField(grid, "p", FieldRole.LOCAL, 1)
+    cell = CellField(grid, "p", FieldRole.LOCAL, ())
     cell.data[:] = 3.0
 
     grid.remesh(

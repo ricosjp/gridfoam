@@ -8,6 +8,7 @@ from gridfoam.core.field import (
     get_or_create_cellfield,
 )
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.kernels.face_geometry import face_geometry
 
 
@@ -34,11 +35,13 @@ def div(phi: FaceField) -> CellField:
         grid,
         f"div({phi.name})",
         FieldRole.LOCAL,
-        1,
+        phi.component_shape,
         dimension=dim_div(phi.dimension, DIM_VOLUME),
     )
     data = torch.zeros(
-        (grid.num_cells, 1), dtype=grid.dtype, device=grid.device
+        (grid.num_cells, *phi.component_shape),
+        dtype=grid.dtype,
+        device=grid.device,
     )
 
     # Internal faces
@@ -56,5 +59,6 @@ def div(phi: FaceField) -> CellField:
         immersed = grid.ap_is_immersed_faces
         data.index_add_(0, grid.owner[immersed], phi.immersed_upper)
         data.index_add_(0, grid.neighbour[immersed], phi.immersed_lower)
-    div_phi.data = data / grid.cell_volumes
+    volumes = broadcast_entity(grid.cell_volumes, data)
+    div_phi.data = data / volumes
     return div_phi

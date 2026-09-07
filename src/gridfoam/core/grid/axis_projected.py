@@ -50,9 +50,9 @@ _DEVICE_TENSOR_ATTRS = (
     "_ap_owner_bnd_anchor_id",
     "_ap_neighbour_bnd_anchor_id",
     "_ap_dist_owner_to_bnd",
-    "_ap_owner_weights",
+    "_ap_owner_near_boundary",
     "_ap_dist_neighbour_to_bnd",
-    "_ap_neighbour_weights",
+    "_ap_neighbour_near_boundary",
 )
 
 
@@ -135,7 +135,7 @@ class AxisProjectedGrid(IGridBase):
         )
 
         # Cell Volumes
-        self._cell_volumes = torch.prod(self._cell_sizes, dim=1, keepdim=True)
+        self._cell_volumes = torch.prod(self._cell_sizes, dim=1)
 
         # Internal Face Centers
         self._face_centers = _compute_face_centers(
@@ -190,25 +190,25 @@ class AxisProjectedGrid(IGridBase):
             ap.neighbour_bnd_anchor_id, device=self.device, dtype=torch.long
         )
 
-        # Immersed Boundary distances from owner to boundary [F_immersed 1]
+        # Immersed Boundary distances from owner to boundary [F_immersed]
         self._ap_dist_owner_to_bnd = _numpy_to_torch(
             ap.dist_owner_to_bnd, device=self.device, dtype=self.dtype
-        ).reshape(-1, 1)
+        ).reshape(-1)
 
-        # Immersed Boundary Owner Weights [F_immersed 2]
-        self._ap_owner_weights = _numpy_to_torch(
-            ap.owner_weights, device=self.device, dtype=self.dtype
-        ).reshape(-1, 2)
+        # Immersed Boundary Owner Near-Boundary Mask [F_immersed]
+        self._ap_owner_near_boundary = _numpy_to_torch(
+            ap.owner_near_boundary, device=self.device, dtype=torch.bool
+        )
 
-        # Immersed Boundary distances from neighbour to boundary [F_immersed 1]
+        # Immersed Boundary distances from neighbour to boundary [F_immersed]
         self._ap_dist_neighbour_to_bnd = _numpy_to_torch(
             ap.dist_neighbour_to_bnd, device=self.device, dtype=self.dtype
-        ).reshape(-1, 1)
+        ).reshape(-1)
 
-        # Immersed Boundary Neighbour Weights [F_immersed 2]
-        self._ap_neighbour_weights = _numpy_to_torch(
-            ap.neighbour_weights, device=self.device, dtype=self.dtype
-        ).reshape(-1, 2)
+        # Immersed Boundary Neighbour Near-Boundary Mask [F_immersed]
+        self._ap_neighbour_near_boundary = _numpy_to_torch(
+            ap.neighbour_near_boundary, device=self.device, dtype=torch.bool
+        )
 
     def _sync_registered_fields(self, *, topology_changed: bool) -> None:
         """Resize registered fields after IBM or topology updates."""
@@ -567,7 +567,7 @@ class AxisProjectedGrid(IGridBase):
         return self._cell_sizes
 
     @property
-    def cell_volumes(self) -> Float[torch.Tensor, " C 1"]:
+    def cell_volumes(self) -> Float[torch.Tensor, " C"]:
         return self._cell_volumes
 
     @property
@@ -575,7 +575,7 @@ class AxisProjectedGrid(IGridBase):
         return self._face_centers
 
     @property
-    def Sf(self) -> Float[torch.Tensor, "F 3"]:
+    def Sf(self) -> Float[torch.Tensor, " F 3"]:
         return self._Sf
 
     @property
@@ -583,7 +583,7 @@ class AxisProjectedGrid(IGridBase):
         return self._domain_bnd_face_centers
 
     @property
-    def domain_bnd_Sf(self) -> Float[torch.Tensor, "F_bnd 3"]:
+    def domain_bnd_Sf(self) -> Float[torch.Tensor, " F_bnd 3"]:
         return self._domain_bnd_Sf
 
     @property
@@ -599,20 +599,22 @@ class AxisProjectedGrid(IGridBase):
         return self._ap_neighbour_bnd_patch_id
 
     @property
-    def ap_dist_owner_to_bnd(self) -> Float[torch.Tensor, " F_immersed 1"]:
+    def ap_dist_owner_to_bnd(self) -> Float[torch.Tensor, " F_immersed"]:
         return self._ap_dist_owner_to_bnd
 
     @property
-    def ap_owner_weights(self) -> Float[torch.Tensor, " F_immersed 2"]:
-        return self._ap_owner_weights
+    def ap_owner_near_boundary(self) -> Bool[torch.Tensor, " F_immersed"]:
+        """Candidate cells for the Gibou Dirichlet boundary constraint."""
+        return self._ap_owner_near_boundary
 
     @property
-    def ap_dist_neighbour_to_bnd(self) -> Float[torch.Tensor, " F_immersed 1"]:
+    def ap_dist_neighbour_to_bnd(self) -> Float[torch.Tensor, " F_immersed"]:
         return self._ap_dist_neighbour_to_bnd
 
     @property
-    def ap_neighbour_weights(self) -> Float[torch.Tensor, " F_immersed 2"]:
-        return self._ap_neighbour_weights
+    def ap_neighbour_near_boundary(self) -> Bool[torch.Tensor, " F_immersed"]:
+        """Candidate cells for the Gibou Dirichlet boundary constraint."""
+        return self._ap_neighbour_near_boundary
 
     @property
     def ap_owner_bnd_anchor_id(self) -> Int[torch.Tensor, " F_immersed"]:
@@ -715,7 +717,7 @@ def _compute_face_centers(
     cell_centers: Float[torch.Tensor, " C 3"],
     owner: Int[torch.Tensor, " F"],
     neighbour: Int[torch.Tensor, " F"],
-) -> Float[torch.Tensor, "F_internal 3"]:
+) -> Float[torch.Tensor, " F_internal 3"]:
     c_own = cell_centers[owner]
     c_nei = cell_centers[neighbour]
     s_own = cell_sizes[owner]
@@ -740,7 +742,7 @@ def _compute_internal_Sf(
     owner: Int[torch.Tensor, " F"],
     neighbour: Int[torch.Tensor, " F"],
     axis: Int[torch.Tensor, " F"],
-) -> Float[torch.Tensor, "F_internal 3"]:
+) -> Float[torch.Tensor, " F_internal 3"]:
     num_internal_faces = owner.shape[0]
     dtype = cell_sizes.dtype
     device = cell_sizes.device
@@ -751,18 +753,18 @@ def _compute_internal_Sf(
     # Use the finer-cell size on each interface.
     min_sizes = torch.minimum(s_own, s_nei)
 
-    # Axis index normal to each face (N, 1).
-    axis_idx = axis[:, None]
+    face_indices = torch.arange(num_internal_faces, device=device)
 
-    # Face area = cell volume / normal-axis length.
-    vol = torch.prod(min_sizes, dim=1, keepdim=True)
-    axis_len = min_sizes.gather(1, axis_idx)
-    area = vol / axis_len  # [F_internal 1]
+    # Face area = cell volume / normal-axis length; each has shape (F,).
+    vol = torch.prod(min_sizes, dim=1)
+    axis_len = min_sizes[face_indices, axis]
+    area = vol / axis_len  # [F_internal]
 
     # Build face area vector Sf. In orthogonal grids, owner -> neighbor
-    # is always positive. Scatter area only into the corresponding axis.
+    # is always positive. Set area only on the corresponding axis.
     Sf = torch.zeros((num_internal_faces, 3), dtype=dtype, device=device)
-    return Sf.scatter_add_(1, axis_idx, area)
+    Sf[face_indices, axis] = area
+    return Sf
 
 
 def _compute_domain_bnd_face_centers(
@@ -770,7 +772,7 @@ def _compute_domain_bnd_face_centers(
     cell_centers: Float[torch.Tensor, " C 3"],
     domain_bnd_owner: Int[torch.Tensor, " F_bnd"],
     domain_bnd_dir_id: Int[torch.Tensor, " F_bnd"],
-) -> Float[torch.Tensor, "F_bnd 3"]:
+) -> Float[torch.Tensor, " F_bnd 3"]:
     num_domain_bnd_faces = domain_bnd_owner.shape[0]
     dtype = cell_centers.dtype
     device = cell_centers.device
@@ -788,7 +790,7 @@ def _compute_domain_bnd_Sf(
     cell_sizes: Float[torch.Tensor, " C 3"],
     domain_bnd_owner: Int[torch.Tensor, " F_bnd"],
     domain_bnd_dir_id: Int[torch.Tensor, " F_bnd"],
-) -> Float[torch.Tensor, "F_bnd 3"]:
+) -> Float[torch.Tensor, " F_bnd 3"]:
     num_domain_bnd_faces = domain_bnd_owner.shape[0]
     dtype = cell_sizes.dtype
     device = cell_sizes.device
@@ -796,12 +798,14 @@ def _compute_domain_bnd_Sf(
     s_own = cell_sizes[domain_bnd_owner]
 
     sign = (2.0 * (domain_bnd_dir_id % 2) - 1.0).to(dtype=dtype)
-    axis_idx = (domain_bnd_dir_id // 2)[:, None]
+    axis = domain_bnd_dir_id // 2
+    face_indices = torch.arange(num_domain_bnd_faces, device=device)
 
-    vol = torch.prod(s_own, dim=1, keepdim=True)
-    axis_len = s_own.gather(1, axis_idx)
-    area = sign[:, None] * vol / axis_len  # [F_bnd 1]
+    vol = torch.prod(s_own, dim=1)
+    axis_len = s_own[face_indices, axis]
+    area = sign * vol / axis_len  # [F_bnd]
 
-    # Build face area vector Sf by scattering area to the axis column.
+    # Each face contributes area to exactly one axis of (F_bnd, 3).
     Sf = torch.zeros((num_domain_bnd_faces, 3), dtype=dtype, device=device)
-    return Sf.scatter_add_(1, axis_idx, area)
+    Sf[face_indices, axis] = area
+    return Sf

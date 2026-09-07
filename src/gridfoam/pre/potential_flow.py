@@ -61,13 +61,13 @@ class PotentialFlow:
         phi_name = make_field_name("phi", phase=phase)
 
         self.U = get_or_create_cellfield(
-            grid, U_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+            grid, U_name, FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
         )
         self.p = get_or_create_cellfield(
-            grid, p_name, FieldRole.LOCAL, 1, dimension=DIM_KIN_PRESSURE
+            grid, p_name, FieldRole.LOCAL, (), dimension=DIM_KIN_PRESSURE
         )
         self.phi = get_or_create_facefield(
-            grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
+            grid, phi_name, FieldRole.LOCAL, (), dimension=DIM_VOL_FLUX
         )
 
         boundary_conditions = grid.sim_config.conditions
@@ -109,7 +109,7 @@ class PotentialFlow:
                     bcs[patch] = DirichletBC(value)
             else:
                 for patch in bc_config.patches:
-                    zero_grad = torch.zeros((1,), dtype=dtype, device=device)
+                    zero_grad = torch.zeros((), dtype=dtype, device=device)
                     bcs[patch] = NeumannBC(zero_grad)
         Phi.add_boundary_conditions(bcs)
 
@@ -141,7 +141,7 @@ class PotentialFlow:
             self.U.grid,
             name="Phi",
             role=FieldRole.LOCAL,
-            num_components=1,
+            component_shape=(),
             dimension=DIM_VELOCITY_POTENTIAL,
         )
         Phi.export = False

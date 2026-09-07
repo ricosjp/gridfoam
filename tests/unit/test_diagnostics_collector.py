@@ -32,7 +32,7 @@ def test_collector_writes_continuity_rows_on_interval(
     config = PostProcessingConfig(
         continuityError=ContinuityErrorConfig(writeInterval=2),
     )
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.zero_()
 
     collector = DiagnosticsCollector.from_config(
@@ -64,7 +64,7 @@ def test_collector_writes_solver_info_with_flush(
     config = PostProcessingConfig(
         solverInfo=SolverInfoConfig(fields=["p"], writeInterval=1),
     )
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.zero_()
     stats = {
         "p": (
@@ -113,11 +113,11 @@ def test_collector_writes_vector_solver_info_per_component(
     diagnostics_output_dir: Path,
 ) -> None:
     grid = small_axis_projected_grid
-    _u = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
+    _u = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     config = PostProcessingConfig(
         solverInfo=SolverInfoConfig(fields=["U"], writeInterval=1),
     )
-    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, num_components=1)
+    phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.zero_()
     stats = {
         "U": (

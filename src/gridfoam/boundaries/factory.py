@@ -9,17 +9,17 @@ from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.boundaries.basic.slip import SlipBC
 from gridfoam.boundaries.derived.fixed_flux_pressure import FixedFluxPressure
 from gridfoam.boundaries.derived.inlet_outlet import InletOutletBC
-from gridfoam.meta.config import BoundaryConditionConfig
+from gridfoam.meta.config import BoundaryConditionConfig, TensorValue
 from gridfoam.meta.enums import BoundaryConditionType
 
 
 def _to_tensor(
-    values: list[float] | None, dtype: torch.dtype, device: torch.device
+    values: TensorValue | None, dtype: torch.dtype, device: torch.device
 ) -> torch.Tensor:
     if values is None:
         raise ValueError("Boundary condition value is required.")
     tensor = torch.tensor(values, dtype=dtype, device=device)
-    return tensor.reshape(-1)
+    return tensor
 
 
 def create_boundary_condition(

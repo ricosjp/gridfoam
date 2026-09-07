@@ -8,6 +8,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.field import CellField
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
 from gridfoam.fv.kernels.least_squares import least_squares_gradient
@@ -18,7 +19,7 @@ from gridfoam.meta.enums import SnGradScheme
 def uncorrected(
     field: CellField,
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_single k"]:
+) -> Float[torch.Tensor, " F_single *component_shape"]:
     """
     Compact two-point surface-normal gradient on single-sided faces.
 
@@ -37,17 +38,19 @@ def uncorrected(
     Returns
     -------
     torch.Tensor
-        Surface-normal gradient with shape ``[F_single, k]``.
+        Surface-normal gradient with shape ``[F_single, *component_shape]``.
     """
     geo = geometry if geometry is not None else face_geometry(field.grid)
     psi = field.data
-    return (psi[geo.neighbour_s] - psi[geo.owner_s]) * geo.delta_coeffs_s
+    difference = psi[geo.neighbour_s] - psi[geo.owner_s]
+    delta_coeffs = broadcast_entity(geo.delta_coeffs_s, difference)
+    return delta_coeffs * difference
 
 
 def corrected(
     field: CellField,
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_single k"]:
+) -> Float[torch.Tensor, " F_single *component_shape"]:
     """
     Skewness-aware surface-normal gradient on single-sided internal faces.
 
@@ -75,7 +78,7 @@ def corrected(
     Returns
     -------
     torch.Tensor
-        Corrected surface-normal gradient with shape ``[F_single, k]``.
+        Corrected normal gradient with shape ``[F_single, *component_shape]``.
     """
     geo = geometry if geometry is not None else face_geometry(field.grid)
     base = uncorrected(field, geo)
@@ -89,7 +92,8 @@ def corrected(
 
 
 SnGradSchemeFunc = Callable[
-    [CellField, FaceGeometry | None], Float[torch.Tensor, " F_single k"]
+    [CellField, FaceGeometry | None],
+    Float[torch.Tensor, " F_single *component_shape"],
 ]
 
 SN_GRAD_SCHEMES: dict[SnGradScheme, SnGradSchemeFunc] = {
@@ -128,7 +132,7 @@ def search_sn_grad_scheme(
 def eval_sn_grad(
     field: CellField,
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_single k"]:
+) -> Float[torch.Tensor, " F_single *component_shape"]:
     """
     Evaluate the configured surface-normal gradient on single-sided faces.
 
@@ -142,7 +146,7 @@ def eval_sn_grad(
     Returns
     -------
     torch.Tensor
-        Surface-normal gradient with shape ``[F_single, k]``.
+        Surface-normal gradient with shape ``[F_single, *component_shape]``.
     """
     scheme = search_sn_grad_scheme(field.grid.sim_config, field)
     return get_sn_grad_scheme(scheme)(field, geometry)

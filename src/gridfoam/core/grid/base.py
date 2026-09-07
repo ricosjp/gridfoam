@@ -258,7 +258,7 @@ class IGridBase(ABC):
 
     @property
     @abstractmethod
-    def Sf(self) -> Float[torch.Tensor, "F 3"]:
+    def Sf(self) -> Float[torch.Tensor, " F 3"]:
         """Internal-face area vectors with shape ``[F, 3]``."""
         pass
 
@@ -270,6 +270,6 @@ class IGridBase(ABC):
 
     @property
     @abstractmethod
-    def domain_bnd_Sf(self) -> Float[torch.Tensor, "F_bnd 3"]:
+    def domain_bnd_Sf(self) -> Float[torch.Tensor, " F_bnd 3"]:
         """Domain-boundary face area vectors with shape ``[F_bnd, 3]``."""
         pass

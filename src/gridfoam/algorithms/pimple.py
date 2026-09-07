@@ -72,7 +72,7 @@ class PIMPLE(AlgorithmBase):
     U : CellField
         Velocity field with shape ``[C, 3]`` (``FieldRole.TRANSIENT``).
     p : CellField
-        Pressure field with shape ``[C, 1]``.
+        Pressure field with shape ``[C]``.
     phi : FaceField
         Volumetric face flux.
     phi_hbya : FaceField
@@ -113,7 +113,7 @@ class PIMPLE(AlgorithmBase):
     """Velocity field with shape ``[C, 3]`` (``FieldRole.TRANSIENT``)."""
 
     p: CellField
-    """Pressure field with shape ``[C, 1]``."""
+    """Pressure field with shape ``[C]``."""
 
     phi: FaceField
     """Volumetric face flux."""
@@ -164,30 +164,30 @@ class PIMPLE(AlgorithmBase):
         HbyA_name = make_field_name("HbyA", phase=phase)
 
         self.U = get_or_create_cellfield(
-            grid, U_name, FieldRole.TRANSIENT, 3, dimension=DIM_VELOCITY
+            grid, U_name, FieldRole.TRANSIENT, (3,), dimension=DIM_VELOCITY
         )
         self.p = get_or_create_cellfield(
-            grid, p_name, FieldRole.LOCAL, 1, dimension=DIM_KIN_PRESSURE
+            grid, p_name, FieldRole.LOCAL, (), dimension=DIM_KIN_PRESSURE
         )
         self.phi = get_or_create_facefield(
-            grid, phi_name, FieldRole.LOCAL, 1, dimension=DIM_VOL_FLUX
+            grid, phi_name, FieldRole.LOCAL, (), dimension=DIM_VOL_FLUX
         )
         self.phi_hbya = get_or_create_facefield(
             grid,
             phi_hbya_name,
             FieldRole.LOCAL,
-            1,
+            (),
             dimension=DIM_VOL_FLUX,
             export=False,
         )
         self.rAU = get_or_create_cellfield(
-            grid, rAU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+            grid, rAU_name, FieldRole.LOCAL, (), dimension=DIM_RAU
         )
         self.rAtU = get_or_create_cellfield(
-            grid, rAtU_name, FieldRole.LOCAL, 1, dimension=DIM_RAU
+            grid, rAtU_name, FieldRole.LOCAL, (), dimension=DIM_RAU
         )
         self.HbyA = get_or_create_cellfield(
-            grid, HbyA_name, FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+            grid, HbyA_name, FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
         )
 
         self._solvers = {
@@ -330,7 +330,9 @@ class PIMPLE(AlgorithmBase):
 
             # Add pressure-gradient source term (-grad(p) * V)
             grad_p = fvc.grad(self.p)
-            UEqn_mat.source = original_source - grad_p.data * grid.cell_volumes
+            UEqn_mat.source = (
+                original_source - grid.cell_volumes[:, None] * grad_p.data
+            )
 
             # Solve momentum predictor (obtain U*)
             if self.U.name in self._residual_control:
@@ -357,7 +359,9 @@ class PIMPLE(AlgorithmBase):
 
                 # Compute HbyA with H() without pressure-gradient source
                 UEqn_mat.source = original_source
-                self.HbyA.data = UEqn_mat.H(self.U.data) * self.rAU.data
+                self.HbyA.data = self.rAU.data[:, None] * UEqn_mat.H(
+                    self.U.data
+                )
 
                 # phiHbyA = flux(constrainHbyA(HbyA)) + rAU_f ddtCorr(U, phi)
                 rAU_f = linear_internal_face_values(self.rAU, geo)

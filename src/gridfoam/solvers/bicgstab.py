@@ -13,10 +13,9 @@ from gridfoam.solvers.base import (
     is_converged,
     residual_threshold,
 )
-from gridfoam.solvers.krylov import solve_transpose_components
+from gridfoam.solvers.krylov import solve_components
 from gridfoam.solvers.preconditioners import (
     Preconditioner,
-    create_preconditioner,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,59 +44,47 @@ class BiCGSTABSolver(LinearSolver):
         eq: Equation,
     ) -> SolveResult:
         A = eq.fv_matrix
-        b = A.source
-        x = eq.target.data
-        k = A.num_components
         logger.info(
-            "BiCGSTAB solve start eq=%s components=%d max_iter=%d",
+            "BiCGSTAB solve start eq=%s num_components=%d max_iter=%d",
             eq.name,
-            k,
+            A.num_components,
             self.max_iter,
         )
-
-        # Preconditioner
-        precon = create_preconditioner(self.precon_type, A)
-
-        x_res: list[torch.Tensor] = []
-        stats_list: list[SolveStats] = []
-        for c in range(k):
-            x_c, stats = self._solve_single(
-                A, b[:, c : c + 1], x[:, c : c + 1], precon
-            )
-            x_res.append(x_c)
-            stats_list.append(stats)
-
-        # Concatenate solved components back to [C, k].
-        x_out = torch.cat(x_res, dim=1)
-        logger.info("BiCGSTAB solve end eq=%s", eq.name)
-        return SolveResult(
-            solution=x_out,
-            stats=tuple(stats_list),
+        solution, stats = solve_components(
+            A,
+            A.source,
+            eq.target.data,
+            precon_type=self.precon_type,
+            solve_single=self._solve_single,
         )
+        logger.info("BiCGSTAB solve end eq=%s", eq.name)
+        return SolveResult(solution=solution, stats=stats)
 
     def solve_transpose(
         self,
         A_T: FvMatrix,
-        rhs: Float[torch.Tensor, " C k"],
-    ) -> Float[torch.Tensor, " C k"]:
-        return solve_transpose_components(
+        rhs: Float[torch.Tensor, " C *component_shape"],
+    ) -> Float[torch.Tensor, " C *component_shape"]:
+        solution, _ = solve_components(
             A_T,
             rhs,
+            torch.zeros_like(rhs),
             precon_type=self.precon_type,
             solve_single=self._solve_single,
         )
+        return solution
 
     def _solve_single(
         self,
         A: FvMatrix,
-        b: Float[torch.Tensor, " C 1"],
-        x: Float[torch.Tensor, " C 1"],
+        b: Float[torch.Tensor, " C"],
+        x: Float[torch.Tensor, " C"],
         precon: Preconditioner,
-    ) -> tuple[Float[torch.Tensor, " C 1"], SolveStats]:
+    ) -> tuple[Float[torch.Tensor, " C"], SolveStats]:
         """
         BiCGSTAB loop for a single scalar component.
 
-        Expects ``x`` with shape ``[C, 1]``.
+        Expects ``x`` with shape ``[C]``.
         """
         # Initial residual r = b - A x
         r = b - A.multiply(x)
@@ -261,10 +248,10 @@ class BiCGSTABSolver(LinearSolver):
 
     def _restart_state(
         self,
-        r: Float[torch.Tensor, " C 1"],
+        r: Float[torch.Tensor, " C"],
     ) -> tuple[
-        Float[torch.Tensor, " C 1"],
-        Float[torch.Tensor, " C 1"],
+        Float[torch.Tensor, " C"],
+        Float[torch.Tensor, " C"],
         Float[torch.Tensor, ""],
     ]:
         """Return restarted (r_hat, p, rho_old) state."""
@@ -275,8 +262,8 @@ class BiCGSTABSolver(LinearSolver):
 
     def _breakdown_tol(
         self,
-        x: Float[torch.Tensor, " N 1"] | None = None,
-        y: Float[torch.Tensor, " N 1"] | None = None,
+        x: Float[torch.Tensor, " N"] | None = None,
+        y: Float[torch.Tensor, " N"] | None = None,
         *,
         eps: float = 1e-6,
     ) -> float:

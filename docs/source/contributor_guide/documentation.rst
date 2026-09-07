@@ -49,7 +49,7 @@ Writing conventions
   properties or class-level fields, a one-line attribute docstring so
   autosummary pages are not empty.
 * State tensor shapes using the names used by the implementation, such as
-  ``[C, k]`` and ``[F_patch, k]``.
+  ``[C, *component_shape]`` and ``[F_patch, *component_shape]``.
 * Distinguish current behavior from planned behavior explicitly.
 * Link to a design concept instead of copying it into several task pages.
 * Prefer references to stable classes or modules over exhaustive file trees,

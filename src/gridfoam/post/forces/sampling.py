@@ -8,6 +8,7 @@ from jaxtyping import Float, Int
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.meta.enums import FaceSide
 
 
@@ -18,11 +19,11 @@ class SurfaceSample:
     anchor_id: Int[torch.Tensor, " F_sample"]
     n_hat: Float[torch.Tensor, " F_sample 3"]
     Sf: Float[torch.Tensor, " F_sample 3"]
-    p_b: Float[torch.Tensor, " F_sample 1"]
+    p_b: Float[torch.Tensor, " F_sample"]
     U_b: Float[torch.Tensor, " F_sample 3"]
     U_cell: Float[torch.Tensor, " F_sample 3"]
-    nu_eff: Float[torch.Tensor, " F_sample 1"]
-    mag_d: Float[torch.Tensor, " F_sample 1"]
+    nu_eff: Float[torch.Tensor, " F_sample"]
+    mag_d: Float[torch.Tensor, " F_sample"]
     face_centers: Float[torch.Tensor, " F_sample 3"]
 
 
@@ -31,8 +32,8 @@ def boundary_value(
     patch_name: str,
     side: FaceSide,
     target_cells: Int[torch.Tensor, " F_patch"],
-    mag_d: Float[torch.Tensor, " F_patch 1"],
-) -> Float[torch.Tensor, " F_patch k"]:
+    mag_d: Float[torch.Tensor, " F_patch"],
+) -> Float[torch.Tensor, " F_patch *component_shape"]:
     """
     Evaluate a boundary value using the field's value-fraction form.
 
@@ -61,19 +62,22 @@ def boundary_value(
         field, patch_name, side=side
     )
     psi_O = field.data[target_cells]
-    return fraction * ref_v + (1.0 - fraction) * (psi_O + ref_g * mag_d)
+    f = broadcast_entity(fraction, psi_O)
+    distance = broadcast_entity(mag_d, psi_O)
+    neumann_value = psi_O + distance * ref_g
+    return f * ref_v + (1.0 - f) * neumann_value
 
 
 def sample_side(
     *,
     p: CellField,
     U: CellField,
-    nu_eff: Float[torch.Tensor, " C 1"],
+    nu_eff: Float[torch.Tensor, " C"],
     patch_name: str,
     side: FaceSide,
     target_cells: Int[torch.Tensor, " F_patch"],
     Sf: Float[torch.Tensor, " F_patch 3"],
-    mag_d: Float[torch.Tensor, " F_patch 1"],
+    mag_d: Float[torch.Tensor, " F_patch"],
     anchor_id: Int[torch.Tensor, " F_patch"],
     cell_centers: Float[torch.Tensor, " F_patch 3"],
 ) -> SurfaceSample:
@@ -106,8 +110,8 @@ def sample_side(
     p_b = boundary_value(p, patch_name, side, target_cells, mag_d)
     U_b = boundary_value(U, patch_name, side, target_cells, mag_d)
 
-    mag_Sf = torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
-    n_hat = Sf / mag_Sf
+    mag_Sf = torch.linalg.vector_norm(Sf, dim=1)
+    n_hat = Sf / mag_Sf[:, None]
 
     return SurfaceSample(
         anchor_id=anchor_id,
@@ -118,7 +122,7 @@ def sample_side(
         U_cell=U.data[target_cells],
         nu_eff=nu_eff[target_cells],
         mag_d=mag_d,
-        face_centers=cell_centers + n_hat * mag_d,
+        face_centers=cell_centers + mag_d[:, None] * n_hat,
     )
 
 
@@ -127,7 +131,7 @@ def iter_patch_side_samples(
     *,
     p: CellField,
     U: CellField,
-    nu_eff: Float[torch.Tensor, " C 1"],
+    nu_eff: Float[torch.Tensor, " C"],
     patch_name: str,
 ) -> Iterable[SurfaceSample]:
     immersed_owner = grid.owner[grid.ap_is_immersed_faces]

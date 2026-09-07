@@ -65,7 +65,7 @@ def test_grad_pressure_dimension_is_acceleration_like() -> None:
         grid,
         "p",
         FieldRole.LOCAL,
-        num_components=1,
+        component_shape=(),
         dimension=DIM_KIN_PRESSURE,
     )
     grad_p = fvc.grad(p)
@@ -77,14 +77,14 @@ def test_grad_pressure_dimension_is_acceleration_like() -> None:
 def test_get_or_create_cellfield_checks_existing_dimension() -> None:
     grid = refined_grid()
     first = get_or_create_cellfield(
-        grid, "U", FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+        grid, "U", FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
     )
     second = get_or_create_cellfield(
-        grid, "U", FieldRole.LOCAL, 3, dimension=DIM_VELOCITY
+        grid, "U", FieldRole.LOCAL, (3,), dimension=DIM_VELOCITY
     )
     assert first is second
 
     with pytest.raises(DimensionMismatchError):
         get_or_create_cellfield(
-            grid, "U", FieldRole.LOCAL, 3, dimension=DIM_KIN_PRESSURE
+            grid, "U", FieldRole.LOCAL, (3,), dimension=DIM_KIN_PRESSURE
         )

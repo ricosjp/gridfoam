@@ -68,32 +68,15 @@ class BoundaryCondition(ABC):
         return ()
 
     @abstractmethod
-    def component(self, c: int) -> BoundaryCondition:
-        """
-        Return a scalar boundary condition for component ``c``.
-
-        Parameters
-        ----------
-        c : int
-            Zero-based component index.
-
-        Returns
-        -------
-        BoundaryCondition
-            Scalar view of this condition for component ``c``.
-        """
-        pass
-
-    @abstractmethod
     def evaluate(
         self,
         field: CellField,
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
         """
         Evaluate boundary condition values in value-fraction form.
@@ -111,15 +94,15 @@ class BoundaryCondition(ABC):
         Returns
         -------
         tuple[
-            Float[torch.Tensor, " F_patch 1"],
-            Float[torch.Tensor, " F_patch k"],
-            Float[torch.Tensor, " F_patch k"],
+            Float[torch.Tensor, " F_patch"],
+            Float[torch.Tensor, " F_patch *component_shape"],
+            Float[torch.Tensor, " F_patch *component_shape"],
         ]
-        - ``fraction``: ``[F_patch, 1]``, 1.0 for Dirichlet
+        - ``fraction``: ``[F_patch]``, 1.0 for Dirichlet
             and 0.0 for Neumann.
-        - ``ref_value``: ``[F_patch, k]``, fixed value
+        - ``ref_value``: ``[F_patch, *component_shape]``, fixed value
             for Dirichlet contribution.
-        - ``ref_grad``: ``[F_patch, k]``, fixed normal gradient
+        - ``ref_grad``: ``[F_patch, *component_shape]``, fixed normal gradient
             for Neumann contribution.
         """
         pass

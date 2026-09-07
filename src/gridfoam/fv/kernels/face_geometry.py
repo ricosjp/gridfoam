@@ -27,7 +27,7 @@ class FaceGeometry:
     owner, neighbour : torch.Tensor
         Owner / neighbour cells of all internal faces, ``[F]``.
     w_all : torch.Tensor
-        Linear weights on all internal faces, ``[F, 1]``
+        Linear weights on all internal faces, ``[F]``
         (``psi_f = w * psi_O + (1 - w) * psi_N``).
     mag_Sf_all, delta_coeffs_all : torch.Tensor
         ``|Sf|`` and ``1 / |d · n|`` on all internal faces.
@@ -49,18 +49,18 @@ class FaceGeometry:
 
     owner: Int[torch.Tensor, " F"]
     neighbour: Int[torch.Tensor, " F"]
-    w_all: Float[torch.Tensor, " F 1"]
-    mag_Sf_all: Float[torch.Tensor, " F 1"]
-    delta_coeffs_all: Float[torch.Tensor, " F 1"]
+    w_all: Float[torch.Tensor, " F"]
+    mag_Sf_all: Float[torch.Tensor, " F"]
+    delta_coeffs_all: Float[torch.Tensor, " F"]
 
     single_mask: Bool[torch.Tensor, " F"]
     single_idx: Int[torch.Tensor, " F_single"]
     owner_s: Int[torch.Tensor, " F_single"]
     neighbour_s: Int[torch.Tensor, " F_single"]
-    w_s: Float[torch.Tensor, " F_single 1"]
+    w_s: Float[torch.Tensor, " F_single"]
     Sf_s: Float[torch.Tensor, " F_single 3"]
-    mag_Sf_s: Float[torch.Tensor, " F_single 1"]
-    delta_coeffs_s: Float[torch.Tensor, " F_single 1"]
+    mag_Sf_s: Float[torch.Tensor, " F_single"]
+    delta_coeffs_s: Float[torch.Tensor, " F_single"]
 
     hang_idx: Int[torch.Tensor, " F_hang"]
     hang_offset: Float[torch.Tensor, " F_hang 3"]
@@ -109,15 +109,17 @@ def _build_face_geometry(grid: IGridBase) -> FaceGeometry:
     dtype = grid.dtype
     owner = grid.owner
     neighbour = grid.neighbour
-    axis_idx = grid.axis[:, None]
+    axis = grid.axis
+    face_indices = torch.arange(grid.num_internal_faces, device=device)
     centers = grid.cell_centers
 
     # Axis-aligned linear weights and delta coefficients on all faces.
     d_all = centers[neighbour] - centers[owner]
     d_fN = centers[neighbour] - grid.face_centers
-    d_n = torch.abs(d_all.gather(1, axis_idx))
-    w_all = torch.abs(d_fN.gather(1, axis_idx)) / d_n
-    mag_Sf_all = torch.linalg.vector_norm(grid.Sf, dim=1, keepdim=True)
+    # Select one normal component per face: (F, 3) -> (F,).
+    d_n = torch.abs(d_all[face_indices, axis])
+    w_all = torch.abs(d_fN[face_indices, axis]) / d_n
+    mag_Sf_all = torch.linalg.vector_norm(grid.Sf, dim=1)
     delta_coeffs_all = 1.0 / d_n
 
     # Single-sided subset.
@@ -126,28 +128,31 @@ def _build_face_geometry(grid: IGridBase) -> FaceGeometry:
     )
     if isinstance(grid, AxisProjectedGrid):
         single_mask[grid.ap_is_immersed_faces] = False
-    single_idx = torch.nonzero(single_mask, as_tuple=False).squeeze(1)
+    single_idx = torch.nonzero(single_mask, as_tuple=True)[0]
     owner_s = owner[single_idx]
     neighbour_s = neighbour[single_idx]
     w_s = w_all[single_idx]
     Sf_s = grid.Sf[single_idx]
     mag_Sf_s = mag_Sf_all[single_idx]
     delta_coeffs_s = delta_coeffs_all[single_idx]
-    axis_s = axis_idx[single_idx]
+    axis_s = axis[single_idx]
     face_centers_s = grid.face_centers[single_idx]
 
     # Hanging-node faces: face centre off the owner--neighbour segment.
-    centroid = w_s * centers[owner_s] + (1.0 - w_s) * centers[neighbour_s]
+    centroid = (
+        w_s[:, None] * centers[owner_s]
+        + (1.0 - w_s)[:, None] * centers[neighbour_s]
+    )
     offset = face_centers_s - centroid
     tol = 1.0e-8 * float(grid.cell_sizes.min().item())
     hang_mask = torch.linalg.vector_norm(offset, dim=1) > tol
-    hang_idx = torch.nonzero(hang_mask, as_tuple=False).squeeze(1)
+    hang_idx = torch.nonzero(hang_mask, as_tuple=True)[0]
     hang_offset = offset[hang_idx]
 
     move_O = face_centers_s[hang_idx] - centers[owner_s[hang_idx]]
     move_N = face_centers_s[hang_idx] - centers[neighbour_s[hang_idx]]
-    move_O.scatter_(1, axis_s[hang_idx], 0.0)
-    move_N.scatter_(1, axis_s[hang_idx], 0.0)
+    move_O.scatter_(1, axis_s[hang_idx, None], 0.0)
+    move_N.scatter_(1, axis_s[hang_idx, None], 0.0)
 
     hang_cell_mask = torch.zeros(
         grid.num_cells, dtype=torch.bool, device=device
@@ -155,7 +160,7 @@ def _build_face_geometry(grid: IGridBase) -> FaceGeometry:
     hang_cell_mask[owner_s[hang_idx]] = True
     hang_cell_mask[neighbour_s[hang_idx]] = True
     lsq_face_mask = hang_cell_mask[owner_s] | hang_cell_mask[neighbour_s]
-    lsq_face_idx = torch.nonzero(lsq_face_mask, as_tuple=False).squeeze(1)
+    lsq_face_idx = torch.nonzero(lsq_face_mask, as_tuple=True)[0]
 
     lsq_ata_inv = _build_lsq_ata_inv(grid, owner_s, neighbour_s, dtype)
 
@@ -185,8 +190,11 @@ def _build_face_geometry(grid: IGridBase) -> FaceGeometry:
 
 def _lsq_outer(d: Float[torch.Tensor, " N 3"]) -> Float[torch.Tensor, " N 3 3"]:
     """Inverse-distance-squared weighted outer product ``w2 d d^T``."""
-    w2 = 1.0 / torch.sum(d * d, dim=1, keepdim=True)
-    return w2[:, :, None] * d[:, :, None] * d[:, None, :]
+    distance2 = torch.sum(d * d, dim=1)
+    # A boundary through the center supplies a value constraint, not a slope.
+    w2 = 1.0 / torch.where(distance2 > 0, distance2, torch.ones_like(distance2))
+    # (N, 1, 1) * (N, 3, 1) * (N, 1, 3) -> (N, 3, 3).
+    return w2[:, None, None] * d[:, :, None] * d[:, None, :]
 
 
 def boundary_lsq_vectors(
@@ -217,10 +225,19 @@ def boundary_lsq_vectors(
     if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
         immersed = grid.ap_is_immersed_faces
         Sf = grid.Sf[immersed]
-        n_hat = Sf / torch.linalg.vector_norm(Sf, dim=1, keepdim=True)
-        blocks.append((grid.owner[immersed], n_hat * grid.ap_dist_owner_to_bnd))
+        mag_Sf = torch.linalg.vector_norm(Sf, dim=1)
+        n_hat = Sf / mag_Sf[:, None]
         blocks.append(
-            (grid.neighbour[immersed], -n_hat * grid.ap_dist_neighbour_to_bnd)
+            (
+                grid.owner[immersed],
+                grid.ap_dist_owner_to_bnd[:, None] * n_hat,
+            )
+        )
+        blocks.append(
+            (
+                grid.neighbour[immersed],
+                grid.ap_dist_neighbour_to_bnd[:, None] * (-n_hat),
+            )
         )
     return blocks
 
@@ -241,6 +258,5 @@ def _build_lsq_ata_inv(
     for cells, d_bnd in boundary_lsq_vectors(grid):
         ata.index_add_(0, cells, _lsq_outer(d_bnd))
 
-    # Every Cartesian cell has faces in all three axes (internal, domain or
-    # immersed), so the normal matrix is SPD and a direct inverse is safe.
-    return torch.linalg.inv(ata)
+    # Coincident boundary points can leave a direction undetermined.
+    return torch.linalg.pinv(ata, hermitian=True)

@@ -19,7 +19,7 @@ from gridfoam.solvers.cg import CGSolver
 
 
 def _identity_equation(grid: AxisProjectedGrid, *, name: str = "p") -> Equation:
-    p = CellField(grid, name, role=FieldRole.LOCAL, num_components=1)
+    p = CellField(grid, name, role=FieldRole.LOCAL, component_shape=())
     fv_matrix = FvMatrix(p)
     fv_matrix.diag.fill_(1.0)
     fv_matrix.upper.zero_()
@@ -27,7 +27,6 @@ def _identity_equation(grid: AxisProjectedGrid, *, name: str = "p") -> Equation:
     torch.manual_seed(0)
     fv_matrix.source = torch.randn(
         grid.num_cells,
-        1,
         dtype=grid.dtype,
         device=grid.device,
     )
@@ -64,7 +63,7 @@ def test_cg_returns_per_component_stats(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
     grid = small_axis_projected_grid
-    u = CellField(grid, "U", role=FieldRole.LOCAL, num_components=3)
+    u = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     fv_matrix = FvMatrix(u)
     fv_matrix.diag.fill_(1.0)
     fv_matrix.upper.zero_()

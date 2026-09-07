@@ -9,6 +9,7 @@ from torch._tensor import Tensor
 
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
+from gridfoam.core.shapes import require_shape
 from gridfoam.meta.enums import BoundaryConditionType, FaceSide
 from gridfoam.meta.types import PatchName
 
@@ -26,11 +27,11 @@ class DirichletBC(BoundaryCondition):
 
     Parameters
     ----------
-    value : Float[torch.Tensor, " k"]
+    value : Float[torch.Tensor, " *component_shape"]
         Fixed value tensor prescribed at the boundary.
     """
 
-    def __init__(self, value: Float[torch.Tensor, " k"]):
+    def __init__(self, value: Float[torch.Tensor, " *component_shape"]):
         self.value = value
 
     @property
@@ -41,35 +42,31 @@ class DirichletBC(BoundaryCondition):
     def assignable(self) -> bool:
         return False
 
-    def component(self, c: int) -> BoundaryCondition:
-        return DirichletBC(self.value[c : c + 1])
-
     def evaluate(
         self,
         field: CellField,
         patch_name: PatchName,
         side: FaceSide = FaceSide.UPPER,
     ) -> tuple[
-        Float[torch.Tensor, " F_patch 1"],
-        Float[torch.Tensor, " F_patch k"],
-        Float[torch.Tensor, " F_patch k"],
+        Float[torch.Tensor, " F_patch"],
+        Float[torch.Tensor, " F_patch *component_shape"],
+        Float[torch.Tensor, " F_patch *component_shape"],
     ]:
         grid = field.grid
         value: Tensor = self.value.to(dtype=grid.dtype, device=grid.device)
 
+        require_shape(value, field.component_shape, "dirichlet value")
         mask = get_mask(grid, patch_name, side)
         n_faces = int(mask.sum().item())
 
-        fraction = torch.ones(
-            (n_faces, 1), dtype=grid.dtype, device=grid.device
-        )
+        fraction = torch.ones((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = (
             torch.ones(
-                (n_faces, field.num_components),
+                (n_faces, *field.component_shape),
                 dtype=grid.dtype,
                 device=grid.device,
             )
-            * value[None, :]
+            * value
         )
         ref_g = torch.zeros_like(ref_v)
 

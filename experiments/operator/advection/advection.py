@@ -76,9 +76,9 @@ def main() -> None:
     T_name = make_field_name("T")
     phi_name = make_field_name("phi")
 
-    U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, 3)
-    T = get_or_create_cellfield(grid, T_name, FieldRole.TRANSIENT, 1)
-    phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, 1)
+    U = get_or_create_cellfield(grid, U_name, FieldRole.LOCAL, (3,))
+    T = get_or_create_cellfield(grid, T_name, FieldRole.TRANSIENT, ())
+    phi = get_or_create_facefield(grid, phi_name, FieldRole.LOCAL, ())
 
     correct_flux(phi, U, update_internal=True)
     initialize_T(T)

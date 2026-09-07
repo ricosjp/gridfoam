@@ -35,7 +35,7 @@ class TurbulenceModel(ABC):
     transport : TransportModel
         Molecular transport model providing ``nu``.
     nu_t : CellField
-        Turbulent kinematic viscosity with shape ``[C, 1]``.
+        Turbulent kinematic viscosity with shape ``[C]``.
     """
 
     grid: IGridBase
@@ -45,7 +45,7 @@ class TurbulenceModel(ABC):
     """Molecular transport model providing ``nu``."""
 
     nu_t: CellField
-    """Turbulent kinematic viscosity with shape ``[C, 1]``."""
+    """Turbulent kinematic viscosity with shape ``[C]``."""
 
     def __init__(self, grid: IGridBase):
         self.grid = grid
@@ -54,7 +54,7 @@ class TurbulenceModel(ABC):
         # Initialize turbulent viscosity field.
         nu_t_name = make_field_name("nu_t")
         self.nu_t = get_or_create_cellfield(
-            self.grid, nu_t_name, FieldRole.LOCAL, 1, dimension=DIM_NU
+            self.grid, nu_t_name, FieldRole.LOCAL, (), dimension=DIM_NU
         )
 
     @abstractmethod
@@ -65,13 +65,13 @@ class TurbulenceModel(ABC):
         pass
 
     @abstractmethod
-    def nu_eff(self) -> Float[torch.Tensor, " C 1"]:
+    def nu_eff(self) -> Float[torch.Tensor, " C"]:
         """
         Return effective viscosity ``nu + nu_t``.
 
         Returns
         -------
         torch.Tensor
-            Effective viscosity per cell with shape ``[C, 1]``.
+            Effective viscosity per cell with shape ``[C]``.
         """
         pass

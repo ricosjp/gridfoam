@@ -6,6 +6,11 @@ from jaxtyping import Float
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.shapes import (
+    broadcast_entity,
+    require_shape,
+    validate_component_shape,
+)
 
 
 class FvMatrix:
@@ -29,15 +34,15 @@ class FvMatrix:
     grid : IGridBase
         Computational grid of ``field``.
     num_components : int
-        Number of components ``k`` in the target field.
+        Number of scalar entries in the target field's physical tensor.
     diag : torch.Tensor
-        Diagonal coefficients with shape ``[C, 1]``.
+        Diagonal coefficients with shape ``[C]``.
     upper : torch.Tensor
-        Upper off-diagonal coefficients with shape ``[F, 1]``.
+        Upper off-diagonal coefficients with shape ``[F]``.
     lower : torch.Tensor
-        Lower off-diagonal coefficients with shape ``[F, 1]``.
+        Lower off-diagonal coefficients with shape ``[F]``.
     source : torch.Tensor
-        Right-hand-side source with shape ``[C, k]``.
+        Right-hand-side source with shape ``[C, *component_shape]``.
     face_flux_correction : torch.Tensor or None
         Optional explicit face-flux correction on single-sided faces.
     """
@@ -49,19 +54,21 @@ class FvMatrix:
         device = field.grid.device
         n_cells = self.grid.num_cells
         n_faces = self.grid.num_internal_faces
-        k = field.num_components
+        component_shape = field.component_shape
 
         # LDU
-        self._diag = torch.zeros((n_cells, 1), dtype=dtype, device=device)
-        self._upper = torch.zeros((n_faces, 1), dtype=dtype, device=device)
-        self._lower = torch.zeros((n_faces, 1), dtype=dtype, device=device)
-        self._source = torch.zeros((n_cells, k), dtype=dtype, device=device)
+        self._diag = torch.zeros((n_cells,), dtype=dtype, device=device)
+        self._upper = torch.zeros((n_faces,), dtype=dtype, device=device)
+        self._lower = torch.zeros((n_faces,), dtype=dtype, device=device)
+        self._source = torch.zeros(
+            (n_cells, *component_shape), dtype=dtype, device=device
+        )
 
         # Explicit face-flux correction on single-sided internal faces,
         # stored by discretization operators (e.g. non-orthogonal Laplacian).
         # OpenFOAM ``fvMatrix::faceFluxCorrectionPtr`` equivalent.
         self._face_flux_correction: (
-            Float[torch.Tensor, " F_single k"] | None
+            Float[torch.Tensor, " F_single *component_shape"] | None
         ) = None
 
     @property
@@ -76,53 +83,61 @@ class FvMatrix:
 
     @property
     def num_components(self) -> int:
-        """Number of components ``k`` in the target field."""
+        """Number of scalar entries in the target field's physical tensor."""
         return self.field.num_components
 
     @property
-    def diag(self) -> Float[torch.Tensor, " C 1"]:
+    def diag(self) -> Float[torch.Tensor, " C"]:
         """Return diagonal coefficients."""
         return self._diag
 
     @diag.setter
-    def diag(self, value: Float[torch.Tensor, " C 1"]):
+    def diag(self, value: Float[torch.Tensor, " C"]):
         """Set diagonal coefficients."""
+        require_shape(value, (self.grid.num_cells,), "matrix diag")
         self._diag = value
 
     @property
-    def upper(self) -> Float[torch.Tensor, " F 1"]:
+    def upper(self) -> Float[torch.Tensor, " F"]:
         """Return upper off-diagonal coefficients."""
         return self._upper
 
     @upper.setter
-    def upper(self, value: Float[torch.Tensor, " F 1"]):
+    def upper(self, value: Float[torch.Tensor, " F"]):
         """Set upper off-diagonal coefficients."""
+        require_shape(value, (self.grid.num_internal_faces,), "matrix upper")
         self._upper = value
 
     @property
-    def lower(self) -> Float[torch.Tensor, " F 1"]:
+    def lower(self) -> Float[torch.Tensor, " F"]:
         """Return lower off-diagonal coefficients."""
         return self._lower
 
     @lower.setter
-    def lower(self, value: Float[torch.Tensor, " F 1"]):
+    def lower(self, value: Float[torch.Tensor, " F"]):
         """Set lower off-diagonal coefficients."""
+        require_shape(value, (self.grid.num_internal_faces,), "matrix lower")
         self._lower = value
 
     @property
-    def source(self) -> Float[torch.Tensor, " C k"]:
+    def source(self) -> Float[torch.Tensor, " C *component_shape"]:
         """Return right-hand-side source term."""
         return self._source
 
     @source.setter
-    def source(self, value: Float[torch.Tensor, " C k"]):
+    def source(self, value: Float[torch.Tensor, " C *component_shape"]):
         """Set right-hand-side source term."""
+        require_shape(
+            value,
+            (self.grid.num_cells, *self.field.component_shape),
+            "matrix source",
+        )
         self._source = value
 
     @property
     def face_flux_correction(
         self,
-    ) -> Float[torch.Tensor, " F_single k"] | None:
+    ) -> Float[torch.Tensor, " F_single *component_shape"] | None:
         """
         Explicit face-flux correction on single-sided internal faces.
 
@@ -134,17 +149,26 @@ class FvMatrix:
 
     @face_flux_correction.setter
     def face_flux_correction(
-        self, value: Float[torch.Tensor, " F_single k"] | None
+        self, value: Float[torch.Tensor, " F_single *component_shape"] | None
     ):
         """Set the explicit face-flux correction on single-sided faces."""
+        if value is not None:
+            require_shape(
+                value,
+                (
+                    int(self._single_internal_mask().sum()),
+                    *self.field.component_shape,
+                ),
+                "face flux correction",
+            )
         self._face_flux_correction = value
 
     @staticmethod
     def _combine_face_flux_correction(
-        a: Float[torch.Tensor, " F_single k"] | None,
-        b: Float[torch.Tensor, " F_single k"] | None,
+        a: Float[torch.Tensor, " F_single *component_shape"] | None,
+        b: Float[torch.Tensor, " F_single *component_shape"] | None,
         sign: float,
-    ) -> Float[torch.Tensor, " F_single k"] | None:
+    ) -> Float[torch.Tensor, " F_single *component_shape"] | None:
         """Combine two optional corrections as ``a + sign * b``."""
         if a is None:
             if b is None:
@@ -186,7 +210,7 @@ class FvMatrix:
             res.face_flux_correction = -self._face_flux_correction
         return res
 
-    def A(self) -> Float[torch.Tensor, " C 1"]:
+    def A(self) -> Float[torch.Tensor, " C"]:
         """
         OpenFOAM-style ``A()`` operator.
 
@@ -194,7 +218,7 @@ class FvMatrix:
         """
         return self.diag / self.grid.cell_volumes
 
-    def H1(self) -> Float[torch.Tensor, " C 1"]:
+    def H1(self) -> Float[torch.Tensor, " C"]:
         """
         OpenFOAM-style ``H1()`` operator.
 
@@ -210,7 +234,9 @@ class FvMatrix:
         h1.index_add_(0, self.grid.neighbour, -self.lower)
         return h1 / self.grid.cell_volumes
 
-    def H(self, x: Float[torch.Tensor, " C k"]) -> Float[torch.Tensor, " C k"]:
+    def H(
+        self, x: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         """
         OpenFOAM-style ``H()`` operator.
 
@@ -220,50 +246,96 @@ class FvMatrix:
         Parameters
         ----------
         x : torch.Tensor
-            Current field values with shape ``[C, k]``.
+            Current field values with shape ``[C, *component_shape]``.
 
         Returns
         -------
         torch.Tensor
-            Computed H values with shape ``[C, k]``.
+            Computed H values with shape ``[C, *component_shape]``.
         """
-        res = (
-            self.source - self.multiply(x) + self.diag * x
-        ) / self.grid.cell_volumes
-        return res
+        require_shape(
+            x, (self.grid.num_cells, *self.field.component_shape), "H input"
+        )
+        diag = broadcast_entity(self.diag, x)
+        volumes = broadcast_entity(self.grid.cell_volumes, x)
+        return (self.source - self.multiply(x) + diag * x) / volumes
 
     def multiply(
-        self, x: Float[torch.Tensor, " C k"]
-    ) -> Float[torch.Tensor, " C k"]:
+        self, x: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         """
         Compute matrix-vector product ``A * x``.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input vector with shape ``[C, k]``.
+            Input vector with shape ``[C, *component_shape]``.
 
         Returns
         -------
         torch.Tensor
-            Product vector with shape ``[C, k]``.
+            Product vector with shape ``[C, *component_shape]``.
         """
+        validate_component_shape(tuple(x.shape[1:]))
         owner = self.grid.owner
         neighbour = self.grid.neighbour
 
-        # 1. Diagonal contribution: A_ii * x_i
-        res = self.diag * x
+        x_owner = x[owner]
+        x_neighbour = x[neighbour]
+        diag = broadcast_entity(self.diag, x)
+        upper = broadcast_entity(self.upper, x_neighbour)
+        lower = broadcast_entity(self.lower, x_owner)
 
-        upper = self.upper * x[neighbour]
-        lower = self.lower * x[owner]
-
-        # 2. Upper contribution: A_ij * x_j (i=owner, j=neighbour)
-        res.index_add_(0, owner, upper)
-
-        # 3. Lower contribution: A_ji * x_i (i=owner, j=neighbour)
-        res.index_add_(0, neighbour, lower)
+        # Diagonal and off-diagonal contributions to A x.
+        res = diag * x
+        res.index_add_(0, owner, upper * x_neighbour)
+        res.index_add_(0, neighbour, lower * x_owner)
 
         return res
+
+    def with_fixed_values(
+        self, cells: torch.Tensor, values: torch.Tensor
+    ) -> FvMatrix:
+        """Eliminate prescribed cell values, preserving matrix symmetry.
+
+        Return a separate solve matrix; the original coefficients remain
+        available for physical face-flux reconstruction. This operation must
+        follow assembly of the complete equation, including explicit sources.
+        """
+        require_shape(
+            values, (cells.numel(), *self.field.component_shape), "fixed values"
+        )
+        if cells.numel() == 0:
+            return self
+        fixed = torch.zeros(
+            self.grid.num_cells, dtype=torch.bool, device=cells.device
+        )
+        fixed[cells] = True
+        prescribed = torch.zeros_like(self.source).index_copy(0, cells, values)
+        owner, neighbour = self.grid.owner, self.grid.neighbour
+        result = FvMatrix(self.field)
+        result.diag = torch.where(fixed, torch.ones_like(self.diag), self.diag)
+        connected = fixed[owner] | fixed[neighbour]
+        result.upper = torch.where(
+            connected, torch.zeros_like(self.upper), self.upper
+        )
+        result.lower = torch.where(
+            connected, torch.zeros_like(self.lower), self.lower
+        )
+        source = self.source.index_add(
+            0,
+            owner,
+            -broadcast_entity(self.upper, prescribed[neighbour])
+            * prescribed[neighbour],
+        )
+        source = source.index_add(
+            0,
+            neighbour,
+            -broadcast_entity(self.lower, prescribed[owner])
+            * prescribed[owner],
+        )
+        result.source = source.index_copy(0, cells, values)
+        return result
 
     def as_transpose(self) -> FvMatrix:
         """
@@ -294,8 +366,8 @@ class FvMatrix:
         return mask
 
     def flux(
-        self, psi: Float[torch.Tensor, " C k"]
-    ) -> Float[torch.Tensor, " F_single k"]:
+        self, psi: Float[torch.Tensor, " C *component_shape"]
+    ) -> Float[torch.Tensor, " F_single *component_shape"]:
         """
         Face flux from matrix coefficients and ``psi`` field values.
 
@@ -310,22 +382,29 @@ class FvMatrix:
         Parameters
         ----------
         psi : torch.Tensor
-            Field values with shape ``[C, k]``.
+            Field values with shape ``[C, *component_shape]``.
 
         Returns
         -------
         torch.Tensor
             Face flux on single-sided internal faces with shape
-            ``[F_single, k]``.
+            ``[F_single, *component_shape]``.
         """
+        require_shape(
+            psi,
+            (self.grid.num_cells, *self.field.component_shape),
+            "flux input",
+        )
         grid = self.grid
         single_mask = self._single_internal_mask()
         owner = grid.owner[single_mask]
         neighbour = grid.neighbour[single_mask]
 
-        upper_f = self.upper[single_mask]
-        lower_f = self.lower[single_mask]
-        flux_data = upper_f * psi[neighbour] - lower_f * psi[owner]
+        psi_owner = psi[owner]
+        psi_neighbour = psi[neighbour]
+        upper_f = broadcast_entity(self.upper[single_mask], psi_neighbour)
+        lower_f = broadcast_entity(self.lower[single_mask], psi_owner)
+        flux_data = upper_f * psi_neighbour - lower_f * psi_owner
 
         if self._face_flux_correction is not None:
             flux_data = flux_data + self._face_flux_correction

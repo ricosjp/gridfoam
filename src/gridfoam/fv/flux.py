@@ -49,23 +49,25 @@ def flux_from_face_velocity(
     U : CellField
         Velocity field whose boundary conditions define the flux patches.
     """
+    if (
+        phi.component_shape != ()
+        or U_f.component_shape != (3,)
+        or U.component_shape != (3,)
+    ):
+        raise ValueError("flux requires scalar phi and vector velocity fields")
     grid = phi.grid
     geo = face_geometry(grid)
-    phi.single_data = torch.sum(U_f.single_data * geo.Sf_s, dim=1, keepdim=True)
-    domain_flux = torch.sum(
-        U_f.domain_bnd_data * grid.domain_bnd_Sf, dim=1, keepdim=True
-    )
+    phi.single_data = torch.sum(U_f.single_data * geo.Sf_s, dim=1)
+    domain_flux = torch.sum(U_f.domain_bnd_data * grid.domain_bnd_Sf, dim=1)
     empty = uncovered_domain_faces(U)
     phi.domain_bnd_data = torch.where(
-        empty[:, None], torch.zeros_like(domain_flux), domain_flux
+        empty, torch.zeros_like(domain_flux), domain_flux
     )
     if isinstance(grid, AxisProjectedGrid) and grid.num_immersed_faces > 0:
         immersed_Sf = grid.Sf[grid.ap_is_immersed_faces]
-        phi.immersed_upper = torch.sum(
-            U_f.immersed_upper * immersed_Sf, dim=1, keepdim=True
-        )
+        phi.immersed_upper = torch.sum(U_f.immersed_upper * immersed_Sf, dim=1)
         phi.immersed_lower = torch.sum(
-            U_f.immersed_lower * (-immersed_Sf), dim=1, keepdim=True
+            U_f.immersed_lower * (-immersed_Sf), dim=1
         )
 
 
@@ -81,7 +83,7 @@ def _constrain_hbya_boundary_flux(phi_hbya: FaceField, U: CellField) -> None:
             continue
         Sf_out = outward_boundary_Sf(grid, batch)
         boundary_block(phi_hbya, batch.face_kind)[batch.face_mask] = torch.sum(
-            state.psi_b * Sf_out, dim=1, keepdim=True
+            state.psi_b * Sf_out, dim=1
         )
 
 
@@ -90,7 +92,7 @@ def compute_phi_hbya(
     HbyA: CellField,
     U: CellField,
     *,
-    ddt_corr: Float[torch.Tensor, " F_single 1"] | None = None,
+    ddt_corr: Float[torch.Tensor, " F_single"] | None = None,
 ) -> FaceField:
     """
     Build the predicted flux ``phiHbyA = flux(constrainHbyA(HbyA, U))``.
@@ -146,6 +148,8 @@ def correct_flux(
         from interpolated ``U``.
         If ``False``, only boundary-face fluxes are synchronized from BC states.
     """
+    if phi.component_shape != () or U.component_shape != (3,):
+        raise ValueError("flux requires scalar phi and vector velocity fields")
     if update_internal:
         flux_from_face_velocity(phi, fvc.interpolate(U), U)
 
@@ -154,5 +158,5 @@ def correct_flux(
         batch = state.batch
         Sf_out = outward_boundary_Sf(grid, batch)
         boundary_block(phi, batch.face_kind)[batch.face_mask] = torch.sum(
-            state.psi_b * Sf_out, dim=1, keepdim=True
+            state.psi_b * Sf_out, dim=1
         )

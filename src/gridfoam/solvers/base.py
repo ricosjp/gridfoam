@@ -55,13 +55,13 @@ class SolveResult:
     Attributes
     ----------
     solution : torch.Tensor
-        Computed field values with shape ``[C, k]``.
+        Computed field values with shape ``[C, *component_shape]``.
     stats : tuple[SolveStats, ...]
         Per-component solver statistics in equation component order.
     """
 
-    solution: Float[torch.Tensor, " C k"]
-    """Computed field values with shape ``[C, k]``."""
+    solution: Float[torch.Tensor, " C *component_shape"]
+    """Computed field values with shape ``[C, *component_shape]``."""
 
     stats: tuple[SolveStats, ...]
     """Per-component solver statistics in equation component order."""
@@ -132,23 +132,23 @@ class LinearSolver(ABC):
     def solve_transpose(
         self,
         A_T: FvMatrix,
-        rhs: Float[torch.Tensor, " C k"],
-    ) -> Float[torch.Tensor, " C k"]:
+        rhs: Float[torch.Tensor, " C *component_shape"],
+    ) -> Float[torch.Tensor, " C *component_shape"]:
         """Solve ``A_T y = rhs`` (used by the implicit adjoint)."""
 
 
 def is_converged(
-    thresh: Float[torch.Tensor, " 1"],
-    norm_res: Float[torch.Tensor, " 1"],
+    thresh: Float[torch.Tensor, ""],
+    norm_res: Float[torch.Tensor, ""],
 ) -> bool:
     """
     Return True if residual norm is below threshold.
 
     Parameters
     ----------
-    thresh : Float[torch.Tensor, " 1"]
+    thresh : Float[torch.Tensor, ""]
         Convergence threshold.
-    norm_res : Float[torch.Tensor, " 1"]
+    norm_res : Float[torch.Tensor, ""]
         Current residual norm.
     """
     return bool((norm_res < thresh).item())
@@ -157,8 +157,8 @@ def is_converged(
 def residual_threshold(
     atol: float,
     rtol: float,
-    ref_norm: Float[torch.Tensor, " 1"],
-) -> Float[torch.Tensor, " 1"]:
+    ref_norm: Float[torch.Tensor, ""],
+) -> Float[torch.Tensor, ""]:
     """
     Compute the residual convergence threshold.
 
@@ -168,12 +168,12 @@ def residual_threshold(
         Absolute tolerance.
     rtol : float
         Relative tolerance.
-    ref_norm : Float[torch.Tensor, " 1"]
+    ref_norm : Float[torch.Tensor, ""]
         Reference residual norm.
 
     Returns
     -------
-    Float[torch.Tensor, " 1"]
+    Float[torch.Tensor, ""]
         Residual convergence threshold ``max(atol, rtol * ref_norm)``.
     """
     return torch.maximum(torch.full_like(ref_norm, atol), rtol * ref_norm)

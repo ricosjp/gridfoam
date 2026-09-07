@@ -84,20 +84,20 @@ simulator:
           type: empty
           patches: [z_minus, z_plus]
     T:
-      internal: [0.0]
+      internal: 0.0
       boundary:
         inlet:
           type: dirichlet
           patches: [x_minus]
-          value: [0.0]
+          value: 0.0
         outlet:
           type: neumann
           patches: [x_plus]
-          value: [0.0]
+          value: 0.0
         slip_wall:
           type: slip
           patches: [y_minus, y_plus]
-          value: [0.0]
+          value: 0.0
         empty:
           type: empty
           patches: [z_minus, z_plus]

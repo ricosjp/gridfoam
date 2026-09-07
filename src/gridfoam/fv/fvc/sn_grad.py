@@ -5,11 +5,10 @@ from gridfoam.core.field import (
     FieldRole,
     get_or_create_facefield,
 )
-from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv.boundary_ops import (
-    BoundaryFaceKind,
-    evaluate_boundary_state,
-    iter_boundary_batches,
+    boundary_block,
+    boundary_normal_gradient,
+    iter_boundary_states,
 )
 from gridfoam.fv.schemes.sn_grad import eval_sn_grad
 
@@ -39,26 +38,16 @@ def sn_grad(field: CellField) -> FaceField:
         grid,
         f"snGrad({field.name})",
         FieldRole.LOCAL,
-        field.num_components,
+        field.component_shape,
         dimension=dim_div(field.dimension, DIM_LENGTH),
     )
     # Internal faces
     sn_grad_field.single_data = eval_sn_grad(field)
 
-    for batch in iter_boundary_batches(field):
-        _, _, ref_g, _ = evaluate_boundary_state(field, batch)
-        # Domain boundaries
-        if batch.face_kind == BoundaryFaceKind.DOMAIN:
-            sn_grad_field.domain_bnd_data[batch.face_mask] = ref_g
-            continue
-
-        # Immersed boundaries
-        if isinstance(grid, AxisProjectedGrid):
-            if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-                sn_grad_field.immersed_upper[batch.face_mask] = ref_g
-                continue
-            if batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
-                sn_grad_field.immersed_lower[batch.face_mask] = ref_g
-                continue
+    for state in iter_boundary_states(field):
+        batch = state.batch
+        boundary_block(sn_grad_field, batch.face_kind)[batch.face_mask] = (
+            boundary_normal_gradient(field, state)
+        )
 
     return sn_grad_field

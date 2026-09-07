@@ -68,9 +68,9 @@ Adding an implicit operator
 An ``fvm`` operator assembles LDU coefficients and source terms for the target
 ``CellField``. Follow these rules:
 
-* ``diag`` has shape ``[C, 1]``.
-* ``upper`` and ``lower`` have shape ``[F_internal, 1]``.
-* ``source`` has shape ``[C, k]``.
+* ``diag`` has shape ``[C]``.
+* ``upper`` and ``lower`` have shape ``[F_internal]``.
+* ``source`` has shape ``[C, *component_shape]``.
 * Boundary contributions must use the common value-fraction contract.
 * Store explicit non-orthogonal face-flux terms in
   ``FvMatrix.face_flux_correction`` when the matrix flux must reproduce them.

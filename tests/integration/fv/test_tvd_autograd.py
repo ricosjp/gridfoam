@@ -9,29 +9,28 @@ from gridfoam.fv.schemes.div import get_div_scheme
 from gridfoam.meta.enums import DivScheme, FieldRole
 
 
-@pytest.mark.parametrize("num_components", [1, 3])
+@pytest.mark.parametrize("component_shape", [(), (3,), (3, 3)])
 @pytest.mark.parametrize("plateau", [False, True])
 @pytest.mark.parametrize(
     "scheme",
     [s for s in DivScheme if s not in (DivScheme.UPWIND, DivScheme.LINEAR)],
 )
 def test_tvd_backward_on_flat_regions(
-    scheme: DivScheme, plateau: bool, num_components: int
+    scheme: DivScheme, plateau: bool, component_shape: tuple[int, ...]
 ):
     grid = refined_grid()
-    field = CellField(grid, "psi", FieldRole.LOCAL, num_components)
+    field = CellField(grid, "psi", FieldRole.LOCAL, component_shape)
     values = torch.ones_like(field.data)
     if plateau:
-        x = grid.cell_centers[:, :1]
-        values = values + torch.clamp(x - x.mean(), min=0.0)
+        x = grid.cell_centers[:, 0]
+        ramp = torch.clamp(x - x.mean(), min=0.0)
+        values = values + ramp.reshape((-1,) + (1,) * len(component_shape))
     values.requires_grad_()
     field.data = values
-    phi = FaceField(grid, "phi", FieldRole.LOCAL, 1)
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     # Exercise both owner- and neighbour-upwind branches.
     face_idx = torch.arange(phi.num_single_sided, device=grid.device)
-    phi.single_data = torch.where(face_idx[:, None] % 2 == 0, 1.0, -1.0).to(
-        grid.dtype
-    )
+    phi.single_data = torch.where(face_idx % 2 == 0, 1.0, -1.0).to(grid.dtype)
 
     source = get_div_scheme(scheme)(phi, field)[-1]
     assert torch.isfinite(source).all()

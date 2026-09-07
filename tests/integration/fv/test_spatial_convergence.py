@@ -39,10 +39,10 @@ def poisson_errors(n: int, refined: bool) -> dict[str, float]:
             }
         )
     grid = create_grid(config)
-    field = CellField(grid, "q", FieldRole.LOCAL, 1)
+    field = CellField(grid, "q", FieldRole.LOCAL, ())
     field.add_boundary_conditions(
         {
-            patch: DirichletBC(torch.zeros(1, dtype=grid.dtype))
+            patch: DirichletBC(torch.zeros((), dtype=grid.dtype))
             for patch in (
                 DomainBoundaryPatch.X_MINUS,
                 DomainBoundaryPatch.X_PLUS,
@@ -52,7 +52,7 @@ def poisson_errors(n: int, refined: bool) -> dict[str, float]:
         }
     )
     x = grid.cell_centers
-    exact = torch.sin(math.pi * x[:, :1]) * torch.sin(math.pi * x[:, 1:2])
+    exact = torch.sin(math.pi * x[:, 0]) * torch.sin(math.pi * x[:, 1])
     # Continuous manufactured forcing, integrated with midpoint quadrature.
     forcing = 2 * math.pi**2 * exact * grid.cell_volumes
     solver = create_solver(
@@ -86,7 +86,7 @@ def poisson_errors(n: int, refined: bool) -> dict[str, float]:
     flux = torch.zeros_like(geo.mag_Sf_s)
     for normal, tangent in ((0, 1), (1, 0)):
         mask = axis == normal
-        flux[mask, 0] = (
+        flux[mask] = (
             math.pi
             * torch.cos(math.pi * centers[mask, normal])
             * torch.sin(math.pi * centers[mask, tangent])

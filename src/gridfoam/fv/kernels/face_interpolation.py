@@ -6,13 +6,14 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.field import CellField
+from gridfoam.core.shapes import broadcast_entity, require_shape
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 
 
 def linear_internal_face_values(
     field: CellField,
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_single k"]:
+) -> Float[torch.Tensor, " F_single *component_shape"]:
     """
     Uncorrected axis-aligned linear values on single-sided internal faces.
 
@@ -26,19 +27,22 @@ def linear_internal_face_values(
     Returns
     -------
     torch.Tensor
-        Face values with shape ``[F_single, k]``.
+        Face values with shape ``[F_single, *component_shape]``.
     """
     geo = geometry if geometry is not None else face_geometry(field.grid)
     psi = field.data
-    return geo.w_s * psi[geo.owner_s] + (1.0 - geo.w_s) * psi[geo.neighbour_s]
+    psi_owner = psi[geo.owner_s]
+    psi_neighbour = psi[geo.neighbour_s]
+    w = broadcast_entity(geo.w_s, psi_owner)
+    return w * psi_owner + (1.0 - w) * psi_neighbour
 
 
 def correct_internal_values(
     field: CellField,
-    base_values: Float[torch.Tensor, " F_single k"],
-    grad_data: Float[torch.Tensor, " C k 3"] | Float[torch.Tensor, " C _"],
+    base_values: Float[torch.Tensor, " F_single *component_shape"],
+    grad_data: Float[torch.Tensor, " C *component_shape 3"],
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_single k"]:
+) -> Float[torch.Tensor, " F_single *component_shape"]:
     """
     Add face-centre offset correction to base linear face values.
 
@@ -55,38 +59,37 @@ def correct_internal_values(
     field : CellField
         Cell-centered field.
     base_values : torch.Tensor
-        Uncorrected linear face values with shape ``[F_single, k]``.
+        Uncorrected face values with shape ``[F_single, *component_shape]``.
     grad_data : torch.Tensor
-        Cell-centered gradient with shape ``[C, k, 3]`` or flat
-        ``[C, k * 3]``.
+        Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     geometry : FaceGeometry or None
         Cached face geometry. Looked up from the grid when ``None``.
 
     Returns
     -------
     torch.Tensor
-        Corrected face values with shape ``[F_single, k]``.
+        Corrected face values with shape ``[F_single, *component_shape]``.
     """
     grid = field.grid
     geo = geometry if geometry is not None else face_geometry(grid)
+    require_shape(
+        grad_data, (grid.num_cells, *field.component_shape, 3), "gradient"
+    )
+    require_shape(
+        base_values, (geo.num_single, *field.component_shape), "face values"
+    )
     if geo.num_hanging == 0:
         return base_values
-
-    k = field.num_components
-    if grad_data.ndim == 2:
-        grad_tensor = grad_data.reshape(grid.num_cells, k, 3)
-    else:
-        grad_tensor = grad_data
 
     hang = geo.hang_idx
     owner = geo.owner_s[hang]
     neighbour = geo.neighbour_s[hang]
-    w = geo.w_s[hang]
-    grad_face = (
-        w[:, None] * grad_tensor[owner]
-        + (1.0 - w)[:, None] * grad_tensor[neighbour]
-    )
-    correction = torch.sum(grad_face * geo.hang_offset[:, None, :], dim=2)
+    grad_owner = grad_data[owner]
+    grad_neighbour = grad_data[neighbour]
+    w = broadcast_entity(geo.w_s[hang], grad_owner)
+    grad_face = w * grad_owner + (1.0 - w) * grad_neighbour
+    # Contract the differentiation axis with the face-centre displacement.
+    correction = torch.einsum("n...j,nj->n...", grad_face, geo.hang_offset)
 
     corrected = base_values.clone()
     corrected.index_add_(0, hang, correction)
@@ -95,9 +98,9 @@ def correct_internal_values(
 
 def sn_grad_hanging_correction(
     field: CellField,
-    grad_data: Float[torch.Tensor, " C k 3"],
+    grad_data: Float[torch.Tensor, " C *component_shape 3"],
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " F_hang k"]:
+) -> Float[torch.Tensor, " F_hang *component_shape"]:
     """
     Skewness correction of the surface-normal gradient on hanging faces.
 
@@ -117,20 +120,26 @@ def sn_grad_hanging_correction(
     field : CellField
         Cell-centered field.
     grad_data : torch.Tensor
-        Cell gradient ``[C, k, 3]`` valid on hanging-adjacent cells.
+        Cell gradient ``[C, *component_shape, 3]``, valid on cells
+        adjacent to hanging faces.
     geometry : FaceGeometry or None
         Cached face geometry. Looked up from the grid when ``None``.
 
     Returns
     -------
     torch.Tensor
-        Normal-gradient correction on hanging faces, ``[F_hang, k]``.
+        Hanging-face normal-gradient correction, ``[F_hang, *component_shape]``.
     """
     geo = geometry if geometry is not None else face_geometry(field.grid)
     hang = geo.hang_idx
     owner = geo.owner_s[hang]
     neighbour = geo.neighbour_s[hang]
-    psi_corr = torch.sum(
-        grad_data[neighbour] * geo.hang_move_N[:, None, :], dim=2
-    ) - torch.sum(grad_data[owner] * geo.hang_move_O[:, None, :], dim=2)
-    return psi_corr * geo.delta_coeffs_s[hang]
+    correction_neighbour = torch.einsum(
+        "n...j,nj->n...", grad_data[neighbour], geo.hang_move_N
+    )
+    correction_owner = torch.einsum(
+        "n...j,nj->n...", grad_data[owner], geo.hang_move_O
+    )
+    difference = correction_neighbour - correction_owner
+    delta_coeffs = broadcast_entity(geo.delta_coeffs_s[hang], difference)
+    return delta_coeffs * difference

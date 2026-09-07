@@ -8,6 +8,7 @@ from jaxtyping import Float
 from gridfoam.core.field import FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 
 
@@ -15,7 +16,7 @@ def assemble_gauss_gradient(
     grid: IGridBase,
     psi_f: FaceField,
     geometry: FaceGeometry | None = None,
-) -> Float[torch.Tensor, " C k 3"]:
+) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Assemble a cell-centered Green-Gauss gradient from face values.
 
@@ -31,22 +32,25 @@ def assemble_gauss_gradient(
     Returns
     -------
     torch.Tensor
-        Cell-centered gradient with shape ``[C, k, 3]``.
+        Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     """
     geo = geometry if geometry is not None else face_geometry(grid)
-    k = psi_f.num_components
+    component_shape = psi_f.component_shape
     grad_data = torch.zeros(
-        (grid.num_cells, k, 3), dtype=grid.dtype, device=grid.device
+        (grid.num_cells, *component_shape, 3),
+        dtype=grid.dtype,
+        device=grid.device,
     )
 
     # Internal single-sided faces: owner +Sf*psi_f, neighbour -Sf*psi_f.
-    flux = geo.Sf_s[:, None, :] * psi_f.single_data[:, :, None]
+    # Append the spatial direction after the field's physical component axes.
+    flux = torch.einsum("n...,nj->n...j", psi_f.single_data, geo.Sf_s)
     grad_data.index_add_(0, geo.owner_s, flux)
     grad_data.index_add_(0, geo.neighbour_s, -flux)
 
     # Domain boundaries.
-    flux_domain = (
-        grid.domain_bnd_Sf[:, None, :] * psi_f.domain_bnd_data[:, :, None]
+    flux_domain = torch.einsum(
+        "n...,nj->n...j", psi_f.domain_bnd_data, grid.domain_bnd_Sf
     )
     grad_data.index_add_(0, grid.domain_bnd_owner, flux_domain)
 
@@ -57,12 +61,13 @@ def assemble_gauss_gradient(
         grad_data.index_add_(
             0,
             grid.owner[immersed],
-            immersed_Sf[:, None, :] * psi_f.immersed_upper[:, :, None],
+            torch.einsum("n...,nj->n...j", psi_f.immersed_upper, immersed_Sf),
         )
         grad_data.index_add_(
             0,
             grid.neighbour[immersed],
-            -immersed_Sf[:, None, :] * psi_f.immersed_lower[:, :, None],
+            torch.einsum("n...,nj->n...j", psi_f.immersed_lower, -immersed_Sf),
         )
 
-    return grad_data / grid.cell_volumes.unsqueeze(-1)
+    volumes = broadcast_entity(grid.cell_volumes, grad_data)
+    return grad_data / volumes

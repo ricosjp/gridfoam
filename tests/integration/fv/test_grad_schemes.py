@@ -49,7 +49,7 @@ def test_linear_grad_is_linear_exact_on_refined_mesh():
 
     uncorrected_faces = fvc.interpolate(field)
     uncorrected_faces.single_data = linear_internal_face_values(field)
-    uncorrected = assemble_gauss_gradient(grid, uncorrected_faces)[:, 0, :]
+    uncorrected = assemble_gauss_gradient(grid, uncorrected_faces)
     corrected = fvc.grad(field).data
 
     assert (uncorrected - expected).abs().max().item() > 1e-2
@@ -76,60 +76,39 @@ def test_default_grad_scheme_is_leastsquare_and_exact_everywhere():
 
 
 def test_grad_vector_output_layout():
-    # Vector gradients occupy contiguous [3*c:3*c+3] blocks.
-    grid = refined_grid(grad_scheme=GradScheme.LEASTSQUARE)
-    field = CellField(grid, "U_grad", FieldRole.LOCAL, 2)
-    field.data[:, 0:1] = (
-        grid.cell_centers
-        @ torch.tensor([1.0, 0.0, 0.0], dtype=grid.dtype, device=grid.device)
-    ).reshape(-1, 1)
-    field.data[:, 1:2] = (
-        grid.cell_centers
-        @ torch.tensor([0.0, 2.0, 0.0], dtype=grid.dtype, device=grid.device)
-    ).reshape(-1, 1)
+    # A nonsymmetric Jacobian detects transposed physical/derivative axes.
+    grid = refined_3d_grid(GradScheme.LEASTSQUARE)
+    field = CellField(grid, "U_grad", FieldRole.LOCAL, (3,))
+    jacobian = torch.tensor(
+        [[1.0, 2.0, -3.0], [4.0, -2.0, 1.0], [0.5, 3.0, 2.0]],
+        dtype=grid.dtype,
+        device=grid.device,
+    )
+    field.data = grid.cell_centers @ jacobian.T
     bcs = {}
     for patch in DomainBoundaryPatch:
-        direction = patch.to_direction()
-        axis = direction.value // 2
-        sign = 2.0 * (direction.value % 2) - 1.0
-        g0 = 1.0 if axis == 0 else 0.0
-        g1 = 2.0 if axis == 1 else 0.0
-        bcs[patch] = NeumannBC(
-            torch.tensor(
-                [sign * g0, sign * g1], dtype=grid.dtype, device=grid.device
-            )
-        )
+        direction = patch.to_direction().value
+        sign = 2.0 * (direction % 2) - 1.0
+        bcs[patch] = NeumannBC(sign * jacobian[:, direction // 2])
     field.add_boundary_conditions(bcs)
-
     grad_field = fvc.grad(field)
-    assert grad_field.num_components == 6
-    assert grad_field.data.shape == (grid.num_cells, 6)
-
-    interior = interior_mask(grid)
+    assert grad_field.component_shape == (3, 3)
+    assert grad_field.num_components == 9
+    assert grad_field.data.shape == (grid.num_cells, 3, 3)
     torch.testing.assert_close(
-        grad_field.data[interior, 0:3],
-        torch.tensor(
-            [1.0, 0.0, 0.0], dtype=grid.dtype, device=grid.device
-        ).expand(int(interior.sum().item()), 3),
-        atol=1e-10,
-        rtol=1e-10,
-    )
-    torch.testing.assert_close(
-        grad_field.data[interior, 3:6],
-        torch.tensor(
-            [0.0, 2.0, 0.0], dtype=grid.dtype, device=grid.device
-        ).expand(int(interior.sum().item()), 3),
-        atol=1e-10,
-        rtol=1e-10,
+        grad_field.data,
+        jacobian.expand_as(grad_field.data),
+        atol=1e-12,
+        rtol=1e-12,
     )
 
 
 def test_constant_field_has_zero_gradient():
     # Constant field with zero-gradient boundaries → vanishing gradient.
     grid = refined_grid(grad_scheme=GradScheme.LINEAR)
-    field = CellField(grid, "const", FieldRole.LOCAL, 1)
+    field = CellField(grid, "const", FieldRole.LOCAL, ())
     field.data[:] = 3.0
-    zero = torch.zeros(1, dtype=grid.dtype, device=grid.device)
+    zero = torch.zeros((), dtype=grid.dtype, device=grid.device)
     field.add_boundary_conditions(
         {patch: NeumannBC(zero) for patch in DomainBoundaryPatch}
     )

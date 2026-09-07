@@ -11,7 +11,7 @@ from gridfoam.fv import fvc
 
 def compute_continuity_error(
     phi: FaceField,
-    cell_volumes: Float[torch.Tensor, " C 1"],
+    cell_volumes: Float[torch.Tensor, " C"],
     delta_t: float,
 ) -> tuple[float, float]:
     """
@@ -30,7 +30,7 @@ def compute_continuity_error(
     phi : FaceField
         Face flux field.
     cell_volumes : torch.Tensor
-        Cell volumes with shape ``[C, 1]``.
+        Cell volumes with shape ``[C]``.
     delta_t : float
         Time-step size.
 

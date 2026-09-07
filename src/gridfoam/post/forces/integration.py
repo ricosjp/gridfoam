@@ -95,25 +95,25 @@ def _face_forces_from_sample(
     # Graphlow/STL area vectors are body-outward. The fluid-domain
     # normal for the body boundary points into the body.
     S_body = -surface_area_vectors[sample.anchor_id]
-    alignment = torch.sum(sample.n_hat * S_body, dim=1, keepdim=True)
-    keep = alignment[:, 0] > 0.0
+    alignment = torch.sum(sample.n_hat * S_body, dim=1)
+    keep = alignment > 0.0
     if not torch.any(keep):
         return None
 
-    n_surface = S_body / torch.linalg.vector_norm(S_body, dim=1, keepdim=True)
-    normal_alignment = torch.sum(sample.n_hat * n_surface, dim=1, keepdim=True)
+    surface_area = torch.linalg.vector_norm(S_body, dim=1)
+    n_surface = S_body / surface_area[:, None]
+    normal_alignment = torch.sum(sample.n_hat * n_surface, dim=1)
     wall_dist = sample.mag_d[keep] * normal_alignment[keep].clamp_min(1.0e-12)
-    dUdn = (sample.U_b[keep] - sample.U_cell[keep]) / wall_dist
+    dUdn = (sample.U_b[keep] - sample.U_cell[keep]) / wall_dist[:, None]
     grad_U = dUdn[:, :, None] * n_surface[keep, None, :]
     viscous_stress = (
         rho
-        * sample.nu_eff[keep, :, None]
+        * sample.nu_eff[keep, None, None]
         * (grad_U + torch.transpose(grad_U, 1, 2))
     )
-    pressure_force = rho * sample.p_b[keep] * sample.Sf[keep]
-    viscous_force = -torch.matmul(
-        viscous_stress, sample.Sf[keep, :, None]
-    ).squeeze(-1)
+    pressure_force = (rho * sample.p_b[keep])[:, None] * sample.Sf[keep]
+    # Contract stress (F, i, j) with the area vector over j -> (F, i).
+    viscous_force = -(viscous_stress * sample.Sf[keep, None, :]).sum(dim=-1)
     face_force = pressure_force + viscous_force
 
     return (
@@ -130,7 +130,7 @@ def integrate_patch_on_surface_mesh(
     *,
     p: CellField,
     U: CellField,
-    nu_eff: Float[torch.Tensor, " C 1"],
+    nu_eff: Float[torch.Tensor, " C"],
     patch_name: str,
     rho: float,
     center_of_rotation: Float[torch.Tensor, " 3"],

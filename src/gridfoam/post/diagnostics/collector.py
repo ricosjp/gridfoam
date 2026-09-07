@@ -8,6 +8,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import TextIO
 
+import torch
+
 from gridfoam.core.field import FaceField, get_or_create_facefield
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
@@ -154,8 +156,8 @@ class DiagnosticsCollector:
             return field.num_components
 
         condition = self._grid.sim_config.get_field_condition(field_name)
-        if condition is not None and condition.internal:
-            return len(condition.internal)
+        if condition is not None:
+            return torch.as_tensor(condition.internal).numel()
 
         return 1
 
@@ -279,7 +281,7 @@ class DiagnosticsCollector:
             self._grid,
             phi_name,
             FieldRole.LOCAL,
-            1,
+            (),
         )
 
     def close(self) -> None:

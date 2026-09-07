@@ -188,12 +188,12 @@ def run_case(
     grad_exact_name = make_field_name("grad_p_exact")
     grad_err_name = make_field_name("grad_err")
 
-    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, 1)
-    grad_p = get_or_create_cellfield(grid, grad_p_name, FieldRole.LOCAL, 3)
+    p = get_or_create_cellfield(grid, p_name, FieldRole.LOCAL, ())
+    grad_p = get_or_create_cellfield(grid, grad_p_name, FieldRole.LOCAL, (3,))
     grad_exact = get_or_create_cellfield(
-        grid, grad_exact_name, FieldRole.LOCAL, 3
+        grid, grad_exact_name, FieldRole.LOCAL, (3,)
     )
-    grad_err = get_or_create_cellfield(grid, grad_err_name, FieldRole.LOCAL, 1)
+    grad_err = get_or_create_cellfield(grid, grad_err_name, FieldRole.LOCAL, ())
 
     grad_p.export = True
     grad_exact.export = True
@@ -204,13 +204,13 @@ def run_case(
     y = cell_centers[:, 1]
     z = cell_centers[:, 2]
 
-    p.data = p_fn(x, y, z).unsqueeze(-1)
+    p.data = p_fn(x, y, z)
     grad_ref = grad_fn(x, y, z)
     grad_num = fvc.grad(p).data
     grad_p.data = grad_num
     grad_exact.data = grad_ref
     grad_err.data = torch.linalg.vector_norm(
-        grad_num - grad_ref, dim=1, keepdim=True
+        grad_num - grad_ref, dim=1, keepdim=False
     )
 
     errors = compute_grad_errors(grad_num, grad_ref)

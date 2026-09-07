@@ -12,14 +12,14 @@ def grad(field: CellField) -> CellField:
     Parameters
     ----------
     field : CellField
-        Target cell-centered field with ``k`` components.
+        Target cell-centered field.
 
     Returns
     -------
     CellField
         Gradient field named ``grad({field.name})`` with
-        ``num_components = k * 3``. Component ``c`` occupies columns
-        ``3 * c : 3 * c + 3``.
+        ``component_shape = field.component_shape + (3,)``. The last axis
+        is the differentiation direction.
     """
     grid = field.grid
     grad_tensor = eval_grad(field)
@@ -27,10 +27,8 @@ def grad(field: CellField) -> CellField:
         grid,
         f"grad({field.name})",
         field.role,
-        field.num_components * 3,
+        field.component_shape + (3,),
         dimension=dim_div(field.dimension, DIM_LENGTH),
     )
-    grad_field.data = grad_tensor.reshape(
-        grid.num_cells, field.num_components * 3
-    )
+    grad_field.data = grad_tensor
     return grad_field

@@ -5,9 +5,9 @@ import torch
 from gridfoam.core.dimensions import DIM_VOL_FLUX, assert_compatible
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.fvmatrix import FvMatrix
-from gridfoam.core.grid.axis_projected import AxisProjectedGrid
+from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.boundary_ops import (
-    BoundaryFaceKind,
+    boundary_block,
     evaluate_boundary_state,
     iter_boundary_batches,
 )
@@ -57,6 +57,8 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
     DimensionMismatchError
         If ``phi`` does not carry a volumetric flux dimension.
     """
+    if phi.component_shape != ():
+        raise ValueError("convection requires scalar face flux")
     mat = FvMatrix(field)
     grid = field.grid
     assert_compatible(phi.dimension, DIM_VOL_FLUX, "fvm.div flux field")
@@ -76,44 +78,18 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
 
     for batch in iter_boundary_batches(field):
         f, ref_v, ref_g, _ = evaluate_boundary_state(field, batch)
-        # Domain boundaries
-        if batch.face_kind == BoundaryFaceKind.DOMAIN:
-            flux = phi.domain_bnd_data[batch.face_mask]
-            F_out = torch.clamp(flux, min=0.0)
-            F_in = torch.clamp(flux, max=0.0)
-            diag = F_out + F_in * (1.0 - f)
-            src = F_in * (f * ref_v + (1.0 - f) * ref_g * batch.mag_d)
-            mat.diag.index_add_(0, batch.target_cells, diag)
-            mat.source.index_add_(0, batch.target_cells, -src)
-            continue
+        f_view = broadcast_entity(f, ref_v)
+        distance = broadcast_entity(batch.mag_d, ref_g)
+        boundary_source = f_view * ref_v + (1.0 - f_view) * distance * ref_g
 
-        # Immersed boundaries
-        if isinstance(grid, AxisProjectedGrid):
-            if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-                flux = phi.immersed_upper[batch.face_mask]
-                F_out = torch.clamp(flux, min=0.0)
-                F_in = torch.clamp(flux, max=0.0)
-
-                wb = grid.ap_owner_weights[batch.face_mask, 0:1]
-                w = grid.ap_owner_weights[batch.face_mask, 1:2]
-
-                diag = F_out + F_in * (w + wb * (1.0 - f))
-                src = F_in * wb * (f * ref_v + (1.0 - f) * ref_g * batch.mag_d)
-                mat.diag.index_add_(0, batch.target_cells, diag)
-                mat.source.index_add_(0, batch.target_cells, -src)
-                continue
-            elif batch.face_kind == BoundaryFaceKind.IMMERSED_LOWER:
-                flux = phi.immersed_lower[batch.face_mask]
-                F_out = torch.clamp(flux, min=0.0)
-                F_in = torch.clamp(flux, max=0.0)
-
-                wb = grid.ap_neighbour_weights[batch.face_mask, 0:1]
-                w = grid.ap_neighbour_weights[batch.face_mask, 1:2]
-
-                diag = F_out + F_in * (w + wb * (1.0 - f))
-                src = F_in * wb * (f * ref_v + (1.0 - f) * ref_g * batch.mag_d)
-                mat.diag.index_add_(0, batch.target_cells, diag)
-                mat.source.index_add_(0, batch.target_cells, -src)
-                continue
+        # These blocks contain outward fluxes through the physical boundary.
+        # Use the boundary value, not an extrapolated ghost-cell value.
+        flux = boundary_block(phi, batch.face_kind)[batch.face_mask]
+        F_out = torch.clamp(flux, min=0.0)
+        F_in = torch.clamp(flux, max=0.0)
+        diag = F_out + F_in * (1.0 - f)
+        src = broadcast_entity(F_in, boundary_source) * boundary_source
+        mat.diag.index_add_(0, batch.target_cells, diag)
+        mat.source.index_add_(0, batch.target_cells, -src)
 
     return mat

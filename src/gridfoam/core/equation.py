@@ -34,9 +34,12 @@ class Equation:
     """Assembled finite-volume matrix."""
 
     def __init__(self, target: CellField, fv_matrix: FvMatrix):
+        from gridfoam.fv.boundary_ops import immersed_dirichlet_constraints
+
         self.name = target.name
         self.target = target
-        self.fv_matrix = fv_matrix
+        cells, values = immersed_dirichlet_constraints(target)
+        self.fv_matrix = fv_matrix.with_fixed_values(cells, values)
 
 
 def equation(target: CellField, fv_matrix: FvMatrix) -> Equation:

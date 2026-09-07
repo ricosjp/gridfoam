@@ -30,7 +30,7 @@ def system() -> tuple[csr_array, torch.Tensor]:
         [-np.ones(n - 1), 2.01 * np.ones(n), -np.ones(n - 1)],
         [-1, 0, 1],
     )
-    rhs = torch.linspace(1, 2, n, dtype=torch.float64)[:, None]
+    rhs = torch.linspace(1, 2, n, dtype=torch.float64)
     return matrix, rhs
 
 
@@ -51,11 +51,9 @@ def test_amg_true_residual_and_tolerances(norm: int | float, relative: bool):
         max_iter=100,
         norm_order=norm,
     )
-    initial = np.linalg.norm(
-        (rhs.numpy() - matrix @ x0.numpy())[:, 0], ord=norm
-    )
+    initial = np.linalg.norm(rhs.numpy() - matrix @ x0.numpy(), ord=norm)
     final = np.linalg.norm(
-        (rhs.numpy() - matrix @ result.solution.numpy())[:, 0], ord=norm
+        rhs.numpy() - matrix @ result.solution.numpy(), ord=norm
     )
     (stats,) = result.stats
     assert stats.initial_residual == pytest.approx(initial)
@@ -88,7 +86,7 @@ def test_amg_honors_norm_and_skips_converged_components(
     norm: int | float, iterations: int
 ):
     matrix = _csr_diags([np.ones(16)], [0])
-    rhs = torch.zeros(16, 2, dtype=torch.float64)
+    rhs = torch.zeros(16, 3, dtype=torch.float64)
     x0 = rhs.clone()
     x0[:, 1] = 0.5
     result = _solve_csr_components(
@@ -100,7 +98,7 @@ def test_amg_honors_norm_and_skips_converged_components(
         max_iter=10,
         norm_order=norm,
     )
-    assert len(result.stats) == 2
+    assert len(result.stats) == 3
     assert result.stats[0].iterations == 0
     assert result.stats[0].initial_residual == 0
     assert result.stats[1].iterations == iterations
