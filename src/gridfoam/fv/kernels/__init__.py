@@ -7,10 +7,12 @@ from gridfoam.fv.kernels.face_interpolation import (
     sn_grad_hanging_correction,
 )
 from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
+from gridfoam.fv.kernels.ghost_interpolation import InterpolationStencil
 from gridfoam.fv.kernels.least_squares import least_squares_gradient
 
 __all__ = [
     "FaceGeometry",
+    "InterpolationStencil",
     "assemble_gauss_gradient",
     "correct_internal_values",
     "face_geometry",
