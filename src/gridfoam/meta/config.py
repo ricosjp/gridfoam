@@ -531,9 +531,10 @@ class fvSolutionConfig(BaseModel, frozen=True):
     solvers: dict[FieldName, SolverConfig]
     """
     solvers : dict[FieldName, SolverConfig]
-        Solvers configuration.
-        The key is the target field name to be solved by the solver.
-        The value is the solver configuration.
+        Linear solvers keyed by field name (``U``, ``p``, optional
+        ``pFinal``, ...). SIMPLE always uses ``p``. PISO and PIMPLE use
+        ``pFinal`` only on the last inner corrector's last non-orthogonal
+        pass.
     """
     potentialFlow: PotentialFlowConfig | None = None
     """

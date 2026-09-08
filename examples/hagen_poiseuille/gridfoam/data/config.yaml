@@ -51,7 +51,7 @@ simulator:
         rel_tolerance: 0.01
         max_iter: 2000
         norm_type: l_2
-      pFinal:  # final pressure-correction solver (OpenFOAM pFinal)
+      pFinal:  # last inner corrector, last non-orthogonal pass
         method: cg
         preconditioner: jacobi
         tolerance: 1e-7

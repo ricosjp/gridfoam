@@ -41,7 +41,6 @@ from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.factory import create_turbulence_model
 from gridfoam.solvers.base import LinearSolver, SolveStats
 from gridfoam.solvers.factory import create_solver
-from gridfoam.solvers.resolver import resolve_solver
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +52,11 @@ class SIMPLE(AlgorithmBase):
     Solves steady incompressible Navier-Stokes equations with
     under-relaxation and double-sided immersed-boundary support.
 
-    Each ``step()`` is one pseudo-time iteration. When ``residualControl`` is
-    configured, ``has_converged()`` reports whether all monitored fields
-    satisfy their tolerances and the runner may stop early.
+    Each ``step()`` is one pseudo-time iteration. Pressure always uses the
+    ``p`` solver, as in OpenFOAM ``simpleFoam``; ``pFinal`` is ignored.
+    When ``residualControl`` is configured, ``has_converged()`` reports
+    whether all monitored fields satisfy their tolerances and the runner
+    may stop early.
 
     Parameters
     ----------
@@ -361,14 +362,13 @@ class SIMPLE(AlgorithmBase):
         # Store old pressure for pressure under-relaxation
         p_old = self.p.data.clone()
 
-        # solve pressure Poisson equation (uses pFinal when configured)
+        # OpenFOAM simpleFoam: pEqn.solve() always looks up "p", not pFinal.
         div_phi_hbya = fvc.div(self.phi_hbya).data
-        p_solver = resolve_solver(self.solvers, self.p.name, is_final=True)
         p_result = solve_pressure_poisson(
             self.p,
             self.rAtU,
             div_phi_hbya,
-            p_solver,
+            self.solvers[self.p.name],
             n_non_orthogonal_correctors=self.n_non_orthogonal_correctors,
             p_needs_ref=self.p_needs_ref,
             p_ref_cell=self.p_ref_cell if self.p_needs_ref else None,

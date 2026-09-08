@@ -104,7 +104,9 @@ def solve_pressure_poisson(
     p_ref_value : float | None, optional
         Reference pressure value.
     final_solver : LinearSolver | None, optional
-        Solver used only on the last non-orthogonal pass.
+        Solver for the last non-orthogonal pass. When omitted, every pass
+        uses ``solver`` (SIMPLE). PISO/PIMPLE pass ``pFinal`` here on the
+        last inner corrector.
 
     Returns
     -------

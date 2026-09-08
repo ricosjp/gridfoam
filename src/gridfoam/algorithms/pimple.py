@@ -55,10 +55,10 @@ class PIMPLE(AlgorithmBase):
     introducing an outer corrector loop around the PISO loop.
 
     The outer loop may exit early when ``residualControl`` is satisfied.
-    The final inner corrector uses the ``pFinal`` solver when configured.
-    The predicted flux includes ``interpolate(rAU) * ddtCorr(U, phi)`` and,
-    with ``consistent``, the SIMPLEC ``rAtU`` formulation of OpenFOAM
-    ``pimpleFoam``.
+    The last inner corrector's last non-orthogonal pass uses ``pFinal``
+    when configured, as in OpenFOAM ``pimpleFoam``. The predicted flux
+    includes ``interpolate(rAU) * ddtCorr(U, phi)`` and, with
+    ``consistent``, the SIMPLEC ``rAtU`` formulation.
 
     Parameters
     ----------
@@ -387,7 +387,7 @@ class PIMPLE(AlgorithmBase):
                         continuity_residual(self.phi_hbya),
                     )
 
-                # solve pressure Poisson equation (pFinal on last corrector)
+                # pFinal on the last inner corrector's last non-orthogonal pass
                 div_phi_hbya = fvc.div(self.phi_hbya).data
                 is_final = inner == self.n_correctors - 1
                 p_solver = resolve_solver(

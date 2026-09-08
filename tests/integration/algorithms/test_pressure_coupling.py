@@ -306,6 +306,39 @@ def test_final_pressure_solver_only_on_last_nonorthogonal_pass(
     )
 
 
+def test_simple_pressure_solver_never_uses_pfinal(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    # OpenFOAM simpleFoam calls pEqn.solve() without p.select(final).
+    algorithm = SIMPLEAlgorithm(
+        type=AlgorithmType.SIMPLE,
+        nNonOrthogonalCorrectors=2,
+        relaxationFactors=RelaxationFactorsConfig(
+            equations={"U": 0.7, "p": 0.3},
+        ),
+        pRefCell=0,
+        pRefValue=0.0,
+    )
+    config = channel_flow_config(tmp_path, algorithm)
+    grid = create_grid(config)
+    algo = SIMPLE(grid)
+    regular = algo.solvers["p"]
+    final = create_solver(config.simulator.fvSolution.solvers["p"])
+    algo.solvers["pFinal"] = final
+    calls = Mock()
+    normal_spy = Mock(wraps=regular.solve)
+    final_spy = Mock(wraps=final.solve)
+    calls.attach_mock(normal_spy, "regular")
+    calls.attach_mock(final_spy, "final")
+    monkeypatch.setattr(regular, "solve", normal_spy)
+    monkeypatch.setattr(final, "solve", final_spy)
+
+    algo.step()
+
+    assert [call[0] for call in calls.mock_calls] == ["regular"] * 3
+    final_spy.assert_not_called()
+
+
 def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path):
     # rAtU = 1 / (1/rAU - H1) with H1 = -sum(off-diagonals) / V.
     grid = create_grid(channel_flow_config(tmp_path, _simple()))

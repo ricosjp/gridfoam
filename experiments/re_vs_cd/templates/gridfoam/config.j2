@@ -78,13 +78,6 @@ simulator:
         rel_tolerance: 0.01
         max_iter: 1000
         norm_type: l_2
-      pFinal:  # final pressure-correction solver (OpenFOAM pFinal)
-        method: cg
-        preconditioner: jacobi
-        tolerance: 1e-8
-        rel_tolerance: 0.0
-        max_iter: 1000
-        norm_type: l_2
   # Conditions corresponding to 0.orig
   conditions:
       U:

@@ -55,9 +55,15 @@ Simulator blocks
 Field and solver keys
 ---------------------
 
-Field names in ``fvSolution.solvers`` follow OpenFOAM conventions. A
-``pFinal`` solver, if present, is used only on the last non-orthogonal
-pass of the last pressure corrector (every PISO/PIMPLE outer iteration).
+Field names in ``fvSolution.solvers`` follow OpenFOAM conventions.
+
+SIMPLE always uses ``p``. A ``pFinal`` entry is ignored, as in OpenFOAM
+``simpleFoam``.
+
+PISO and PIMPLE use ``pFinal``, if present, only on the last
+non-orthogonal pass of the last inner corrector (OpenFOAM
+``p.select(finalInnerIter)``), in each PIMPLE outer iteration. Every other
+pressure solve uses ``p``; omitting ``pFinal`` makes all passes use ``p``.
 
 Boundary patches may use reserved domain names such as ``x_minus`` and
 ``x_plus``, or custom patch names for immersed surfaces.

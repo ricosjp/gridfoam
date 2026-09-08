@@ -32,8 +32,10 @@ SIMPLE, PISO, and PIMPLE share pressure-equation and flux-correction helpers
 in ``algorithms/utils/pressure_correction.py`` (``solve_pressure_poisson``,
 ``apply_simplec``, ``correct_phi``, ``correct_velocity``). Put behavior there
 when its mathematics and ordering are genuinely common. Algorithm-specific
-loop counts, relaxation, and convergence decisions remain in the concrete
-class.
+loop counts, relaxation, solver-key selection, and convergence decisions
+remain in the concrete class. SIMPLE always solves pressure with ``p``.
+PISO/PIMPLE pass ``final_solver`` as ``pFinal`` only on the last inner
+corrector's last non-orthogonal pass.
 
 Assemble explicit sources before constructing ``equation(field, matrix)``.
 For momentum prediction, use ``with_source`` to add pressure to a separate

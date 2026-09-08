@@ -47,10 +47,10 @@ class PISO(AlgorithmBase):
 
     Solves transient incompressible Navier-Stokes equations.
 
-    The last pressure corrector uses the ``pFinal`` solver when configured.
-    The predicted flux includes ``interpolate(rAU) * ddtCorr(U, phi)`` as in
-    OpenFOAM ``pisoFoam``. OpenFOAM PISO has no ``consistent`` (SIMPLEC)
-    option in ``fvSolution``, so ``rAtU == rAU``.
+    The last inner corrector's last non-orthogonal pass uses ``pFinal``
+    when configured, as in OpenFOAM ``pisoFoam``. The predicted flux
+    includes ``interpolate(rAU) * ddtCorr(U, phi)``. OpenFOAM PISO has no
+    ``consistent`` (SIMPLEC) option in ``fvSolution``, so ``rAtU == rAU``.
 
     Parameters
     ----------
@@ -284,7 +284,7 @@ class PISO(AlgorithmBase):
                     continuity_residual(self.phi_hbya),
                 )
 
-            # solve pressure Poisson equation (pFinal on last corrector)
+            # pFinal on the last inner corrector's last non-orthogonal pass
             div_phi_hbya = fvc.div(self.phi_hbya).data
             is_final = i == self.n_correctors - 1
             p_solver = resolve_solver(
