@@ -20,6 +20,7 @@ from gridfoam.core.fv_cache import FvFieldCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import require_shape, validate_component_shape
+from gridfoam.core.state import validate_history
 from gridfoam.meta.config import TensorValue
 from gridfoam.meta.enums import FieldRole
 from gridfoam.meta.types import PatchName
@@ -338,6 +339,18 @@ class CellField(GeometricField):
         """Time interval between the two stored old levels."""
         return self._previous_dt
 
+    def restore_history(
+        self,
+        old: Float[torch.Tensor, " C *component_shape"],
+        older: Float[torch.Tensor, " C *component_shape"] | None,
+        previous_dt: float | None,
+    ) -> None:
+        """Replace stored time levels without calling ``update_history``."""
+        validate_history(self._data, old, older, previous_dt)
+        self._old_data = old
+        self._older_data = older
+        self._previous_dt = previous_dt
+
     def state_token(self) -> tuple[int, ...]:
         """
         Fingerprint of the current cell data used for cache invalidation.
@@ -510,6 +523,18 @@ class FaceField(GeometricField):
     def previous_dt(self) -> float | None:
         """Time interval between the two stored old flux levels."""
         return self._previous_dt
+
+    def restore_history(
+        self,
+        old: Float[torch.Tensor, " F_single *component_shape"],
+        older: Float[torch.Tensor, " F_single *component_shape"] | None,
+        previous_dt: float | None,
+    ) -> None:
+        """Replace stored flux time levels; does not call ``update_history``."""
+        validate_history(self._single_data, old, older, previous_dt)
+        self._old_single_data = old
+        self._older_single_data = older
+        self._previous_dt = previous_dt
 
     def state_token(self) -> tuple[int, ...]:
         """
@@ -743,6 +768,32 @@ class FaceField(GeometricField):
             n_block = block.shape[0]
             block[:] = packed[offset : offset + n_block]
             offset += n_block
+
+    def replace_packed(
+        self, packed: Float[torch.Tensor, " N *component_shape"]
+    ) -> None:
+        """
+        Replace face buffers from a packed tensor without in-place writes.
+
+        Unlike :meth:`unpack`, this rebinds storage so an autograd leaf is
+        not mutated. Layout matches :meth:`pack`.
+        """
+        require_shape(
+            packed,
+            (self.packed_n_rows(), *self.component_shape),
+            f"{self.name}.packed",
+        )
+        offset = 0
+        replacements: list[torch.Tensor] = []
+        for block in self._pack_blocks():
+            n_block = block.shape[0]
+            replacements.append(packed[offset : offset + n_block])
+            offset += n_block
+        self._single_data = replacements[0]
+        self._domain_bnd_data = replacements[1]
+        if len(replacements) == 4:
+            self._immersed_upper = replacements[2]
+            self._immersed_lower = replacements[3]
 
     def to(
         self,

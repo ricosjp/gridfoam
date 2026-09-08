@@ -3,6 +3,7 @@ import logging
 import torch
 
 from gridfoam.algorithms.base import AlgorithmBase
+from gridfoam.algorithms.iteration_state import IterationState
 from gridfoam.algorithms.utils.pressure_correction import (
     apply_simplec,
     correct_phi,
@@ -245,6 +246,22 @@ class PIMPLE(AlgorithmBase):
     def solvers(self) -> dict[str, LinearSolver]:
         """Linear solvers keyed by field name from ``fvSolution``."""
         return self._solvers
+
+    def capture_iteration_state(self) -> IterationState:
+        """Snapshot outer-loop residual history and its convergence flag."""
+        return IterationState(
+            diagnostics_step=self._diagnostics_step,
+            initial_residuals=self._initial_residuals,
+            current_residuals=self._current_residuals,
+            outer_converged=self._outer_converged,
+        )
+
+    def restore_iteration_state(self, state: IterationState) -> None:
+        """Restore independent residual dictionaries and outer convergence."""
+        super().restore_iteration_state(state)
+        self._initial_residuals = dict(state.initial_residuals)
+        self._current_residuals = dict(state.current_residuals)
+        self._outer_converged = state.outer_converged
 
     def has_converged(self) -> bool:
         """

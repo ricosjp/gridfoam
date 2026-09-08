@@ -66,11 +66,18 @@ class GridBase(ABC):
         Surface mesh used for force and visualization sampling.
     fv_cache : FvGridCache
         Grid-owned FV cache (face geometry, ...).
+    geometry_revision : int
+        Generation counter after IBM updates, remeshing, or device moves.
+    topology_revision : int
+        Generation counter after background connectivity is rebuilt.
     """
 
-    @abstractmethod
-    def __init__(self, simulator_config: SimulatorConfig):
-        pass
+    _geometry_revision: int
+    _topology_revision: int
+
+    def __init__(self) -> None:
+        self._geometry_revision = 0
+        self._topology_revision = 0
 
     @abstractmethod
     def register_cellfield(self, field: CellField):
@@ -164,13 +171,36 @@ class GridBase(ABC):
         Clear FV caches on this grid and its cell fields.
 
         Call after topology, immersed-boundary, or device changes
-        (``remesh``, ``update_ib``, ``to``).
+        (``remesh``, ``update_ib``, ``to``), and after checkpoint restore.
         """
         self.fv_cache.clear()
         for name in self.cellfield_names():
             cell_field = self.get_cellfield(name)
             if cell_field is not None:
                 cell_field.fv_cache.clear()
+
+    def mark_geometry_changed(self, *, topology_changed: bool = False) -> None:
+        """
+        Record that geometry tensors changed, invalidating old checkpoints.
+
+        Increment ``geometry_revision``. Also increment
+        ``topology_revision`` when background connectivity was rebuilt.
+        This does not clear FV caches; call ``invalidate_derived_caches``
+        separately.
+        """
+        self._geometry_revision += 1
+        if topology_changed:
+            self._topology_revision += 1
+
+    @property
+    def geometry_revision(self) -> int:
+        """Generation counter after IBM updates, remeshing, or device moves."""
+        return self._geometry_revision
+
+    @property
+    def topology_revision(self) -> int:
+        """Generation counter after background connectivity is rebuilt."""
+        return self._topology_revision
 
     @property
     @abstractmethod

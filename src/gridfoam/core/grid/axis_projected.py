@@ -72,6 +72,7 @@ class AxisProjectedGrid(GridBase):
         mesh_path: pathlib.Path | None = None,
         session: ApibmSession | None = None,
     ):
+        super().__init__()
         self._sim_config = simulator_config
         self._runtime_device: torch.device | None = None
         self._session = session
@@ -212,6 +213,7 @@ class AxisProjectedGrid(GridBase):
 
     def _sync_registered_fields(self, *, topology_changed: bool) -> None:
         """Resize registered fields after IBM or topology updates."""
+        self.mark_geometry_changed(topology_changed=topology_changed)
         self.invalidate_derived_caches()
         for field in list(self._cellfields.values()):
             field.sync_to_grid_topology(topology_changed=topology_changed)
@@ -510,6 +512,7 @@ class AxisProjectedGrid(GridBase):
         self._runtime_device = self._owner.device
         self._surface_mesh_cache = None
         self._surface_mesh_rest_points = None
+        self.mark_geometry_changed()
         self.invalidate_derived_caches()
 
         for field in list(self._cellfields.values()):

@@ -51,7 +51,11 @@ Derived FV data is owned by the object it describes, not by module globals:
 
 Call :meth:`~gridfoam.core.grid.base.GridBase.invalidate_derived_caches`
 after topology, immersed-boundary, or device changes (``remesh``,
-``update_ib``, ``to``).
+``update_ib``, ``to``), and after restoring a field checkpoint.
+``geometry_revision`` changes after those geometry updates;
+``topology_revision`` also changes when background connectivity is rebuilt.
+Direct geometry tensor edits must call
+:meth:`~gridfoam.core.grid.base.GridBase.mark_geometry_changed`.
 
 FvMatrix and Equation
 ---------------------

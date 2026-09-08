@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from gridfoam.algorithms.iteration_state import IterationState
 from gridfoam.core.field import FaceField
 from gridfoam.core.grid.base import GridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
@@ -62,6 +63,14 @@ class AlgorithmBase(ABC):
     def has_simulation_converged(self) -> bool:
         """Return whether convergence should end the entire simulation."""
         return False
+
+    def capture_iteration_state(self) -> IterationState:
+        """Snapshot common controls; subclasses explicitly add their state."""
+        return IterationState(diagnostics_step=self._diagnostics_step)
+
+    def restore_iteration_state(self, state: IterationState) -> None:
+        """Restore iteration controls captured with this algorithm."""
+        self._diagnostics_step = state.diagnostics_step
 
     def attach_diagnostics(self, diagnostics: DiagnosticsCollector) -> None:
         """

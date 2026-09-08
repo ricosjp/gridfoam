@@ -60,3 +60,22 @@ Factory and base
    :template: autosummary/class.rst
 
    AlgorithmBase
+
+Replay checkpoints
+------------------
+
+.. currentmodule:: gridfoam.algorithms.checkpoint
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   AlgorithmCheckpoint
+
+.. currentmodule:: gridfoam.algorithms.iteration_state
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   IterationState

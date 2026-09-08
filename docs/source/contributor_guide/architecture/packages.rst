@@ -13,12 +13,12 @@ Source map
 
    src/gridfoam/
    ├── meta/            # config, enums, shared types
-   ├── core/            # grid, field, fvmatrix, equation
+   ├── core/            # grid, field, fvmatrix, equation, state, checkpoint
    ├── boundaries/      # basic/ and derived/ conditions
    ├── fv/              # fvc/, fvm/, schemes/, kernels/, flux helpers
    ├── models/          # transport/ and turbulence/
    ├── solvers/         # krylov, pyamg, adjoint/
-   ├── algorithms/      # simple, piso, pimple, utils/
+   ├── algorithms/      # simple, piso, pimple, checkpoint, utils/
    ├── pre/             # potential flow
    ├── post/            # diagnostics, forces
    ├── io/              # VTU export
@@ -35,11 +35,13 @@ Responsibilities
 
 ``core``
    Mesh interfaces, cell- and face-centred fields, finite-volume matrices, and
-   equations. Grid- and field-owned FV cache containers (``fv_cache``) live
-   here without importing their numerical builders. ``CellField`` constructs
-   configured boundary conditions, and ``Equation`` uses ``fv.boundary_ops``
-   to select immersed Dirichlet cell constraints. These are narrow integration
-   points; operator assembly and algorithm policy remain in their own layers.
+   equations. Named tensor states and in-memory field checkpoints live here
+   as shared replay contracts. Grid- and field-owned FV cache containers
+   (``fv_cache``) live here without importing their numerical builders.
+   ``CellField`` constructs configured boundary conditions, and ``Equation``
+   uses ``fv.boundary_ops`` to select immersed Dirichlet cell constraints.
+   These are narrow integration points; operator assembly and algorithm
+   policy remain in their own layers.
 
 ``boundaries``
    Boundary-condition contracts and implementations. Every condition is
@@ -64,7 +66,8 @@ Responsibilities
 
 ``algorithms``
    Pressure--velocity coupling and time-stepping algorithms such as SIMPLE,
-   PISO, and PIMPLE. Shared helpers live under ``algorithms/utils``. The
+   PISO, and PIMPLE. Shared helpers live under ``algorithms/utils``. Algorithm
+   checkpoints add iteration controls on top of field checkpoints. The
    algorithm base may also emit diagnostics through ``post``.
 
 ``pre``, ``post``, and ``io``

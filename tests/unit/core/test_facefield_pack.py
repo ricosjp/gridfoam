@@ -31,6 +31,7 @@ class _NonAxisProjectedGrid(GridBase):
     """Minimal non-AP grid so pack omits immersed blocks."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._device = torch.device("cpu")
         self._dtype = torch.float64
         self._n_cells = 4

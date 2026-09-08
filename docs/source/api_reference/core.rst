@@ -14,7 +14,9 @@ Core
    FvMatrix
    FvGridCache
    FvFieldCache
+   GridCheckpoint
    GridBase
+   TensorState
    FieldNameParts
 
 .. autosummary::
