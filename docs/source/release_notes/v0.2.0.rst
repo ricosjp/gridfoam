@@ -6,7 +6,7 @@ v0.2.0
 Summary
 -------
 
-Version ``0.2.0`` is the current development release. It extends gridfoam into
+Version ``0.2.0`` extends gridfoam into
 a differentiable finite-volume solver with YAML-driven configuration, immersed
 boundaries, and OpenFOAM-style pressure--velocity coupling.
 

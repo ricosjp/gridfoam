@@ -15,7 +15,7 @@ allow-direct-references = true
 
 [project]
 name = "gridfoam"
-version = "0.2.0"
+version = "0.3.0"
 description = "Differentiable Fluid Solver of Hierarchical Grid"
 readme = "README.md"
 authors = [{name = "RICOS Co. Ltd."}]

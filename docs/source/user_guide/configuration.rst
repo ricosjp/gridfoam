@@ -23,7 +23,13 @@ A typical configuration contains:
    Solver settings, boundary and initial conditions, and output control.
 
 ``version``
-   Configuration schema version.
+   Configuration schema version. Use ``version: 0.3.0`` for the configuration
+   format shipped with gridfoam ``0.3.0``.
+   When the configuration format changes, set this value to the gridfoam
+   version that introduces the change. Releases that leave the format
+   unchanged retain the existing schema version; for example, a ``0.3.1``
+   bug-fix release with no format changes continues to use ``version: 0.3.0``.
+   This value currently documents the format; it is not validated by the loader.
 
 Simulator blocks
 ----------------

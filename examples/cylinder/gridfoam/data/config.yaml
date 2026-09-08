@@ -4,7 +4,7 @@
 # examples/cylinder/openfoam. The domain, mesh refinement, viscosity and
 # time stepping are identical so that the von Karman vortex shedding can be
 # compared directly between the two solvers.
-version: 0.0.1
+version: 0.3.0
 
 # Parameters
 inlet_speed: &inlet_speed 1.0

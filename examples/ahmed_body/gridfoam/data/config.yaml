@@ -1,5 +1,5 @@
 # gridfoam config file
-version: 0.0.1
+version: 0.3.0
 
 # Parameters
 inlet_speed: &inlet_speed 40.0

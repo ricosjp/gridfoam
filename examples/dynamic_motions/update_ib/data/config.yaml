@@ -2,7 +2,7 @@
 # Rest pose [0.4, 0.6] x [0.4, 0.6]; U_wall = (1.5, 0, 0) for 0.20
 # (travel 0.30). The refinement corridor covers that path so update_ib
 # can refresh IBM data without leaving target_level.
-version: 0.0.1
+version: 0.3.0
 
 inlet_speed: &inlet_speed 1.0
 body_speed: &body_speed 1.5

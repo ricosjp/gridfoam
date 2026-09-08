@@ -1,7 +1,7 @@
 # Static example of config.j2 at n_leaf_refinement=1.
 # poisson.py renders config.j2 for each requested refinement level.
 # gridfoam config file
-version: 0.0.1
+version: 0.3.0
 
 # Fluxel config (mesh generation)
 fluxel:

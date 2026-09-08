@@ -1,7 +1,7 @@
 # Translating square prism whose AMR band follows the body.
 # Rest pose [0.4, 0.6] x [0.4, 0.6]; U_wall = (1.5, 0, 0) for 0.20
 # (travel 0.30). No travel corridor: remesh rebuilds around the pose.
-version: 0.0.1
+version: 0.3.0
 
 inlet_speed: &inlet_speed 1.0
 body_speed: &body_speed 1.5

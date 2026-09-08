@@ -1,0 +1,35 @@
+.. _release-v0-3-0:
+
+v0.3.0
+======
+
+Summary
+-------
+
+Version ``0.3.0`` is the current development release. It updates immersed-boundary
+data contracts, boundary treatment, pressure-solver selection, and performance
+reporting.
+
+Changed
+-------
+
+* Package version bumped from ``0.2.0`` to ``0.3.0`` in ``pyproject.toml``.
+* YAML configuration schema version bumped from ``0.0.1`` to ``0.3.0``.
+  Bundled configurations and Jinja templates use ``version: 0.3.0``.
+  Future format changes use the gridfoam version that introduces them;
+  releases without format changes retain the existing schema version.
+  See :doc:`../user_guide/configuration` for the current format and policy.
+* AP immersed-boundary data uses actual ray distances and near-boundary
+  flags in place of ghost weights. Update Fluxel and gridfoam together;
+  :ref:`architecture-data-contracts` describes the new contract.
+* Immersed Dirichlet cell constraints apply to fully assembled equations.
+  Pressure and potential-flow correction recover constrained-cell boundary
+  flux from mass balance; velocity correction preserves prescribed values.
+* Boundary convection honors the boundary condition in either flux direction.
+  Use ``inlet_outlet`` for switching between a fixed inflow value and
+  zero-gradient outflow.
+* SIMPLE always uses the ``p`` solver. PISO/PIMPLE use optional ``pFinal``
+  on the final non-orthogonal pass of the last inner corrector, in each
+  PIMPLE outer iteration. See :doc:`../user_guide/configuration`.
+* Performance commands run CPU/CUDA sequentially with separate reports.
+  See :doc:`../contributor_guide/testing` and ``tests/profile/README.md``.
