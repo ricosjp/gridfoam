@@ -16,38 +16,8 @@ from gridfoam.fv.boundary_ops import (
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
 from gridfoam.fv.kernels.least_squares import least_squares_gradient
-from gridfoam.meta.config import SimulatorConfig
-from gridfoam.meta.enums import LaplacianScheme
-
-DEFAULT_LAPLACIAN_SCHEME = LaplacianScheme.CORRECTED
-
-
-def search_laplacian_scheme(
-    sim_config: SimulatorConfig, field: CellField
-) -> LaplacianScheme:
-    """
-    Resolve the ``laplacianSchemes`` entry for ``field``.
-
-    Lookup order is ``laplacian(<field>)``, then ``default``, then
-    :data:`DEFAULT_LAPLACIAN_SCHEME`. ``LINEAR`` is treated as
-    ``CORRECTED``.
-    """
-    schemes = sim_config.fvSchemes.laplacianSchemes
-    if schemes is None:
-        return DEFAULT_LAPLACIAN_SCHEME
-    scheme = schemes.get(f"laplacian({field.name})")
-    if scheme is None:
-        scheme = schemes.get("default")
-    if scheme is None:
-        return DEFAULT_LAPLACIAN_SCHEME
-    if scheme in (
-        LaplacianScheme.LINEAR,
-        LaplacianScheme.GAUSS_LINEAR_CORRECTED,
-    ):
-        return LaplacianScheme.CORRECTED
-    if scheme == LaplacianScheme.GAUSS_LINEAR_UNCORRECTED:
-        return LaplacianScheme.UNCORRECTED
-    return scheme
+from gridfoam.fv.schemes.laplacian import get_laplacian_scheme
+from gridfoam.fv.schemes.selection import search_laplacian_scheme
 
 
 @overload
@@ -168,14 +138,12 @@ def laplacian(
     mat = FvMatrix(field)
     grid = field.grid
     geo = face_geometry(grid)
-    scheme = search_laplacian_scheme(grid.sim_config, field)
+    policy = get_laplacian_scheme(
+        search_laplacian_scheme(grid.sim_config, field)
+    )
 
     # Interpolate gamma to face centers.
-    harmonic = scheme in (
-        LaplacianScheme.GAUSS_HARMONIC_CORRECTED,
-        LaplacianScheme.GAUSS_HARMONIC_UNCORRECTED,
-    )
-    gamma_f = _interpolate_gamma(geo, gamma, harmonic=harmonic)
+    gamma_f = _interpolate_gamma(geo, gamma, harmonic=policy.harmonic)
 
     # Face diffusion coefficient: gamma * |Sf| / |d . n|
     coeff = gamma_f * geo.mag_Sf_all * geo.delta_coeffs_all
@@ -192,14 +160,7 @@ def laplacian(
     mat.diag.index_add_(0, geo.neighbour, -coeff)
 
     # Skewness correction on hanging-node faces (explicit, deferred).
-    if (
-        scheme
-        in (
-            LaplacianScheme.CORRECTED,
-            LaplacianScheme.GAUSS_HARMONIC_CORRECTED,
-        )
-        and geo.num_hanging > 0
-    ):
+    if policy.corrected and geo.num_hanging > 0:
         correction_src = _hanging_correction_source(field, geo, gamma_f)
         hang = geo.hang_idx
         mat.source.index_add_(0, geo.owner_s[hang], -correction_src)

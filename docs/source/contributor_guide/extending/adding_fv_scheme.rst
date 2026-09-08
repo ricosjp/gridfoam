@@ -13,7 +13,9 @@ Choose the extension point by its result:
    Implicit operators that assemble and return an ``FvMatrix``.
 
 ``fv/schemes``
-   User-selectable numerical kernels and their dispatch tables.
+   User-selectable numerical kernels, policy tables, and configuration
+   resolution. Start at ``fv/schemes/selection.py`` for selection keys,
+   built-in defaults, and aliases.
    Schemes must not import ``fvc`` or ``fvm``. A scheme that needs a
    configured gradient should call ``schemes.grad.eval_grad``.
 
@@ -31,20 +33,63 @@ Adding a selectable scheme
 #. Confirm that the corresponding dictionary in ``fvSchemesConfig`` accepts
    that enum.
 #. Implement the kernel beside related schemes.
-#. Register it in the module's dispatch table, such as ``DIV_SCHEMES`` or
-   ``GRAD_SCHEMES``.
+#. Register it in the corresponding table below. For a Laplacian variant,
+   register its interpolation/correction policy in ``LAPLACIAN_SCHEMES``.
+   Add alternate YAML spellings to ``LAPLACIAN_ALIASES`` in ``selection.py``;
+   dispatch tables keep only canonical keys. A new time scheme registers a
+   coefficient function in ``DDT_SCHEMES``. A new operator family also needs
+   a typed ``search_*_scheme`` function in ``selection.py``.
 #. Add focused numerical tests and a configuration parsing test.
 
 The dispatch function type alias documents the required signature. Match its
 tensor shapes exactly.
 
-Current dispatch coverage
--------------------------
+Scheme resolution and dispatch
+------------------------------
 
-``div`` and ``grad`` use dispatch tables. ``sn_grad`` and ``fvm.laplacian``
-select corrected or uncorrected treatment of hanging-node faces;
-``sn_grad`` obtains configured gradients through ``eval_grad``.
-``fvm.ddt`` and ``fvc.ddt_corr`` share Euler/BDF2 time weights.
+All configured operators use ``fv/schemes/selection.py``. Its typed
+``search_*_scheme`` functions share one lookup order: the operator-specific
+key, then ``default``, then the built-in default. Alias normalization also
+lives there. An absent ``divSchemes`` dictionary silently uses upwind; an
+existing dictionary without a matching key or default retains its warning.
+
+.. list-table:: Selection and implementation map
+   :header-rows: 1
+
+   * - Configuration key
+     - Built-in default
+     - Implementation in ``fv/schemes``
+   * - ``div(<flux>, <field>)``
+     - ``upwind``
+     - ``div.py`` / ``DIV_SCHEMES``
+   * - ``grad(<field>)``
+     - ``leastsquare``
+     - ``grad.py`` / ``GRAD_SCHEMES``
+   * - ``laplacian(<field>)``
+     - ``corrected``
+     - ``laplacian.py`` / ``LAPLACIAN_SCHEMES``
+   * - ``snGrad(<field>)``
+     - ``corrected``
+     - ``sn_grad.py`` / ``SN_GRAD_SCHEMES``
+   * - ``ddt(<field>)``
+     - ``euler``
+     - ``ddt.py`` / ``DDT_SCHEMES``
+
+The ``get_*_scheme`` functions map a canonical enum to a numerical function
+or a Laplacian policy. YAML aliases are normalized only in
+``search_laplacian_scheme``. ``fvm.laplacian`` consumes that policy when
+assembling coefficients and correction fluxes; it does not interpret scheme
+names. ``eval_grad`` and ``eval_sn_grad`` combine selection and evaluation
+for callers that need tensor results.
+
+The corrected normal-gradient and Laplacian paths use the shared local
+least-squares hanging-face correction, independently of ``gradSchemes``.
+``fvm.ddt`` and ``fvc.ddt_corr`` share time weights through
+``ddt_coefficients``. History-based Euler startup lives in the
+``backward`` scheme, after configuration selection.
+
+``fvc.div`` is a face sum and ``fvc.interpolate`` currently always uses linear
+interpolation, so neither requires configurable scheme resolution.
 See :doc:`../../user_guide/configuration` for selection keys and defaults.
 
 Adding an explicit operator

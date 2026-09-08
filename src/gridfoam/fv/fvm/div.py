@@ -1,5 +1,3 @@
-import logging
-
 from gridfoam.core.dimensions import DIM_VOL_FLUX, assert_compatible
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.fvmatrix import FvMatrix
@@ -11,25 +9,7 @@ from gridfoam.fv.boundary_ops import (
 )
 from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.schemes.div import get_div_scheme
-from gridfoam.meta.config import SimulatorConfig
-from gridfoam.meta.enums import DivScheme
-
-logger = logging.getLogger(__name__)
-
-
-def _search_div_scheme(
-    sim_config: SimulatorConfig, phi: FaceField, field: CellField
-) -> DivScheme:
-    if sim_config.fvSchemes.divSchemes is None:
-        return DivScheme.UPWIND
-    key = f"div({phi.name}, {field.name})"
-    div_scheme = sim_config.fvSchemes.divSchemes.get(key)
-    if div_scheme is None:
-        div_scheme = sim_config.fvSchemes.divSchemes.get("default")
-    if div_scheme is None:
-        logger.warning(f"Div scheme for {key} not found. Using UPWIND scheme.")
-        div_scheme = DivScheme.UPWIND
-    return div_scheme
+from gridfoam.fv.schemes.selection import search_div_scheme
 
 
 def div(phi: FaceField, field: CellField) -> FvMatrix:
@@ -62,7 +42,7 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
     mat = FvMatrix(field)
     grid = field.grid
     assert_compatible(phi.dimension, DIM_VOL_FLUX, "fvm.div flux field")
-    div_scheme = _search_div_scheme(grid.sim_config, phi, field)
+    div_scheme = search_div_scheme(grid.sim_config, phi, field)
 
     # Internal faces
     scheme_func = get_div_scheme(div_scheme)

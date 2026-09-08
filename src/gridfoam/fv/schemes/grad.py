@@ -10,14 +10,12 @@ from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
 from gridfoam.fv.kernels.least_squares import least_squares_gradient
 from gridfoam.fv.schemes.interpolate import linear as interpolate_linear
-from gridfoam.meta.config import SimulatorConfig
+from gridfoam.fv.schemes.selection import search_grad_scheme
 from gridfoam.meta.enums import GradScheme
 
 GradSchemeFunc = Callable[
     [CellField], Float[torch.Tensor, " C *component_shape 3"]
 ]
-
-DEFAULT_GRAD_SCHEME = GradScheme.LEASTSQUARE
 
 
 def linear(field: CellField) -> Float[torch.Tensor, " C *component_shape 3"]:
@@ -82,20 +80,6 @@ def get_grad_scheme(scheme: GradScheme) -> GradSchemeFunc:
     return GRAD_SCHEMES[scheme]
 
 
-def _search_grad_scheme(
-    sim_config: SimulatorConfig, field: CellField
-) -> GradScheme:
-    if sim_config.fvSchemes.gradSchemes is None:
-        return DEFAULT_GRAD_SCHEME
-    key = f"grad({field.name})"
-    grad_scheme = sim_config.fvSchemes.gradSchemes.get(key)
-    if grad_scheme is None:
-        grad_scheme = sim_config.fvSchemes.gradSchemes.get("default")
-    if grad_scheme is None:
-        grad_scheme = DEFAULT_GRAD_SCHEME
-    return grad_scheme
-
-
 def eval_grad(field: CellField) -> Float[torch.Tensor, " C *component_shape 3"]:
     """
     Evaluate the configured cell-centered gradient as a tensor.
@@ -113,5 +97,5 @@ def eval_grad(field: CellField) -> Float[torch.Tensor, " C *component_shape 3"]:
     torch.Tensor
         Cell-centered gradient with shape ``[C, *component_shape, 3]``.
     """
-    scheme = _search_grad_scheme(field.grid.sim_config, field)
+    scheme = search_grad_scheme(field.grid.sim_config, field)
     return get_grad_scheme(scheme)(field)

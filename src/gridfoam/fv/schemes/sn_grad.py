@@ -12,7 +12,7 @@ from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
 from gridfoam.fv.kernels.least_squares import least_squares_gradient
-from gridfoam.meta.config import SimulatorConfig
+from gridfoam.fv.schemes.selection import search_sn_grad_scheme
 from gridfoam.meta.enums import SnGradScheme
 
 
@@ -101,32 +101,10 @@ SN_GRAD_SCHEMES: dict[SnGradScheme, SnGradSchemeFunc] = {
     SnGradScheme.CORRECTED: corrected,
 }
 
-DEFAULT_SN_GRAD_SCHEME = SnGradScheme.CORRECTED
-
 
 def get_sn_grad_scheme(scheme: SnGradScheme) -> SnGradSchemeFunc:
     """Return the surface-normal-gradient scheme function for the enum."""
     return SN_GRAD_SCHEMES[scheme]
-
-
-def search_sn_grad_scheme(
-    sim_config: SimulatorConfig, field: CellField
-) -> SnGradScheme:
-    """
-    Resolve the ``snGradSchemes`` entry for ``field``.
-
-    Lookup order is ``snGrad(<field>)``, then ``default``, then
-    :data:`DEFAULT_SN_GRAD_SCHEME`.
-    """
-    schemes = sim_config.fvSchemes.snGradSchemes
-    if schemes is None:
-        return DEFAULT_SN_GRAD_SCHEME
-    scheme = schemes.get(f"snGrad({field.name})")
-    if scheme is None:
-        scheme = schemes.get("default")
-    if scheme is None:
-        scheme = DEFAULT_SN_GRAD_SCHEME
-    return scheme
 
 
 def eval_sn_grad(
