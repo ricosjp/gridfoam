@@ -10,6 +10,8 @@ import torch
 from gridfoam.core.dimensions import DIM_KIN_PRESSURE, DIM_VELOCITY
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.factory import create_grid
+from gridfoam.fv import fvc
+from gridfoam.io.vtu import to_unstructured_grid, update_export_cell_data
 from gridfoam.meta.config import (
     ConditionConfig,
     ControlConfig,
@@ -124,9 +126,6 @@ def test_cellfield_rejects_mismatched_internal_length() -> None:
 
 
 def test_nested_tensor_config_and_vtu_export() -> None:
-    from gridfoam.fv import fvc
-    from gridfoam.io.vtu import to_unstructured_grid, update_export_cell_data
-    from gridfoam.meta.config import ConditionConfig
 
     config = _gridfoam_config_with_conditions()
     value = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]

@@ -13,11 +13,13 @@ import torch
 from jaxtyping import Bool, Float, Int
 from tests.conftest import small_gridfoam_config
 
+from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.core.field import CellField, FaceField, packed_face_n_rows
 from gridfoam.core.fv_cache import FvGridCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.grid.factory import create_grid
+from gridfoam.fv import fvc, fvm
 from gridfoam.meta.config import DomainConfig, SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, IbmType
 
@@ -276,8 +278,6 @@ def test_pack_layout_is_single_then_bnd_then_immersed(
 def test_immersed_tensor_boundary_diffusion(
     tmp_path: Path, component_shape: tuple[int, ...]
 ) -> None:
-    from gridfoam.boundaries.basic.dirichlet import DirichletBC
-    from gridfoam.fv import fvc, fvm
 
     grid = _axis_projected_grid_with_ib(tmp_path)
     q = CellField(grid, "q_tensor_ib", FieldRole.LOCAL, component_shape)

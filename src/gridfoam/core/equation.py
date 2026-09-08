@@ -1,5 +1,6 @@
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
+from gridfoam.fv.boundary_ops import immersed_dirichlet_constraints
 
 
 class Equation:
@@ -39,7 +40,6 @@ class Equation:
     """Solve matrix with immersed Dirichlet cell constraints applied."""
 
     def __init__(self, target: CellField, fv_matrix: FvMatrix):
-        from gridfoam.fv.boundary_ops import immersed_dirichlet_constraints
 
         self.name = target.name
         self.target = target

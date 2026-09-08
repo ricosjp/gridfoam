@@ -4,8 +4,18 @@ from __future__ import annotations
 
 from typing import cast
 
-from gridfoam.meta.config import SolverConfig, fvSchemesConfig
+from gridfoam.meta.config import (
+    ContinuityErrorConfig,
+    PostProcessingConfig,
+    ResidualControlEntry,
+    SIMPLEAlgorithm,
+    SolverConfig,
+    SolverInfoConfig,
+    fvSchemesConfig,
+    fvSolutionConfig,
+)
 from gridfoam.meta.enums import (
+    AlgorithmType,
     DivScheme,
     GradScheme,
     PreconditionerType,
@@ -52,12 +62,6 @@ def test_solver_config_defaults():
 
 def test_residual_control_entry_and_adjust_phi_defaults():
     # Residual-control entries and fvSolution defaults parse correctly.
-    from gridfoam.meta.config import (
-        ResidualControlEntry,
-        SIMPLEAlgorithm,
-        fvSolutionConfig,
-    )
-    from gridfoam.meta.enums import AlgorithmType
 
     entry = ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.01)
     assert entry.tolerance == 1e-6
@@ -82,11 +86,6 @@ def test_residual_control_entry_and_adjust_phi_defaults():
 
 
 def test_post_processing_diagnostics_config_parses() -> None:
-    from gridfoam.meta.config import (
-        ContinuityErrorConfig,
-        PostProcessingConfig,
-        SolverInfoConfig,
-    )
 
     cfg = PostProcessingConfig(
         continuityError=ContinuityErrorConfig(),

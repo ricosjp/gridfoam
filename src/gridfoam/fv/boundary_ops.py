@@ -417,7 +417,7 @@ def boundary_value_gradient_coefficient(
     )
     if bool(torch.any(active & (batch.mag_d == 0))):
         raise ValueError(
-            "A mixed boundary condition at zero distance needs a cell constraint"
+            "A mixed boundary at zero distance needs a cell constraint"
         )
     distance = torch.where(active, batch.mag_d, torch.ones_like(batch.mag_d))
     return torch.where(active, fraction / distance, torch.zeros_like(fraction))
