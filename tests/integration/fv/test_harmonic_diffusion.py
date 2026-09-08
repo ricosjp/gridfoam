@@ -24,7 +24,11 @@ from gridfoam.solvers.factory import create_solver
 @pytest.mark.parametrize("correction", ["corrected", "uncorrected"])
 def test_two_material_diffusion_matches_exact_solution(
     contrast: float, refined: bool, correction: str
-):
+) -> None:
+    """
+    Harmonic diffusion reproduces series-resistance flux and the solved
+    material profile.
+    """
     scheme = f"Gauss harmonic {correction}"
     schemes = fvSchemesConfig.model_validate(
         {"laplacianSchemes": {"default": "linear", "laplacian(T)": scheme}}
@@ -86,7 +90,11 @@ def test_two_material_diffusion_matches_exact_solution(
 
 
 @pytest.mark.parametrize("value", [0.0, 2.0, 1e200, 1e-200])
-def test_harmonic_constant_coefficient_is_finite(value: float):
+def test_harmonic_constant_coefficient_is_finite(value: float) -> None:
+    """
+    Zero and extreme constant diffusivities retain their value and finite
+    gradients.
+    """
     grid = create_grid(small_gridfoam_config())
     gamma = torch.full_like(grid.cell_volumes, value, requires_grad=True)
     interpolated = _interpolate_gamma(face_geometry(grid), gamma, harmonic=True)
@@ -97,7 +105,13 @@ def test_harmonic_constant_coefficient_is_finite(value: float):
     assert torch.isfinite(gradient).all()
 
 
-def test_harmonic_insulating_interface_and_positive_coefficient_gradients():
+def test_harmonic_insulating_interface_and_positive_coefficient_gradients() -> (
+    None
+):
+    """
+    Zero diffusivity blocks flux; positive-coefficient gradients pass
+    finite differences.
+    """
     grid = create_grid(refined_config())
     geo = face_geometry(grid)
     gamma = torch.where(
@@ -120,14 +134,21 @@ def test_harmonic_insulating_interface_and_positive_coefficient_gradients():
 
 @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
 @pytest.mark.parametrize("tensor", [False, True])
-def test_harmonic_rejects_invalid_diffusivity(value: float, tensor: bool):
+def test_harmonic_rejects_invalid_diffusivity(
+    value: float, tensor: bool
+) -> None:
+    """Scalar and tensor diffusivities must be finite and nonnegative."""
     grid = create_grid(small_gridfoam_config())
     gamma = torch.full_like(grid.cell_volumes, value) if tensor else value
     with pytest.raises(ValueError, match="finite and nonnegative"):
         _interpolate_gamma(face_geometry(grid), gamma, harmonic=True)
 
 
-def test_corrected_harmonic_flux_uses_same_coefficient_for_hanging_correction():
+def test_corrected_harmonic_flux_matches_weighted_sn_grad() -> None:
+    """
+    Harmonic matrix flux matches weighted snGrad and cancels in the global
+    balance.
+    """
     schemes = fvSchemesConfig.model_validate(
         {"laplacianSchemes": {"default": "Gauss harmonic corrected"}}
     )
@@ -151,7 +172,10 @@ def test_corrected_harmonic_flux_uses_same_coefficient_for_hanging_correction():
 
 
 @pytest.mark.parametrize("correction", ["corrected", "uncorrected"])
-def test_gauss_linear_alias_preserves_existing_laplacian(correction: str):
+def test_gauss_linear_alias_preserves_existing_laplacian(
+    correction: str,
+) -> None:
+    """Gauss linear aliases assemble the same coefficient and source blocks."""
     matrices = []
     for scheme in (correction, f"Gauss linear {correction}"):
         grid = create_grid(

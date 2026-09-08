@@ -1,9 +1,8 @@
 """
-Integration tests for the cell-centered divergence operator (``fvc.div``).
+Cell divergence matches analytic flux balance across octree refinement.
 
-Pins the OpenFOAM ``fvc::div`` convention: the face sum is normalized by
-cell volume, so a linear velocity field yields its analytic divergence on
-refined octree meshes.
+Volume normalization gives unit divergence for U=(x, 0, 0), despite unequal
+cell sizes. The face flux of a uniform velocity has zero divergence.
 """
 
 from __future__ import annotations
@@ -32,9 +31,11 @@ def _uniform_divergence_flux(grid: GridBase) -> FaceField:
     return phi
 
 
-def test_div_is_normalized_by_cell_volume():
-    # Without volume normalization the face sum would scale with cell volume,
-    # which varies across octree levels on this grid.
+def test_div_is_normalized_by_cell_volume() -> None:
+    """
+    The flux of U=(x, 0, 0) gives unit divergence across unequal cell
+    volumes.
+    """
     grid = refined_grid()
     phi = _uniform_divergence_flux(grid)
 
@@ -45,8 +46,11 @@ def test_div_is_normalized_by_cell_volume():
     assert grid.cell_volumes.max() > 2.0 * grid.cell_volumes.min()
 
 
-def test_div_of_divergence_free_flux_vanishes():
-    # Uniform velocity ``U = (1, 0, 0)`` → ``phi = Sf_x`` has zero divergence.
+def test_div_of_divergence_free_flux_vanishes() -> None:
+    """
+    Uniform velocity ``U = (1, 0, 0)`` → ``phi = Sf_x`` has zero
+    divergence.
+    """
     grid = refined_grid()
     phi = FaceField(grid, "phi_uniform", FieldRole.LOCAL, ())
     single_mask = phi.single_mask

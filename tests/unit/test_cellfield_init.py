@@ -1,4 +1,7 @@
-"""Unit tests for ``CellField`` initialization from config conditions."""
+"""
+Configured values initialize physical field axes and remain intact during
+VTU export.
+"""
 
 from __future__ import annotations
 
@@ -96,7 +99,9 @@ def _gridfoam_config_with_conditions() -> GridfoamConfig:
 
 
 def test_cellfield_initializes_from_conditions_internal() -> None:
-    # Fields listed in config conditions must be filled from internal values.
+    """
+    Fields listed in config conditions must be filled from internal values.
+    """
     grid = create_grid(_gridfoam_config_with_conditions())
     U = CellField(grid, "U", FieldRole.LOCAL, component_shape=(3,))
     p = CellField(grid, "p", FieldRole.LOCAL, component_shape=())
@@ -110,7 +115,7 @@ def test_cellfield_initializes_from_conditions_internal() -> None:
 
 
 def test_cellfield_without_conditions_stays_zero() -> None:
-    # Fields absent from conditions must start at zero.
+    """Fields absent from conditions must start at zero."""
     grid = create_grid(_gridfoam_config_with_conditions())
     field = CellField(grid, "k", FieldRole.LOCAL, component_shape=())
 
@@ -118,7 +123,7 @@ def test_cellfield_without_conditions_stays_zero() -> None:
 
 
 def test_cellfield_rejects_mismatched_internal_length() -> None:
-    # Internal value count must match num_components.
+    """Internal value count must match num_components."""
     grid = create_grid(_gridfoam_config_with_conditions())
 
     with pytest.raises(ValueError, match="internal.*shape"):
@@ -126,7 +131,10 @@ def test_cellfield_rejects_mismatched_internal_length() -> None:
 
 
 def test_nested_tensor_config_and_vtu_export() -> None:
-
+    """
+    Nested tensor values reach cells and faces; VTU flattening leaves field
+    axes intact.
+    """
     config = _gridfoam_config_with_conditions()
     value = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
     tensor_condition = ConditionConfig.model_validate(

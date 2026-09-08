@@ -9,6 +9,10 @@ from tests.profile.case import DEFAULT_CONFIG, available_devices, load_case
 
 
 def test_case_overrides_do_not_change_source_config() -> None:
+    """
+    Device/resolution/step overrides preserve the source YAML and resolve
+    the mesh path.
+    """
     original = DEFAULT_CONFIG.read_bytes()
     cpu = load_case(DEFAULT_CONFIG, "cpu", resolution=(5, 2, 2), steps=2)
     cuda = load_case(DEFAULT_CONFIG, "cuda", resolution=(5, 2, 2), steps=2)
@@ -26,6 +30,10 @@ def test_case_overrides_do_not_change_source_config() -> None:
 def test_cuda_unavailable_keeps_cpu_but_rejects_cuda_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """
+    Unavailable CUDA is filtered from mixed requests and rejected when
+    requested alone.
+    """
     monkeypatch.setattr("torch.cuda.is_available", lambda: False)
     assert available_devices(["cpu", "cuda"]) == ["cpu"]
     with pytest.raises(RuntimeError, match="CUDA"):
@@ -47,6 +55,10 @@ def _row(device: str, end_time: float = 10, elapsed: float = 1) -> BenchmarkRow:
 
 
 def test_csv_keeps_devices_and_durations_separate(tmp_path: Path) -> None:
+    """
+    CSV updates replace matching runs while retaining other devices and
+    durations.
+    """
     path = tmp_path / "results.csv"
     upsert_rows(path, [_row("cpu"), _row("cuda"), _row("cpu", end_time=20)])
     upsert_rows(path, [_row("cuda", elapsed=0.5)])
@@ -62,6 +74,7 @@ def test_csv_keeps_devices_and_durations_separate(tmp_path: Path) -> None:
 def test_old_combined_csv_does_not_guess_gridfoam_device(
     tmp_path: Path,
 ) -> None:
+    """Legacy rows retain an unknown device when a new CUDA result is added."""
     path = tmp_path / "resolution_scaling.csv"
     path.write_text(
         "solver,resolution,nx,ny,nz,n_cells,elapsed_s,end_time,delta_t,n_steps,time_per_step_s\n"
@@ -75,6 +88,10 @@ def test_openfoam_restores_case_when_run_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """
+    A failed benchmark restores the original mesh and time-control files
+    byte for byte.
+    """
     system = tmp_path / "system"
     system.mkdir()
     block = system / "blockMeshDict"

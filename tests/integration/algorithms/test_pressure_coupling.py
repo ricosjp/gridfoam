@@ -1,9 +1,17 @@
 """
-Integration tests for the OpenFOAM-style pressure--velocity coupling.
+Pressure correction conserves cell flux and honors solver scheduling.
 
-Covers ``constrainHbyA``/``adjustPhi`` ordering, boundary flux correction
-``phi = phiHbyA - pEqn.flux()``, the pressure initial residual, ``ddtCorr``
-and the SIMPLEC (``consistent``) formulation.
+Continuity
+    SIMPLE, SIMPLEC, PISO, and PIMPLE preserve inlet/wall fluxes and cell
+    continuity. Fixed pressure bypasses flux balancing.
+
+Solver control
+    Residuals are measured before solving. PISO/PIMPLE use the final solver
+    on the last pressure pass; SIMPLE uses its regular solver throughout.
+
+Coefficients and history
+    SIMPLEC uses the off-diagonal H1 contribution and bounds its coefficient.
+    Consistent old flux needs no ddt correction; mismatches stay bounded.
 """
 
 from __future__ import annotations
@@ -99,11 +107,10 @@ def test_simple_step_flux_is_divergence_free_in_every_cell(
     tmp_path: pathlib.Path,
     p_outlet: BoundaryConditionType,
     walls: BoundaryConditionType,
-):
-    # Boundary phi is now part of the pressure correction
-    # (phi = phiHbyA - pEqn.flux() on every face), so continuity must hold
-    # in outlet and inlet cells as well, for both a fixed pressure level
-    # and a pure-Neumann problem closed by adjustPhi.
+) -> None:
+    """
+    SIMPLE conserves flux in every cell for fixed and referenced pressure.
+    """
     grid = create_grid(
         channel_flow_config(tmp_path, _simple(), p_outlet=p_outlet, walls=walls)
     )
@@ -120,7 +127,11 @@ def test_simple_step_flux_is_divergence_free_in_every_cell(
         assert float(algo.U.data[:, 0].max()) > 1.05
 
 
-def test_simplec_step_flux_is_divergence_free(tmp_path: pathlib.Path):
+def test_simplec_step_flux_is_divergence_free(tmp_path: pathlib.Path) -> None:
+    """
+    SIMPLEC changes rAtU while preserving continuity and prescribed face
+    fluxes.
+    """
     grid = create_grid(
         channel_flow_config(
             tmp_path,
@@ -138,7 +149,8 @@ def test_simplec_step_flux_is_divergence_free(tmp_path: pathlib.Path):
     assert not torch.allclose(algo.rAtU.data, algo.rAU.data)
 
 
-def test_piso_step_flux_is_divergence_free(tmp_path: pathlib.Path):
+def test_piso_step_flux_is_divergence_free(tmp_path: pathlib.Path) -> None:
+    """PISO correctors preserve cell continuity and inlet/wall fluxes."""
     algorithm = PISOAlgorithm(
         type=AlgorithmType.PISO, nCorrectors=2, pRefCell=0, pRefValue=0.0
     )
@@ -158,7 +170,11 @@ def test_piso_step_flux_is_divergence_free(tmp_path: pathlib.Path):
 @pytest.mark.parametrize("consistent", [False, True])
 def test_pimple_step_flux_is_divergence_free(
     tmp_path: pathlib.Path, consistent: bool
-):
+) -> None:
+    """
+    Both PIMPLE consistency modes preserve cell continuity and boundary
+    fluxes.
+    """
     algorithm = PIMPLEAlgorithm(
         type=AlgorithmType.PIMPLE,
         nCorrectors=2,
@@ -182,10 +198,11 @@ def test_pimple_step_flux_is_divergence_free(
 
 def test_constrain_hbya_imposes_velocity_flux_on_fixed_patches(
     tmp_path: pathlib.Path,
-):
-    # constrainHbyA: non-assignable patches (Dirichlet inlet, slip walls)
-    # take U_b & Sf, while the assignable inletOutlet outlet keeps the
-    # extrapolated HbyA flux.
+) -> None:
+    """
+    Fixed patches use velocity flux; the adjustable outlet extrapolates
+    HbyA.
+    """
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
     algo = SIMPLE(grid)
     HbyA = algo.HbyA
@@ -218,8 +235,11 @@ def test_constrain_hbya_imposes_velocity_flux_on_fixed_patches(
 
 def test_adjust_phi_is_noop_when_pressure_level_is_fixed(
     tmp_path: pathlib.Path,
-):
-    # OpenFOAM adjustPhi returns early when p does not need a reference.
+) -> None:
+    """
+    Fixed pressure leaves flux unchanged; omitting pressure enforces
+    balance.
+    """
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
     algo = SIMPLE(grid)
     algo.phi_hbya.domain_bnd_data[:] = 0.0
@@ -238,8 +258,8 @@ def test_adjust_phi_is_noop_when_pressure_level_is_fixed(
 
 def test_pressure_initial_residual_is_measured_before_solve(
     tmp_path: pathlib.Path,
-):
-    # residualControl must see the residual of the *unsolved* system.
+) -> None:
+    """residualControl must see the residual of the *unsolved* system."""
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
     algo = SIMPLE(grid)
     p = algo.p
@@ -269,7 +289,11 @@ def test_pressure_initial_residual_is_measured_before_solve(
 @pytest.mark.parametrize("pimple", [False, True])
 def test_final_pressure_solver_only_on_last_nonorthogonal_pass(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, pimple: bool
-):
+) -> None:
+    """
+    Each PISO/PIMPLE pressure-corrector sequence uses pFinal only on its
+    last solve.
+    """
     algorithm = (
         PIMPLEAlgorithm(
             type=AlgorithmType.PIMPLE,
@@ -308,8 +332,8 @@ def test_final_pressure_solver_only_on_last_nonorthogonal_pass(
 
 def test_simple_pressure_solver_never_uses_pfinal(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-):
-    # OpenFOAM simpleFoam calls pEqn.solve() without p.select(final).
+) -> None:
+    """SIMPLE uses the regular pressure solver for every nonorthogonal pass."""
     algorithm = SIMPLEAlgorithm(
         type=AlgorithmType.SIMPLE,
         nNonOrthogonalCorrectors=2,
@@ -339,8 +363,8 @@ def test_simple_pressure_solver_never_uses_pfinal(
     final_spy.assert_not_called()
 
 
-def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path):
-    # rAtU = 1 / (1/rAU - H1) with H1 = -sum(off-diagonals) / V.
+def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path) -> None:
+    """rAtU = 1 / (1/rAU - H1) with H1 = -sum(off-diagonals) / V."""
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
     algo = SIMPLE(grid)
     nu_eff = algo.turbulence.nu_eff()
@@ -367,7 +391,13 @@ def test_simplec_coefficient_uses_h1(tmp_path: pathlib.Path):
     torch.testing.assert_close(default, bounded)
 
 
-def test_ddt_corr_vanishes_for_consistent_old_flux(tmp_path: pathlib.Path):
+def test_ddt_corr_vanishes_for_consistent_old_flux(
+    tmp_path: pathlib.Path,
+) -> None:
+    """
+    Consistent history needs no correction; a flux mismatch gets a bounded
+    one.
+    """
     grid = create_grid(channel_flow_config(tmp_path, _simple()))
     U = CellField(grid, "U_ddt", FieldRole.TRANSIENT, (3,))
     phi = FaceField(grid, "phi_ddt", FieldRole.LOCAL, ())

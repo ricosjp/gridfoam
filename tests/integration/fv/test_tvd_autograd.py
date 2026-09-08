@@ -17,7 +17,11 @@ from gridfoam.meta.enums import DivScheme, FieldRole
 )
 def test_tvd_backward_on_flat_regions(
     scheme: DivScheme, plateau: bool, component_shape: tuple[int, ...]
-):
+) -> None:
+    """
+    TVD sources and gradients stay finite on plateaus and vanish for
+    constant fields.
+    """
     grid = refined_grid()
     field = CellField(grid, "psi", FieldRole.LOCAL, component_shape)
     values = torch.ones_like(field.data)

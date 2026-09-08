@@ -138,7 +138,12 @@ def pulse_metrics(scheme: DivScheme, refined: bool) -> dict[str, float]:
 @pytest.mark.parametrize(
     "scheme", [s for s in DivScheme if s != DivScheme.LINEAR]
 )
-def test_pulse_bounds_and_conservation(scheme: DivScheme, refined: bool):
+def test_pulse_bounds_and_conservation(
+    scheme: DivScheme, refined: bool
+) -> None:
+    """
+    Upwind and TVD pulses stay bounded and conserve mass across refinement.
+    """
     metrics = pulse_metrics(scheme, refined)
     assert metrics["relative_mass_error"] < _MASS_RTOL, metrics
     assert metrics["min"] >= -_BOUNDS_ATOL, metrics
@@ -146,8 +151,11 @@ def test_pulse_bounds_and_conservation(scheme: DivScheme, refined: bool):
 
 
 @pytest.mark.parametrize("refined", [False, True])
-def test_linear_advection_exposes_unbounded_pulse(refined: bool):
-    # Negative control: the diagnostic must detect central-scheme oscillations.
+def test_linear_advection_exposes_unbounded_pulse(refined: bool) -> None:
+    """
+    Negative control: the diagnostic must detect central-scheme
+    oscillations.
+    """
     metrics = pulse_metrics(DivScheme.LINEAR, refined)
     assert metrics["relative_mass_error"] < _MASS_RTOL, metrics
     assert metrics["min"] < -_LINEAR_OVERSHOOT, metrics

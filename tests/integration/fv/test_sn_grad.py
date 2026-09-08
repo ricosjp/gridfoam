@@ -1,7 +1,9 @@
 """
-Integration tests for surface-normal gradient (``sn_grad``) reconstruction.
+Surface-normal gradients honor configuration on refined meshes.
 
-Scheme selection and hanging-node accuracy on refined octree meshes.
+Corrected reconstruction is linear-exact under each configured cell-gradient
+scheme. The uncorrected stencil is exact only on regular faces. A field-specific
+key changes the public operator's hanging-face result.
 """
 
 from __future__ import annotations
@@ -15,9 +17,11 @@ from gridfoam.meta.config import fvSchemesConfig
 from gridfoam.meta.enums import GradScheme, SnGradScheme
 
 
-def test_sn_grad_corrected_is_exact_for_linear_field():
-    # Default ``corrected`` snGrad uses a local least-squares gradient on
-    # hanging cells, so it is exact for any configured ``gradSchemes``.
+def test_sn_grad_corrected_is_exact_for_linear_field() -> None:
+    """
+    Default ``corrected`` snGrad uses a local least-squares gradient on
+    hanging cells, so it is exact for any configured ``gradSchemes``.
+    """
     for grad_scheme in (None, GradScheme.LINEAR, GradScheme.LEASTSQUARE):
         grid = refined_grid(grad_scheme=grad_scheme)
         field, gradient = linear_scalar_field(grid)
@@ -29,9 +33,11 @@ def test_sn_grad_corrected_is_exact_for_linear_field():
         )
 
 
-def test_sn_grad_uncorrected_scheme_skips_hanging_correction():
-    # ``uncorrected`` is the two-point difference: exact on regular faces,
-    # not on hanging-node faces for a skewed field.
+def test_sn_grad_uncorrected_scheme_skips_hanging_correction() -> None:
+    """
+    ``uncorrected`` is the two-point difference: exact on regular faces,
+    not on hanging-node faces for a skewed field.
+    """
     grid = refined_grid(
         fv_schemes=fvSchemesConfig(
             snGradSchemes={"default": SnGradScheme.UNCORRECTED}
@@ -51,8 +57,8 @@ def test_sn_grad_uncorrected_scheme_skips_hanging_correction():
     assert (result[geo.hang_idx] - expected[geo.hang_idx]).abs().max() > 1e-3
 
 
-def test_sn_grad_scheme_lookup_prefers_field_specific_key():
-    # ``snGrad(<field>)`` must take precedence over ``default``.
+def test_sn_grad_operator_uses_the_field_specific_key() -> None:
+    """``snGrad(<field>)`` must take precedence over ``default``."""
     grid = refined_grid(
         fv_schemes=fvSchemesConfig(
             snGradSchemes={

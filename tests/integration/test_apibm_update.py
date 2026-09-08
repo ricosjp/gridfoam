@@ -1,4 +1,7 @@
-"""Integration tests for static vs dynamic IBM mesh construction."""
+"""
+Static grids reject motion; dynamic updates synchronize pose, fields, and
+exported surfaces.
+"""
 
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ def _with_motion(config: GridfoamConfig, motion: MeshMotion) -> GridfoamConfig:
     )
 
 
-def test_static_grid_uses_one_shot_mesh_and_nested_ap_payload() -> None:
+def test_static_grid_has_identity_pose_and_consistent_ap_shapes() -> None:
+    """
+    Static grids start at the identity pose with correctly sized AP
+    geometry arrays.
+    """
     grid = create_grid(small_gridfoam_config())
     assert isinstance(grid, AxisProjectedGrid)
     assert grid.is_dynamic is False
@@ -36,6 +43,7 @@ def test_static_grid_uses_one_shot_mesh_and_nested_ap_payload() -> None:
 
 
 def test_static_grid_rejects_ibm_updates() -> None:
+    """Static grids reject both immersed-boundary updates and remeshing."""
     grid = create_grid(small_gridfoam_config())
     assert isinstance(grid, AxisProjectedGrid)
     with pytest.raises(RuntimeError, match="fluxel.motion=dynamic"):
@@ -45,6 +53,10 @@ def test_static_grid_rejects_ibm_updates() -> None:
 
 
 def test_update_ib_keeps_topology_on_empty_ibm() -> None:
+    """
+    An empty IBM update changes translation while retaining cell and face
+    counts.
+    """
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
@@ -60,6 +72,7 @@ def test_update_ib_keeps_topology_on_empty_ibm() -> None:
 
 
 def test_update_ib_accepts_axis_angle() -> None:
+    """Axis-angle updates store the corresponding rotation quaternion."""
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
@@ -76,6 +89,7 @@ def test_update_ib_accepts_axis_angle() -> None:
 
 
 def test_update_ib_accepts_keyword_quaternion() -> None:
+    """An explicit quaternion becomes the grid's stored rotation."""
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
@@ -87,6 +101,10 @@ def test_update_ib_accepts_keyword_quaternion() -> None:
 
 
 def test_update_ib_rejects_mixed_rotation_args() -> None:
+    """
+    Quaternion and axis-angle forms are exclusive, and axis and angle must
+    be paired.
+    """
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
@@ -105,6 +123,10 @@ def test_update_ib_rejects_mixed_rotation_args() -> None:
 
 
 def test_update_ib_resizes_facefield_immersed_buffers(tmp_path: Path) -> None:
+    """
+    IBM updates retain cell data and resize face blocks to the current
+    immersed geometry.
+    """
     stl_path = tmp_path / "cube.stl"
     box = pv.Box(bounds=(0.3, 0.7, 0.3, 0.7, 0.0, 0.1), quads=False)
     box.triangulate().save(str(stl_path))
@@ -152,6 +174,10 @@ def test_update_ib_resizes_facefield_immersed_buffers(tmp_path: Path) -> None:
 
 
 def test_remesh_rebuilds_topology_for_uniform_mesh() -> None:
+    """
+    Remeshing resets registered cell data and records the requested
+    rotation.
+    """
     config = _with_motion(small_gridfoam_config(), MeshMotion.DYNAMIC)
     grid = create_grid(config)
     assert isinstance(grid, AxisProjectedGrid)
@@ -172,6 +198,10 @@ def test_remesh_rebuilds_topology_for_uniform_mesh() -> None:
 
 
 def test_update_ib_moves_saved_surface_mesh(tmp_path: Path) -> None:
+    """
+    Translation moves both the in-memory surface and its exported mesh
+    bounds.
+    """
     stl_path = tmp_path / "cube.stl"
     box = pv.Box(bounds=(0.3, 0.7, 0.3, 0.7, 0.0, 0.1), quads=False)
     box.triangulate().save(str(stl_path))

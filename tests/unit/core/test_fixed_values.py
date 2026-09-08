@@ -18,7 +18,11 @@ def test_fixed_values_match_dense_system_and_gradients(
     small_axis_projected_grid: AxisProjectedGrid,
     shape: tuple[int, ...],
     sign: float,
-):
+) -> None:
+    """
+    Symmetric constraints preserve the source and match dense solutions and
+    value gradients.
+    """
     grid = small_axis_projected_grid
     field = CellField(grid, "fixed_test", FieldRole.LOCAL, shape)
     matrix = FvMatrix(field)

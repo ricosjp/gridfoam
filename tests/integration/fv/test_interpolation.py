@@ -1,7 +1,13 @@
 """
-Integration tests for face interpolation on uniform and refined meshes.
+Face interpolation reproduces linear fields on uniform and refined meshes.
 
-Covers hierarchy-aware linear interpolation and boundary storage.
+Internal faces
+    Offset correction vanishes on uniform grids and restores hanging-face
+    accuracy. Public interpolation preserves vector components.
+
+Boundary faces
+    Fields without BCs extrapolate owner values. Interpolated gradients of
+    linear fields remain constant on internal and domain faces.
 """
 
 from __future__ import annotations
@@ -22,7 +28,7 @@ from gridfoam.fv.kernels.face_interpolation import (
 from gridfoam.meta.enums import FieldRole
 
 
-def test_linear_internal_face_values_is_exact_on_uniform_mesh():
+def test_linear_internal_face_values_is_exact_on_uniform_mesh() -> None:
     """Linear interpolation is exact for a linear field on a uniform mesh."""
     grid = create_grid(small_gridfoam_config())
     field, gradient = linear_scalar_field(grid)
@@ -34,7 +40,7 @@ def test_linear_internal_face_values_is_exact_on_uniform_mesh():
     torch.testing.assert_close(values, expected, atol=1e-12, rtol=1e-12)
 
 
-def test_correct_internal_values_match_base_values_on_uniform_mesh():
+def test_correct_internal_values_match_base_values_on_uniform_mesh() -> None:
     """Face-offset correction vanishes on a uniform mesh."""
     grid = create_grid(small_gridfoam_config())
     field, gradient = linear_scalar_field(grid)
@@ -46,7 +52,7 @@ def test_correct_internal_values_match_base_values_on_uniform_mesh():
     torch.testing.assert_close(corrected, base_values, atol=1e-12, rtol=1e-12)
 
 
-def test_correct_internal_values_improve_on_offset_faces():
+def test_correct_internal_values_improve_on_offset_faces() -> None:
     """Face-offset correction improves linear values on a refined mesh."""
     grid = refined_grid()
     field, gradient = linear_scalar_field(grid)
@@ -73,9 +79,11 @@ def test_correct_internal_values_improve_on_offset_faces():
     assert corrected_error < base_error
 
 
-def test_interpolate_is_exact_on_uniform_mesh():
-    # On a uniform mesh, hierarchy-aware linear must match the analytic
-    # linear field at face centres (the offset correction vanishes).
+def test_interpolate_is_exact_on_uniform_mesh() -> None:
+    """
+    On a uniform mesh, hierarchy-aware linear must match the analytic
+    linear field at face centres (the offset correction vanishes).
+    """
     grid = create_grid(small_gridfoam_config())
     field, gradient = linear_scalar_field(grid)
     geo = face_geometry(grid)
@@ -88,9 +96,11 @@ def test_interpolate_is_exact_on_uniform_mesh():
     )
 
 
-def test_interpolate_is_exact_on_hanging_faces_of_refined_mesh():
-    # On a refined mesh, public linear must recover the analytic linear field
-    # on hanging-node faces, where the two-point value alone is only O(h).
+def test_interpolate_is_exact_on_hanging_faces_of_refined_mesh() -> None:
+    """
+    On a refined mesh, public linear must recover the analytic linear field
+    on hanging-node faces, where the two-point value alone is only O(h).
+    """
     grid = refined_grid()
     field, gradient = linear_scalar_field(grid)
     geo = face_geometry(grid)
@@ -105,9 +115,11 @@ def test_interpolate_is_exact_on_hanging_faces_of_refined_mesh():
     torch.testing.assert_close(corrected, expected, atol=1e-12, rtol=1e-12)
 
 
-def test_interpolate_extrapolates_boundary_faces_without_bcs():
-    # A derived field without boundary conditions (e.g. grad(p), HbyA) must
-    # receive zero-gradient extrapolated boundary values instead of zeros.
+def test_interpolate_extrapolates_boundary_faces_without_bcs() -> None:
+    """
+    A derived field without boundary conditions (e.g. grad(p), HbyA) must
+    receive zero-gradient extrapolated boundary values instead of zeros.
+    """
     grid = refined_grid()
     field = CellField(grid, "derived_no_bc", FieldRole.LOCAL, (3,))
     field.data = torch.randn_like(field.data)
@@ -120,10 +132,12 @@ def test_interpolate_extrapolates_boundary_faces_without_bcs():
     )
 
 
-def test_interpolate_of_gradient_field_is_exact_across_hanging_faces():
-    # grad(psi) of a linear field is constant and carries no BCs. Its
-    # interpolation must stay exact on internal and domain faces; a zero
-    # boundary fill would corrupt the skew correction of boundary cells.
+def test_interpolate_of_gradient_field_is_exact_across_hanging_faces() -> None:
+    """
+    grad(psi) of a linear field is constant and carries no BCs. Its
+    interpolation must stay exact on internal and domain faces; a zero
+    boundary fill would corrupt the skew correction of boundary cells.
+    """
     grid = refined_grid()
     field, gradient = linear_scalar_field(grid)
     grad_field = grad(field)
@@ -140,9 +154,11 @@ def test_interpolate_of_gradient_field_is_exact_across_hanging_faces():
     )
 
 
-def test_interpolate_vector_field_preserves_components():
-    # Vector interpolation must keep component count and fill each component
-    # independently from the cell values.
+def test_interpolate_vector_field_preserves_components() -> None:
+    """
+    Vector interpolation must keep component count and fill each component
+    independently from the cell values.
+    """
     grid = create_grid(small_gridfoam_config())
     field = CellField(grid, "U_interp", FieldRole.LOCAL, (3,))
     field.data = grid.cell_centers.clone()

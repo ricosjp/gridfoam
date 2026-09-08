@@ -1,4 +1,7 @@
-"""Unit tests for ``AlgorithmBase.solvers``."""
+"""
+Algorithms own configured solver instances and propagate gradient-mode
+changes.
+"""
 
 from __future__ import annotations
 
@@ -14,13 +17,13 @@ from gridfoam.solvers.base import LinearSolver
 
 
 def test_algorithm_base_cannot_be_instantiated() -> None:
-    # AlgorithmBase remains abstract.
+    """AlgorithmBase remains abstract."""
     with pytest.raises(TypeError):
         AlgorithmBase()  # pyright: ignore[reportAbstractUsage]
 
 
 def test_simple_solvers_match_fvsolution(tmp_path: Path) -> None:
-    # solvers is a dict of LinearSolver keyed by fvSolution field names.
+    """solvers is a dict of LinearSolver keyed by fvSolution field names."""
     grid = create_grid(simple_convergence_config(tmp_path))
     algo = SIMPLE(grid)
     assert isinstance(algo.solvers, dict)
@@ -31,7 +34,7 @@ def test_simple_solvers_match_fvsolution(tmp_path: Path) -> None:
 
 
 def test_simple_solver_grad_mode_is_mutable(tmp_path: Path) -> None:
-    # Mutating solver.grad_mode updates the same solver object.
+    """Mutating solver.grad_mode updates the same solver object."""
     grid = create_grid(simple_convergence_config(tmp_path))
     algo = SIMPLE(grid)
     name = next(iter(algo.solvers))
@@ -42,7 +45,7 @@ def test_simple_solver_grad_mode_is_mutable(tmp_path: Path) -> None:
 
 
 def test_set_grad_mode_updates_all_solvers(tmp_path: Path) -> None:
-    # set_grad_mode writes through to every registered solver.
+    """set_grad_mode writes through to every registered solver."""
     grid = create_grid(simple_convergence_config(tmp_path))
     algo = SIMPLE(grid)
     algo.set_grad_mode("unrolled")

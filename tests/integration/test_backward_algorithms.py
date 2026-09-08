@@ -19,7 +19,11 @@ from gridfoam.meta.enums import AlgorithmType
 @pytest.mark.parametrize("pimple", [False, True])
 def test_backward_pressure_coupling_and_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pimple: bool
-):
+) -> None:
+    """
+    PISO/PIMPLE advance velocity and flux history once per step and retain
+    continuity.
+    """
     algorithm = (
         PIMPLEAlgorithm(
             type=AlgorithmType.PIMPLE, nCorrectors=2, nOuterCorrectors=3

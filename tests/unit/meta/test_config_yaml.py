@@ -1,4 +1,7 @@
-"""Validate loading example YAML configs into ``GridfoamConfig``."""
+"""
+Example YAML preserves mesh motion and wall settings; invalid boxes and
+motion values fail.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +14,8 @@ from gridfoam.meta.config import GridfoamConfig, RefinementRegionConfig
 from gridfoam.meta.enums import BoundaryConditionType
 
 
-def test_example_cavity_config_loads():
-    # The shipped cavity example must parse without validation errors.
+def test_example_cavity_config_loads() -> None:
+    """The shipped cavity example must parse without validation errors."""
     repo = Path(__file__).resolve().parents[3]
     config_path = (
         repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
@@ -26,8 +29,8 @@ def test_example_cavity_config_loads():
     assert cfg.fluxel.motion.value == "static"
 
 
-def test_refinement_region_config_validates_box():
-    # A well-formed refinement box must retain name and level.
+def test_refinement_region_config_validates_box() -> None:
+    """A well-formed refinement box must retain name and level."""
     region = RefinementRegionConfig(
         name="wake",
         min=[0.0, -0.1, -0.1],
@@ -39,8 +42,8 @@ def test_refinement_region_config_validates_box():
     assert region.level == 2
 
 
-def test_refinement_region_config_rejects_invalid_box():
-    # Degenerate boxes (min == max on an axis) must fail validation.
+def test_refinement_region_config_rejects_invalid_box() -> None:
+    """Degenerate boxes (min == max on an axis) must fail validation."""
     try:
         RefinementRegionConfig(
             min=[0.0, 0.0, 0.0],
@@ -53,7 +56,8 @@ def test_refinement_region_config_rejects_invalid_box():
     raise AssertionError("invalid refinement region should fail validation")
 
 
-def test_fluxel_motion_dynamic_from_yaml():
+def test_fluxel_motion_dynamic_from_yaml() -> None:
+    """The YAML motion value selects dynamic mesh construction."""
     repo = Path(__file__).resolve().parents[3]
     config_path = (
         repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"
@@ -65,7 +69,11 @@ def test_fluxel_motion_dynamic_from_yaml():
     assert cfg.fluxel.motion.value == "dynamic"
 
 
-def test_dynamic_motion_example_configs_load():
+def test_dynamic_motion_example_configs_load() -> None:
+    """
+    Both motion examples retain moving-wall BCs and their intended
+    refinement settings.
+    """
     repo = Path(__file__).resolve().parents[3]
     for rel in (
         "examples/dynamic_motions/update_ib/data/config.yaml",
@@ -88,7 +96,8 @@ def test_dynamic_motion_example_configs_load():
             assert cfg.fluxel.refinement_regions == []
 
 
-def test_fluxel_motion_rejects_unknown_value():
+def test_fluxel_motion_rejects_unknown_value() -> None:
+    """An unknown YAML motion spelling fails configuration validation."""
     repo = Path(__file__).resolve().parents[3]
     config_path = (
         repo / "examples" / "cavity" / "gridfoam" / "data" / "config.yaml"

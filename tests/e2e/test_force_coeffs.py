@@ -1,22 +1,16 @@
 """
-End-to-end checks for :mod:`gridfoam.post.forces`.
+Force evaluation agrees with controlled pressure and flow scenarios.
 
-These tests construct controlled AP-IBM scenarios where the integrated
-force and moment can be computed analytically (or asymptotically) and
-compare against :class:`ForceEvaluator`.
+Coordinates
+    Drag/lift and drag/pitch inputs produce right-handed orthonormal bases.
 
-The cases are:
+Pressure forces
+    Uniform pressure cancels force and moment on closed bodies. A thin-sheet
+    pressure jump approaches analytic lift within the finest-grid tolerance.
 
-1. ``OrthonormalCoord`` constructs a right-handed unit basis (drag/lift
-   and drag/pitch modes).
-2. ``_surface_Sf`` reconstructs the true surface area vector from the
-   AP-projected area vector while preserving the AP-side orientation.
-3. A uniform kinematic pressure on a closed body produces exactly zero
-   net force and moment.
-4. A pressure jump across a thin sheet converges to the analytical lift
-   force as the AP grid is refined.
-5. A low-Reynolds SIMPLE simulation of a cube in cross-flow produces a
-   non-trivial, well-conditioned drag coefficient. Marked ``slow``.
+Flow simulation
+    A low-Reynolds SIMPLE cube run gives finite, positive drag and bounded
+    lift. This broad force-integration check is marked slow.
 """
 
 from __future__ import annotations
@@ -44,12 +38,11 @@ from gridfoam.models.turbulence.laminar import Laminar
 from gridfoam.post.forces import ForceEvaluator
 from gridfoam.post.forces.coord import OrthonormalCoord
 
-# ---------------------------------------------------------------------------
-# 1. Local coordinate construction
-# ---------------------------------------------------------------------------
-
 
 def test_orthonormal_coord_drag_lift_is_right_handed() -> None:
+    """
+    Nonorthogonal drag/lift inputs become a right-handed orthonormal basis.
+    """
     coord = OrthonormalCoord.from_local_coord(
         DragLiftCoord(
             mode=ForceCoordMode.DRAG_LIFT,
@@ -75,6 +68,10 @@ def test_orthonormal_coord_drag_lift_is_right_handed() -> None:
 
 
 def test_orthonormal_coord_drag_pitch_is_right_handed() -> None:
+    """
+    Nonorthogonal drag/pitch inputs become a right-handed orthonormal
+    basis.
+    """
     coord = OrthonormalCoord.from_local_coord(
         DragPitchCoord(
             mode=ForceCoordMode.DRAG_PITCH,
@@ -96,11 +93,6 @@ def test_orthonormal_coord_drag_pitch_is_right_handed() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# 3. Uniform pressure on a closed body gives exactly zero force / moment
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("body", ["cube", "flat_plate"])
 def test_uniform_pressure_gives_zero_force_on_closed_body(
     tmp_path: Path,
@@ -111,6 +103,10 @@ def test_uniform_pressure_gives_zero_force_on_closed_body(
     add_dirichlet_bc: Callable[..., None],
     add_neumann_bc: Callable[..., None],
 ) -> None:
+    """
+    Uniform pressure cancels all force and moment coefficients on both
+    bodies.
+    """
     stl = tmp_path / f"body_{body}.stl"
     if body == "cube":
         make_cube_stl(center=(0.5, 0.5, 0.5), side=0.2, out_path=stl)
@@ -151,11 +147,6 @@ def test_uniform_pressure_gives_zero_force_on_closed_body(
     assert abs(co.CmRoll.item()) < tol
     assert abs(co.CmPitch.item()) < tol
     assert abs(co.CmYaw.item()) < tol
-
-
-# ---------------------------------------------------------------------------
-# 4. Thin sheet with a pressure jump converges to the analytical lift
-# ---------------------------------------------------------------------------
 
 
 def _run_pressure_jump(
@@ -222,6 +213,10 @@ def test_thin_sheet_pressure_jump_converges_with_refinement(
     add_dirichlet_bc: Callable[..., None],
     add_neumann_bc: Callable[..., None],
 ) -> None:
+    """
+    Finest-grid lift is within 10% of the analytic value and improves on
+    coarse.
+    """
     p_above, p_below = 1.0, 2.0
     errors: list[float] = []
     for res in ([16, 16, 16], [32, 32, 32], [64, 64, 64]):
@@ -243,11 +238,6 @@ def test_thin_sheet_pressure_jump_converges_with_refinement(
     assert errors[-1] < 0.10, f"too large error on fine grid: {errors}"
     # Refinement must not blow up the error.
     assert errors[-1] <= errors[0] + 1e-12, f"refinement did not help: {errors}"
-
-
-# ---------------------------------------------------------------------------
-# 5. SIMPLE simulation of a cube in cross-flow (slow)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.slow

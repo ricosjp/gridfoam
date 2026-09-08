@@ -1,4 +1,7 @@
-"""Integration tests for potential-flow initialization."""
+"""
+Potential-flow initialization does not increase the initial flux divergence
+norm.
+"""
 
 from __future__ import annotations
 
@@ -15,9 +18,11 @@ from gridfoam.meta.enums import FieldRole
 from gridfoam.pre.potential_flow import PotentialFlow
 
 
-def test_potential_flow_reduces_divergence(tmp_path: pathlib.Path):
-    # Solving the elliptic potential-flow problem must not increase the
-    # L2 norm of div(phi) compared to the initial flux from U.
+def test_potential_flow_reduces_divergence(tmp_path: pathlib.Path) -> None:
+    """
+    Solving the elliptic potential-flow problem must not increase the L2
+    norm of div(phi) compared to the initial flux from U.
+    """
     grid = create_grid(potential_flow_config(tmp_path))
     solver = PotentialFlow(grid)
 

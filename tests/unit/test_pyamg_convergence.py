@@ -36,7 +36,13 @@ def system() -> tuple[csr_array, torch.Tensor]:
 
 @pytest.mark.parametrize("norm", [2, float("inf")])
 @pytest.mark.parametrize("relative", [False, True])
-def test_amg_true_residual_and_tolerances(norm: int | float, relative: bool):
+def test_amg_true_residual_and_tolerances(
+    norm: int | float, relative: bool
+) -> None:
+    """
+    AMG reports true residuals, honors both norms and tolerances, and
+    preserves warm starts.
+    """
     matrix, rhs = system()
     # A nonzero warm start separates ||r0|| from ||b||.
     exact = np.linalg.solve(matrix.toarray(), rhs.numpy())
@@ -64,7 +70,11 @@ def test_amg_true_residual_and_tolerances(norm: int | float, relative: bool):
     assert torch.equal(x0, torch.from_numpy(exact) + 0.01)
 
 
-def test_amg_reports_iteration_limit_instead_of_success():
+def test_amg_reports_iteration_limit_instead_of_success() -> None:
+    """
+    An exhausted iteration budget reports failure with the remaining
+    residual.
+    """
     matrix, rhs = system()
     result = _solve_csr_components(
         matrix,
@@ -84,7 +94,11 @@ def test_amg_reports_iteration_limit_instead_of_success():
 @pytest.mark.parametrize("norm, iterations", [(2, 1), (float("inf"), 0)])
 def test_amg_honors_norm_and_skips_converged_components(
     norm: int | float, iterations: int
-):
+) -> None:
+    """
+    The selected norm controls stopping independently for already converged
+    components.
+    """
     matrix = _csr_diags([np.ones(16)], [0])
     rhs = torch.zeros(16, 3, dtype=torch.float64)
     x0 = rhs.clone()
@@ -105,7 +119,11 @@ def test_amg_honors_norm_and_skips_converged_components(
     assert all(s.converged for s in result.stats)
 
 
-def test_amg_zero_rhs_nonzero_initial_guess():
+def test_amg_zero_rhs_nonzero_initial_guess() -> None:
+    """
+    Zero RHS still requires iterations when the initial guess has a nonzero
+    residual.
+    """
     matrix, rhs = system()
     rhs.zero_()
     result = _solve_csr_components(
@@ -123,7 +141,11 @@ def test_amg_zero_rhs_nonzero_initial_guess():
     assert stats.final_residual < 1e-5 * stats.initial_residual
 
 
-def test_amg_nonfinite_residual_is_not_converged():
+def test_amg_nonfinite_residual_is_not_converged() -> None:
+    """
+    A nonfinite initial residual reports failure without attempting AMG
+    iterations.
+    """
     matrix, rhs = system()
     rhs[0] = float("nan")
     result = _solve_csr_components(

@@ -1,4 +1,7 @@
-"""Unit tests for ``gridfoam.meta.config`` validation helpers."""
+"""
+Configuration normalizes scheme keys and values and retains
+solver/diagnostic defaults.
+"""
 
 from __future__ import annotations
 
@@ -23,8 +26,8 @@ from gridfoam.meta.enums import (
 )
 
 
-def test_fvschemes_regularizes_div_scheme_keys():
-    # Extra whitespace around div-scheme keys is stripped on validation.
+def test_fvschemes_regularizes_div_scheme_keys() -> None:
+    """Extra whitespace around div-scheme keys is stripped on validation."""
     cfg = fvSchemesConfig(
         divSchemes={
             "default  ,  linear": DivScheme.LINEAR,
@@ -35,8 +38,8 @@ def test_fvschemes_regularizes_div_scheme_keys():
     assert cfg.divSchemes["default, linear"] is DivScheme.LINEAR
 
 
-def test_fvschemes_accepts_grad_scheme_values():
-    # Grad-scheme values may be supplied as strings and coerced to enums.
+def test_fvschemes_accepts_grad_scheme_values() -> None:
+    """Grad-scheme values may be supplied as strings and coerced to enums."""
     cfg = fvSchemesConfig(
         gradSchemes=cast(
             "dict[str, GradScheme]",
@@ -52,17 +55,22 @@ def test_fvschemes_accepts_grad_scheme_values():
     assert cfg.gradSchemes["grad(p)"] is GradScheme.LEASTSQUARE
 
 
-def test_solver_config_defaults():
-    # Default solver settings match OpenFOAM-style baseline values.
+def test_solver_config_defaults() -> None:
+    """
+    Solver defaults are no preconditioner, tolerance 1e-6, and a
+    1000-iteration limit.
+    """
     sc = SolverConfig(method=SolverType.CG)
     assert sc.preconditioner is PreconditionerType.NONE
     assert sc.tolerance == 1e-6
     assert sc.max_iter == 1000
 
 
-def test_residual_control_entry_and_adjust_phi_defaults():
-    # Residual-control entries and fvSolution defaults parse correctly.
-
+def test_residual_control_entry_and_adjust_phi_defaults() -> None:
+    """
+    Residual settings retain scalar/object entries and flux adjustment
+    defaults to enabled.
+    """
     entry = ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.01)
     assert entry.tolerance == 1e-6
     assert entry.rel_tolerance == 0.01
@@ -86,7 +94,10 @@ def test_residual_control_entry_and_adjust_phi_defaults():
 
 
 def test_post_processing_diagnostics_config_parses() -> None:
-
+    """
+    Diagnostics retain default phi, requested solver fields, and the output
+    interval.
+    """
     cfg = PostProcessingConfig(
         continuityError=ContinuityErrorConfig(),
         solverInfo=SolverInfoConfig(fields=["U", "p"], writeInterval=2),

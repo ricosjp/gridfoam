@@ -1,7 +1,13 @@
 """
-Integration tests for cell-centre gradient schemes on refined meshes.
+Cell gradients preserve linear exactness and physical/derivative axis order.
 
-Public ``fvc.grad`` contracts, hierarchy accuracy, and layout.
+Accuracy
+    Least-squares and corrected Green-Gauss recover linear gradients on
+    refined meshes. Constant fields with zero-gradient BCs have zero gradient.
+
+Configuration and layout
+    Omitted configuration remains linear-exact at boundaries and hanging
+    cells. A nonsymmetric vector Jacobian detects transposed output axes.
 """
 
 from __future__ import annotations
@@ -22,9 +28,11 @@ from gridfoam.fv.kernels.gauss_gradient import assemble_gauss_gradient
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, GradScheme
 
 
-def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells():
-    # LEASTSQUARE must recover a constant gradient on interior cells of a
-    # 3-D octree-refined mesh.
+def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells() -> None:
+    """
+    LEASTSQUARE must recover a constant gradient on interior cells of a 3-D
+    octree-refined mesh.
+    """
     grid = refined_3d_grid(GradScheme.LEASTSQUARE)
     field, expected = linear_scalar_field(grid)
     interior = interior_mask(grid)
@@ -39,10 +47,12 @@ def test_leastsquare_grad_is_linear_exact_on_refined_internal_cells():
     )
 
 
-def test_linear_grad_is_linear_exact_on_refined_mesh():
-    # LINEAR (Green-Gauss) must recover a constant gradient everywhere;
-    # Green-Gauss from uncorrected two-point faces is inconsistent on
-    # hanging cells.
+def test_linear_grad_is_linear_exact_on_refined_mesh() -> None:
+    """
+    LINEAR (Green-Gauss) must recover a constant gradient everywhere;
+    Green-Gauss from uncorrected two-point faces is inconsistent on hanging
+    cells.
+    """
     grid = refined_3d_grid(GradScheme.LINEAR)
     field, expected_vec = linear_scalar_field(grid)
     expected = expected_vec.to(grid.device)
@@ -58,9 +68,8 @@ def test_linear_grad_is_linear_exact_on_refined_mesh():
     )
 
 
-def test_default_grad_scheme_is_leastsquare_and_exact_everywhere():
-    # Without a ``gradSchemes`` entry the default is least-squares, exact
-    # on boundary and hanging cells.
+def test_default_grad_is_linear_exact_at_boundary_and_hanging_cells() -> None:
+    """Omitted grad configuration remains linear-exact in every cell."""
     grid = refined_3d_grid()
     assert grid.sim_config.fvSchemes.gradSchemes is None
     field, expected = linear_scalar_field(grid)
@@ -75,8 +84,8 @@ def test_default_grad_scheme_is_leastsquare_and_exact_everywhere():
     )
 
 
-def test_grad_vector_output_layout():
-    # A nonsymmetric Jacobian detects transposed physical/derivative axes.
+def test_grad_vector_output_layout() -> None:
+    """A nonsymmetric Jacobian detects transposed physical/derivative axes."""
     grid = refined_3d_grid(GradScheme.LEASTSQUARE)
     field = CellField(grid, "U_grad", FieldRole.LOCAL, (3,))
     jacobian = torch.tensor(
@@ -103,8 +112,8 @@ def test_grad_vector_output_layout():
     )
 
 
-def test_constant_field_has_zero_gradient():
-    # Constant field with zero-gradient boundaries → vanishing gradient.
+def test_constant_field_has_zero_gradient() -> None:
+    """Constant field with zero-gradient boundaries → vanishing gradient."""
     grid = refined_grid(grad_scheme=GradScheme.LINEAR)
     field = CellField(grid, "const", FieldRole.LOCAL, ())
     field.data[:] = 3.0

@@ -1,4 +1,7 @@
-"""Unit tests for ``NewtonianTransport.nu``."""
+"""
+Viscosity stays a scalar tensor with stable identity, device, and autograd
+links.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +21,10 @@ def _transport() -> tuple[NewtonianTransport, float]:
 
 
 def test_nu_returns_tensor_from_config() -> None:
-    # Case-file float is stored and returned as a tensor of shape [1].
+    """
+    Configured viscosity becomes a scalar tensor on the grid's dtype and
+    device.
+    """
     transport, nu_cfg = _transport()
     nu = transport.nu()
     assert isinstance(nu, torch.Tensor)
@@ -29,14 +35,14 @@ def test_nu_returns_tensor_from_config() -> None:
 
 
 def test_nu_same_device_preserves_identity() -> None:
-    # Matching device and dtype must not copy the stored tensor.
+    """Matching device and dtype must not copy the stored tensor."""
     transport, _ = _transport()
     nu = transport.nu()
     assert transport.nu() is nu
 
 
 def test_set_nu_tensor_is_returned_as_same_object() -> None:
-    # Autograd leaves stay the same object when already on the grid.
+    """Autograd leaves stay the same object when already on the grid."""
     transport, _ = _transport()
     nu = torch.tensor(
         0.05,
@@ -49,6 +55,10 @@ def test_set_nu_tensor_is_returned_as_same_object() -> None:
 
 
 def test_set_nu_float_wraps_as_tensor() -> None:
+    """
+    A runtime float viscosity becomes a scalar tensor with the requested
+    value.
+    """
     transport, _ = _transport()
     transport.set_nu(0.02)
     nu = transport.nu()
@@ -58,7 +68,7 @@ def test_set_nu_float_wraps_as_tensor() -> None:
 
 
 def test_nu_flows_into_nu_eff_autograd() -> None:
-    # nu_eff = nu + nu_t must keep the viscosity leaf in the graph.
+    """nu_eff = nu + nu_t must keep the viscosity leaf in the graph."""
     grid = create_grid(small_gridfoam_config())
     laminar = Laminar(grid)
     nu = torch.tensor(
@@ -77,7 +87,7 @@ def test_nu_flows_into_nu_eff_autograd() -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_nu_follows_grid_device_after_to() -> None:
-    # Runtime device comes from the grid; sim_config.device is unchanged.
+    """Runtime device comes from the grid; sim_config.device is unchanged."""
     transport, _ = _transport()
     grid = transport.grid
     grid.to("cuda")

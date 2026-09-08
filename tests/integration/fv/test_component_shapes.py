@@ -24,7 +24,11 @@ from gridfoam.solvers.factory import create_solver
 @pytest.mark.parametrize("scheme", [GradScheme.LINEAR, GradScheme.LEASTSQUARE])
 def test_linear_tensor_field_operators(
     shape: tuple[int, ...], scheme: GradScheme
-):
+) -> None:
+    """
+    FV values, gradients, and history retain scalar, vector, and tensor
+    axes.
+    """
     grid = refined_3d_grid(scheme)
     q = CellField(grid, "tensor_q", FieldRole.TRANSIENT, shape)
     generator = torch.Generator().manual_seed(123)
@@ -112,7 +116,11 @@ def test_tensor_solve_and_adjoint_match_dense(
     shape: tuple[int, ...],
     method: SolverType,
     small_axis_projected_grid: AxisProjectedGrid,
-):
+) -> None:
+    """
+    Every solver matches dense solutions and coefficient/RHS gradients at
+    all ranks.
+    """
     grid = small_axis_projected_grid
     q = CellField(grid, "tensor_solve", FieldRole.LOCAL, shape)
     mat = FvMatrix(q)
@@ -156,7 +164,13 @@ def test_tensor_solve_and_adjoint_match_dense(
         torch.testing.assert_close(actual, reference, atol=1e-10, rtol=1e-10)
 
 
-def test_reject_legacy_shapes(small_axis_projected_grid: AxisProjectedGrid):
+def test_reject_legacy_shapes(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    """
+    Fields reject singleton scalar axes, flattened tensors, and
+    incompatible reuse.
+    """
     grid = small_axis_projected_grid
     scalar = CellField(grid, "shape_scalar", FieldRole.LOCAL, ())
     with pytest.raises(ValueError, match="shape"):

@@ -8,6 +8,36 @@ The default test run excludes tests marked ``benchmark``, ``profile``, and
 mesh or several production components wired together. If not, prefer a unit
 test; if it does, use an integration test.
 
+Writing behavior-focused tests
+------------------------------
+
+Describe the contract a failure would break. A module docstring summarizes
+the guarantees covered by the file; group them by concern when the file spans
+several responsibilities. Test names state the condition and expected behavior,
+and a short docstring explains the relevant boundary case or reason for the
+check. Keep both descriptions within what the assertions actually verify.
+Annotate test functions with ``-> None``.
+
+Keep setup, action, and assertions easy to follow. Use comments for numerical
+assumptions, tolerance choices, or non-obvious setup rather than repeating the
+docstring. Prefer small helpers that expose the inputs relevant to the test.
+
+Use ``pytest.mark.parametrize`` for independent examples of the same contract,
+with descriptive IDs when values alone do not explain the case. Keep sequential
+operations together when their order is the behavior under test, such as cache
+invalidation, history advancement, or checkpoint replay.
+
+Test a shared rule once where practical, while retaining checks for each
+caller's own responsibilities. For example, common scheme lookup precedence
+can be exercised through one operator, but every operator still needs a case
+where its field-specific key overrides ``default``. Integration tests then
+check that the configured scheme changes the numerical operator.
+
+Preserve boundary cases, independent numerical references, and gradient checks
+when consolidating tests. For storage isolation, mutate the actual saved-from
+tensor and verify that the snapshot is unchanged; mutating an upstream tensor
+that already has separate storage cannot establish copying.
+
 Unit tests (``tests/unit/``)
 ------------------------------
 

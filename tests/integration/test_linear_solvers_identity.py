@@ -41,8 +41,10 @@ def _identity_linear_system(
     return eq, b
 
 
-def test_cg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
-    # CG without preconditioning must solve a scalar identity system.
+def test_cg_solves_identity(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    """CG without preconditioning must solve a scalar identity system."""
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_cg", component_shape=())
     cfg = SolverConfig(
@@ -58,8 +60,10 @@ def test_cg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
     assert torch.allclose(result.solution, b, atol=1e-6, rtol=1e-6)
 
 
-def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
-    # BiCGSTAB must solve a 3-component identity system.
+def test_bicgstab_solves_identity(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    """BiCGSTAB must solve a 3-component identity system."""
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_bicg", component_shape=(3,))
     cfg = SolverConfig(
@@ -76,8 +80,12 @@ def test_bicgstab_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
     assert torch.allclose(result.solution, b, atol=1e-5, rtol=1e-5)
 
 
-def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
-    # PyAMG reports independent component statistics through the public API.
+def test_pyamg_solves_identity(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    """
+    PyAMG reports independent component statistics through the public API.
+    """
     grid = small_axis_projected_grid
     eq, b = _identity_linear_system(grid, name="p_amg", component_shape=(3,))
     cfg = SolverConfig(
@@ -104,8 +112,8 @@ def test_pyamg_solves_identity(small_axis_projected_grid: AxisProjectedGrid):
 
 def test_equation_factory_returns_named_container(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # ``equation()`` must wrap field and matrix with the field's name.
+) -> None:
+    """``equation()`` must wrap field and matrix with the field's name."""
     grid = small_axis_projected_grid
     p = CellField(grid, "p_eq", role=FieldRole.LOCAL, component_shape=())
     fv_matrix = FvMatrix(p)

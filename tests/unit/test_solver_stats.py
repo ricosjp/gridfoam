@@ -1,4 +1,7 @@
-"""Unit tests for linear solver statistics."""
+"""
+CG and BiCGSTAB report component-wise residuals, iterations, and
+convergence decisions.
+"""
 
 from __future__ import annotations
 
@@ -39,6 +42,10 @@ def _identity_equation(grid: AxisProjectedGrid, *, name: str = "p") -> Equation:
 def test_cg_returns_solver_stats(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
+    """
+    Scalar CG returns one converged statistic with nonnegative residuals
+    and iterations.
+    """
     eq = _identity_equation(small_axis_projected_grid)
     solver = CGSolver(
         SolverConfig(
@@ -64,6 +71,10 @@ def test_cg_returns_solver_stats(
 def test_cg_returns_per_component_stats(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
+    """
+    Vector CG retains the solution shape and returns one converged
+    statistic per component.
+    """
     grid = small_axis_projected_grid
     u = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     fv_matrix = FvMatrix(u)
@@ -117,7 +128,10 @@ def test_bicgstab_convergence_stages(
     iterations: int,
     converged: bool,
 ) -> None:
-    # diag(1, 2) x = (1, 1) distinguishes the initial, s, and r checks.
+    """
+    BiCGSTAB reports the solution and true residual at initial, s, r, and
+    budget exits.
+    """
     grid = small_axis_projected_grid
     eq = _identity_equation(grid, name="p_bicg_stats")
     mat = eq.fv_matrix

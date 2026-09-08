@@ -49,7 +49,13 @@ def _set_dt(grid: AxisProjectedGrid, dt: float) -> None:
 @pytest.mark.parametrize(
     "scheme,minimum_ratio", [("euler", 1.8), ("backward", 3.7)]
 )
-def test_decay_has_expected_temporal_order(scheme: str, minimum_ratio: float):
+def test_decay_has_expected_temporal_order(
+    scheme: str, minimum_ratio: float
+) -> None:
+    """
+    Uniform decay converges at first order for Euler and second order for
+    BDF2.
+    """
     errors = []
     for n in (20, 40, 80):
         grid = _grid(scheme)
@@ -67,7 +73,11 @@ def test_decay_has_expected_temporal_order(scheme: str, minimum_ratio: float):
     assert errors[1] / errors[2] > minimum_ratio
 
 
-def test_backward_variable_steps_are_exact_for_quadratic_and_constant_fields():
+def test_backward_variable_steps_are_quadratic_exact_and_restart() -> None:
+    """
+    BDF2 differentiates unequal-step quadratics exactly and restarts with
+    Euler.
+    """
     grid = _grid("backward")
     field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     field.data.fill_(0.0)
@@ -91,7 +101,11 @@ def test_backward_variable_steps_are_exact_for_quadratic_and_constant_fields():
     torch.testing.assert_close(mat.multiply(field.data), mat.source)
 
 
-def test_backward_source_differentiates_both_old_levels():
+def test_backward_source_differentiates_both_old_levels() -> None:
+    """
+    BDF2 source gradients retain both old levels with their signed time
+    weights.
+    """
     grid = _grid("backward")
     field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     older = torch.full_like(field.data, 1.0, requires_grad=True)
@@ -107,7 +121,11 @@ def test_backward_source_differentiates_both_old_levels():
 
 
 @pytest.mark.parametrize("scheme", ["euler", "backward"])
-def test_ddt_corr_uses_consistent_variable_step_history(scheme: str):
+def test_ddt_corr_uses_consistent_variable_step_history(scheme: str) -> None:
+    """
+    Flux correction uses startup and unequal-step weights and rejects
+    mismatched history.
+    """
     grid = _grid(scheme)
     geo = face_geometry(grid)
     U = CellField(grid, "U", FieldRole.TRANSIENT, (3,))
@@ -146,7 +164,11 @@ def test_ddt_corr_uses_consistent_variable_step_history(scheme: str):
             fvc.ddt_corr(U, phi)
 
 
-def test_ddt_field_override_and_topology_history_restart():
+def test_ddt_field_override_and_topology_history_restart() -> None:
+    """
+    The field-specific Euler override is honored and topology changes clear
+    history.
+    """
     grid = _grid("backward")
     field = CellField(grid, "q", FieldRole.TRANSIENT, ())
     field.update_history()
@@ -164,14 +186,19 @@ def test_ddt_field_override_and_topology_history_restart():
     assert field.previous_dt is None
 
 
-def test_backward_rejects_nontransient_field():
+def test_backward_rejects_nontransient_field() -> None:
+    """BDF2 assembly refuses a local field without transient history."""
     grid = _grid("backward")
     field = CellField(grid, "q", FieldRole.LOCAL, ())
     with pytest.raises(ValueError, match="TRANSIENT"):
         fvm.ddt(field)
 
 
-def test_backward_diffusion_has_second_order_time_convergence():
+def test_backward_diffusion_has_second_order_time_convergence() -> None:
+    """
+    BDF2 diffusion converges quadratically against the spatial stencil's
+    exact decay.
+    """
     errors = []
     for n in (10, 20, 40):
         grid = _grid("backward")

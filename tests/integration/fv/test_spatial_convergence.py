@@ -120,7 +120,13 @@ def poisson_errors(n: int, refined: bool) -> dict[str, float]:
 
 
 @pytest.mark.parametrize("refined", [False, True])
-def test_manufactured_poisson_solution_converges_quadratically(refined: bool):
+def test_manufactured_poisson_solution_converges_quadratically(
+    refined: bool,
+) -> None:
+    """
+    Cell errors approach second order and face-flux errors decrease on both
+    grid families.
+    """
     results = [poisson_errors(n, refined) for n in _ROOT_RESOLUTIONS]
     for norm in ("l1", "l2", "linf"):
         for coarse, fine in zip(results[:-1], results[1:], strict=True):

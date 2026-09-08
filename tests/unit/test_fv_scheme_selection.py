@@ -1,4 +1,20 @@
-"""Configuration precedence and dispatch coverage for FV schemes."""
+"""What ``fv/schemes/selection.py`` guarantees.
+
+Lookup order
+    Field-specific key, then ``default``, then the built-in fallback.
+    Tested once on Laplacian; every ``search_*`` is checked against its
+    ``default`` and field-specific key.
+
+Div warning
+    An omitted ``divSchemes`` dictionary is quiet. A present dictionary
+    without a matching key still warns and uses upwind.
+
+Laplacian aliases
+    YAML spellings such as ``linear`` become canonical policies.
+
+Dispatch coverage
+    Every enum value has a table entry. Aliases are not implementation keys.
+"""
 
 from collections.abc import Callable
 from enum import StrEnum
@@ -23,7 +39,7 @@ from gridfoam.fv.schemes.selection import (
     search_sn_grad_scheme,
 )
 from gridfoam.fv.schemes.sn_grad import SN_GRAD_SCHEMES
-from gridfoam.meta.config import fvSchemesConfig
+from gridfoam.meta.config import SimulatorConfig, fvSchemesConfig
 from gridfoam.meta.enums import (
     DdtScheme,
     DivScheme,
@@ -34,12 +50,50 @@ from gridfoam.meta.enums import (
 )
 
 
+def _config_with(
+    grid: AxisProjectedGrid, family: str, entries: dict[str, str] | None
+) -> SimulatorConfig:
+    schemes = fvSchemesConfig.model_validate({family: entries})
+    return grid.sim_config.model_copy(update={"fvSchemes": schemes})
+
+
 @pytest.mark.parametrize(
-    "config_name,key,builtin,alternative,resolve",
+    "entries,expected",
+    [
+        pytest.param({}, LaplacianScheme.CORRECTED, id="builtin"),
+        pytest.param(
+            {"default": LaplacianScheme.UNCORRECTED.value},
+            LaplacianScheme.UNCORRECTED,
+            id="default",
+        ),
+        pytest.param(
+            {
+                "default": LaplacianScheme.CORRECTED.value,
+                "laplacian(q)": LaplacianScheme.UNCORRECTED.value,
+            },
+            LaplacianScheme.UNCORRECTED,
+            id="field-key",
+        ),
+    ],
+)
+def test_lookup_order_is_field_key_then_default_then_builtin(
+    small_axis_projected_grid: AxisProjectedGrid,
+    entries: dict[str, str] | None,
+    expected: LaplacianScheme,
+) -> None:
+    """Shared ``_lookup`` order. Other operators use the same helper."""
+    grid = small_axis_projected_grid
+    field = CellField(grid, "q", FieldRole.LOCAL, ())
+    config = _config_with(grid, "laplacianSchemes", entries)
+    assert search_laplacian_scheme(config, field) == expected
+
+
+@pytest.mark.parametrize(
+    "family,key,fallback,alternative,resolve",
     [
         (
             "divSchemes",
-            "div(phi,q)",
+            "div(phi, q)",
             DivScheme.UPWIND,
             DivScheme.LINEAR,
             search_div_scheme,
@@ -75,42 +129,50 @@ from gridfoam.meta.enums import (
     ],
 )
 @pytest.mark.parametrize(
-    "selection", ["absent", "empty", "unrelated", "default", "specific"]
+    "use_field_key", [False, True], ids=["default", "field-key"]
 )
-def test_lookup_precedence(
+def test_each_search_function_reads_its_scheme_family_and_field_key(
     small_axis_projected_grid: AxisProjectedGrid,
-    config_name: str,
+    family: str,
     key: str,
-    builtin: StrEnum,
+    fallback: StrEnum,
     alternative: StrEnum,
     resolve: Callable[..., StrEnum],
-    selection: str,
-    caplog: pytest.LogCaptureFixture,
+    use_field_key: bool,
 ) -> None:
+    """Each operator reads its family and prefers its own key to default."""
     grid = small_axis_projected_grid
     field = CellField(grid, "q", FieldRole.LOCAL, ())
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
-    entries = {
-        "absent": None,
-        "empty": {},
-        "unrelated": {"another(field)": alternative.value},
-        "default": {"default": alternative.value},
-        "specific": {"default": builtin.value, key: alternative.value},
-    }[selection]
-    schemes = fvSchemesConfig.model_validate({config_name: entries})
-    config = grid.sim_config.model_copy(update={"fvSchemes": schemes})
-    args = (
-        (config, phi, field) if config_name == "divSchemes" else (config, field)
+    entries = (
+        {"default": fallback.value, key: alternative.value}
+        if use_field_key
+        else {"default": alternative.value}
     )
-    expected = alternative if selection in ("default", "specific") else builtin
-    assert resolve(*args) == expected
-    # An omitted div dictionary is quiet; an incomplete one still warns.
-    assert bool(caplog.records) == (
-        config_name == "divSchemes" and selection in ("empty", "unrelated")
-    )
+    config = _config_with(grid, family, entries)
+    args = (config, phi, field) if family == "divSchemes" else (config, field)
+    assert resolve(*args) == alternative
 
 
-@pytest.mark.parametrize("key", ["default", "laplacian(q)"])
+def test_div_warns_when_a_dictionary_exists_without_a_matching_key(
+    small_axis_projected_grid: AxisProjectedGrid,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Omitted ``divSchemes`` is quiet; a present miss still uses upwind."""
+    grid = small_axis_projected_grid
+    field = CellField(grid, "q", FieldRole.LOCAL, ())
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
+    for entries in ({}, {"div(other, q)": "linear"}):
+        caplog.clear()
+        config = _config_with(grid, "divSchemes", entries)
+        assert search_div_scheme(config, phi, field) == DivScheme.UPWIND
+        assert caplog.records
+    caplog.clear()
+    omitted = _config_with(grid, "divSchemes", None)
+    assert search_div_scheme(omitted, phi, field) == DivScheme.UPWIND
+    assert not caplog.records
+
+
 @pytest.mark.parametrize(
     "value,canonical,harmonic,corrected",
     [
@@ -133,18 +195,17 @@ def test_lookup_precedence(
         ),
     ],
 )
-def test_laplacian_aliases_and_policies(
+def test_laplacian_yaml_spellings_become_canonical_policies(
     small_axis_projected_grid: AxisProjectedGrid,
-    key: str,
     value: str,
     canonical: LaplacianScheme,
     harmonic: bool,
     corrected: bool,
 ) -> None:
+    """Alias normalization lives in ``search_laplacian_scheme`` only."""
     grid = small_axis_projected_grid
     field = CellField(grid, "q", FieldRole.LOCAL, ())
-    schemes = fvSchemesConfig.model_validate({"laplacianSchemes": {key: value}})
-    config = grid.sim_config.model_copy(update={"fvSchemes": schemes})
+    config = _config_with(grid, "laplacianSchemes", {"default": value})
     selected = search_laplacian_scheme(config, field)
     assert selected == canonical
     policy = get_laplacian_scheme(selected)
@@ -152,8 +213,8 @@ def test_laplacian_aliases_and_policies(
     assert policy.corrected is corrected
 
 
-def test_every_configured_scheme_has_an_implementation() -> None:
-    # A newly accepted configuration value must not fail later at dispatch.
+def test_every_enum_value_has_a_dispatch_table_entry() -> None:
+    """A new YAML enum must not fail later at ``get_*_scheme``."""
     assert set(DIV_SCHEMES) == set(DivScheme)
     assert set(GRAD_SCHEMES) == set(GradScheme)
     assert set(SN_GRAD_SCHEMES) == set(SnGradScheme)

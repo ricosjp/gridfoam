@@ -1,4 +1,4 @@
-"""Integration tests for SIMPLE residual-based early termination."""
+"""Loose residual thresholds let SIMPLE report convergence after one step."""
 
 from __future__ import annotations
 
@@ -12,9 +12,11 @@ from gridfoam.core.grid.factory import create_grid
 
 def test_simple_has_converged_with_loose_residual_control(
     tmp_path: pathlib.Path,
-):
-    # With very loose residualControl thresholds, one SIMPLE step must mark
-    # the algorithm as converged immediately.
+) -> None:
+    """
+    With very loose residualControl thresholds, one SIMPLE step must mark
+    the algorithm as converged immediately.
+    """
     grid = create_grid(simple_convergence_config(tmp_path))
     algo = SIMPLE(grid)
     algo.step()

@@ -1,4 +1,4 @@
-"""Unit tests for the per-field boundary-state cache in ``boundary_ops``."""
+"""Boundary states are reused until field data or dependent flux changes."""
 
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ def _scalar_field(
 
 def test_boundary_state_is_evaluated_once_per_data_generation(
     tmp_path: pathlib.Path,
-):
-    # Several operators in one solver step share a single BC evaluation.
+) -> None:
+    """Several operators in one solver step share a single BC evaluation."""
     grid = create_grid(channel_config(tmp_path))
     field, bc = _scalar_field(grid, "psi_cache")
 
@@ -58,7 +58,11 @@ def test_boundary_state_is_evaluated_once_per_data_generation(
 
 def test_boundary_state_cache_invalidates_on_data_change(
     tmp_path: pathlib.Path,
-):
+) -> None:
+    """
+    Tensor replacement and in-place writes both trigger a fresh boundary
+    evaluation.
+    """
     grid = create_grid(channel_config(tmp_path))
     field, bc = _scalar_field(grid, "psi_cache_inval")
     fvc.interpolate(field)
@@ -78,9 +82,13 @@ def test_boundary_state_cache_invalidates_on_data_change(
     )
 
 
-def test_boundary_state_cache_tracks_bc_dependencies(tmp_path: pathlib.Path):
-    # inletOutlet reads ``phi``; changing phi in place must re-evaluate the
-    # velocity boundary state even though U itself is unchanged.
+def test_boundary_state_cache_tracks_bc_dependencies(
+    tmp_path: pathlib.Path,
+) -> None:
+    """
+    inletOutlet reads ``phi``; changing phi in place must re-evaluate the
+    velocity boundary state even though U itself is unchanged.
+    """
     grid = create_grid(channel_config(tmp_path))
     U = CellField(grid, "U", FieldRole.LOCAL, (3,))  # BCs from the config
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())

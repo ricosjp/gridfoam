@@ -1,4 +1,7 @@
-"""Unit tests for runtime type-check configuration."""
+"""
+Runtime type checks default to enabled; environment overrides control the
+import hook.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ from gridfoam.runtime_config import (
 def test_runtime_type_checks_enabled_defaults_to_true(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Type checks are on when the env var is unset.
+    """Type checks are on when the env var is unset."""
     monkeypatch.delenv(RUNTIME_TYPE_CHECKS_ENV, raising=False)
     assert runtime_type_checks_enabled()
 
@@ -27,7 +30,7 @@ def test_runtime_type_checks_enabled_accepts_true_values(
     monkeypatch: pytest.MonkeyPatch,
     value: str,
 ) -> None:
-    # Common truthy strings enable runtime type checking.
+    """Common truthy strings enable runtime type checking."""
     monkeypatch.setenv(RUNTIME_TYPE_CHECKS_ENV, value)
     assert runtime_type_checks_enabled()
 
@@ -37,7 +40,7 @@ def test_runtime_type_checks_enabled_accepts_false_values(
     monkeypatch: pytest.MonkeyPatch,
     value: str,
 ) -> None:
-    # Common falsy strings disable runtime type checking.
+    """Common falsy strings disable runtime type checking."""
     monkeypatch.setenv(RUNTIME_TYPE_CHECKS_ENV, value)
     assert not runtime_type_checks_enabled()
 
@@ -45,15 +48,17 @@ def test_runtime_type_checks_enabled_accepts_false_values(
 def test_runtime_type_checks_enabled_rejects_invalid_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Unrecognized env values must raise ``ValueError``.
+    """Unrecognized env values must raise ``ValueError``."""
     monkeypatch.setenv(RUNTIME_TYPE_CHECKS_ENV, "maybe")
     with pytest.raises(ValueError, match=RUNTIME_TYPE_CHECKS_ENV):
         runtime_type_checks_enabled()
 
 
 def test_runtime_type_checks_env_disables_beartype_import_hook() -> None:
-    # With checks disabled, invalid solver configs reach ValueError, not
-    # BeartypeCallHintParamViolation from the import hook.
+    """
+    With checks disabled, invalid solver configs reach ValueError, not
+    BeartypeCallHintParamViolation from the import hook.
+    """
     code = """
 from unittest.mock import MagicMock
 

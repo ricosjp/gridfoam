@@ -1,4 +1,7 @@
-"""Tests for remesh field mapping helpers."""
+"""
+Volume-field remapping preserves approximate linear profiles after
+immersed-body motion.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +20,10 @@ from gridfoam.meta.enums import FieldRole, IbmType, MeshMotion
 
 
 def test_remesh_maps_u_p_from_old_cell_centers(tmp_path: Path) -> None:
+    """
+    Remapped velocity and pressure stay near the linear fields and face
+    flux stays finite.
+    """
     stl_path = tmp_path / "cube.stl"
     box = pv.Box(bounds=(0.3, 0.7, 0.3, 0.7, 0.0, 0.1), quads=False)
     box.triangulate().save(str(stl_path))

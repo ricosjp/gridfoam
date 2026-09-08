@@ -13,6 +13,10 @@ from tests.profile.case import (
 @pytest.mark.profile
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_motorBike_profile(device: str) -> None:
+    """
+    The shared workload completes nonempty mesh and time-step work on each
+    device.
+    """
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA is unavailable")
     configure_device(device, cpu_threads=None)

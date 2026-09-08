@@ -1,4 +1,7 @@
-"""Unit tests for ``FvMatrix`` linear-algebra operators."""
+"""
+Matrix diagonals obey arithmetic; source replacement preserves gradients
+and storage isolation.
+"""
 
 from __future__ import annotations
 
@@ -11,9 +14,13 @@ from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.meta.enums import FieldRole
 
 
-def test_fvmatrix_add_sub_neg(small_axis_projected_grid: AxisProjectedGrid):
-    # Element-wise add, subtract, and unary negation must act on all
-    # coefficient blocks (diag, upper, lower, source) independently.
+def test_fvmatrix_diagonal_obeys_add_sub_neg(
+    small_axis_projected_grid: AxisProjectedGrid,
+) -> None:
+    """
+    Addition, subtraction, and negation apply elementwise to the matrix
+    diagonal.
+    """
     grid = small_axis_projected_grid
     p = CellField(grid, "p_alg", role=FieldRole.LOCAL, component_shape=())
     a = FvMatrix(p)
@@ -38,9 +45,11 @@ def test_fvmatrix_add_sub_neg(small_axis_projected_grid: AxisProjectedGrid):
 
 def test_fvmatrix_A_and_H_operators(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # ``A()`` returns the diagonal scaled by inverse cell volume; ``H(x)``
-    # must produce a source-like vector with the same shape as ``x``.
+) -> None:
+    """
+    ``A()`` returns the diagonal scaled by inverse cell volume; ``H(x)``
+    must produce a source-like vector with the same shape as ``x``.
+    """
     grid = small_axis_projected_grid
     p = CellField(grid, "p_ah", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
@@ -56,7 +65,11 @@ def test_fvmatrix_A_and_H_operators(
 @pytest.mark.parametrize("shape", [(), (3,), (3, 3)])
 def test_predictor_source_keeps_base_matrix_independent(
     small_axis_projected_grid: AxisProjectedGrid, shape: tuple[int, ...]
-):
+) -> None:
+    """
+    Source replacement preserves gradients and isolates every mutable
+    matrix block.
+    """
     grid = small_axis_projected_grid
     field = CellField(grid, "predictor_field", FieldRole.LOCAL, shape)
     base = FvMatrix(field)
@@ -94,7 +107,11 @@ def test_predictor_source_keeps_base_matrix_independent(
 
 def test_with_source_preserves_absent_face_correction(
     small_axis_projected_grid: AxisProjectedGrid,
-):
+) -> None:
+    """
+    Replacing a source does not create an absent explicit face-flux
+    correction.
+    """
     field = CellField(
         small_axis_projected_grid,
         "predictor_no_correction",

@@ -1,4 +1,7 @@
-"""Unit tests for ``FaceField`` packed layout."""
+"""
+Packed faces retain block order and physical axes and reject incompatible
+shapes.
+"""
 
 from __future__ import annotations
 
@@ -180,7 +183,7 @@ def _axis_projected_grid_with_ib(tmp_path: Path) -> AxisProjectedGrid:
 
 
 def test_pack_row_count_without_immersed_blocks() -> None:
-    # Non-AP grids pack only single-sided and domain-boundary faces.
+    """Non-AP grids pack only single-sided and domain-boundary faces."""
     grid = _NonAxisProjectedGrid()
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     n_expected = phi.num_single_sided + grid.num_domain_bnd_faces
@@ -190,7 +193,9 @@ def test_pack_row_count_without_immersed_blocks() -> None:
 
 
 def test_pack_row_count_on_axis_projected_grid(tmp_path: Path) -> None:
-    # AP layout adds both immersed sides: F_single + F_bnd + 2 * F_immersed.
+    """
+    AP layout adds both immersed sides: F_single + F_bnd + 2 * F_immersed.
+    """
     grid = _axis_projected_grid_with_ib(tmp_path)
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     n_expected = (
@@ -205,7 +210,7 @@ def test_pack_row_count_on_axis_projected_grid(tmp_path: Path) -> None:
 
 
 def test_unpack_roundtrip_preserves_blocks(tmp_path: Path) -> None:
-    # unpack(pack(phi)) restores every face block.
+    """unpack(pack(phi)) restores every face block."""
     grid = _axis_projected_grid_with_ib(tmp_path)
     phi = FaceField(grid, "phi", FieldRole.LOCAL, (3,))
     phi.single_data[:] = 1.0
@@ -228,7 +233,7 @@ def test_unpack_roundtrip_preserves_blocks(tmp_path: Path) -> None:
 def test_unpack_rejects_wrong_row_count(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
-    # Row count must match packed_n_rows.
+    """Row count must match packed_n_rows."""
     phi = FaceField(
         small_axis_projected_grid, "phi_pack_bad", FieldRole.LOCAL, ()
     )
@@ -240,7 +245,7 @@ def test_unpack_rejects_wrong_row_count(
 def test_unpack_rejects_wrong_tensor_axes(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
-    # Physical axes must match component_shape.
+    """Physical axes must match component_shape."""
     phi = FaceField(
         small_axis_projected_grid, "phi_pack_k", FieldRole.LOCAL, ()
     )
@@ -254,7 +259,7 @@ def test_unpack_rejects_wrong_tensor_axes(
 def test_pack_layout_is_single_then_bnd_then_immersed(
     tmp_path: Path,
 ) -> None:
-    # Packed axis-0 order is [single | domain_bnd | upper | lower].
+    """Packed axis-0 order is [single | domain_bnd | upper | lower]."""
     grid = _axis_projected_grid_with_ib(tmp_path)
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     phi.single_data[:] = 1.0
@@ -278,7 +283,10 @@ def test_pack_layout_is_single_then_bnd_then_immersed(
 def test_immersed_tensor_boundary_diffusion(
     tmp_path: Path, component_shape: tuple[int, ...]
 ) -> None:
-
+    """
+    Constant scalar, vector, and tensor BCs fill immersed faces and balance
+    diffusion.
+    """
     grid = _axis_projected_grid_with_ib(tmp_path)
     q = CellField(grid, "q_tensor_ib", FieldRole.LOCAL, component_shape)
     value = torch.arange(1, q.num_components + 1, dtype=grid.dtype).reshape(

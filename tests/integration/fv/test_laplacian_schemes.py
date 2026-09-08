@@ -1,8 +1,10 @@
 """
-Integration tests for ``fvm.laplacian`` scheme selection on refined meshes.
+Numerical Laplacian schemes on refined meshes.
 
-Pins that ``corrected`` is exact for linear fields on hanging faces, matches
-``fvc.sn_grad``, and that ``uncorrected`` / scheme lookup behave as configured.
+Guarantees hanging-face flux for ``corrected``, agreement with ``fvc.sn_grad``,
+and that ``uncorrected`` / legacy ``linear`` / field-specific YAML actually
+change the assembled operator. Lookup *order* is unit-tested in
+``test_fv_scheme_selection``.
 """
 
 from __future__ import annotations
@@ -24,9 +26,8 @@ def _exact_flux(grid: GridBase, gradient: torch.Tensor) -> torch.Tensor:
     return geo.mag_Sf_s * gradient[grid.axis[geo.single_idx]]
 
 
-def test_corrected_laplacian_flux_is_exact_for_linear_field():
-    # gamma * |Sf| * snGrad must be exact on every single-sided face,
-    # including hanging faces, with either configured gradient scheme.
+def test_corrected_laplacian_flux_is_exact_for_linear_field() -> None:
+    """Hanging-face flux is exact for a linear field under both grad schemes."""
     for grad_scheme in (GradScheme.LINEAR, GradScheme.LEASTSQUARE):
         grid = refined_3d_grid(grad_scheme)
         field, gradient = linear_scalar_field(grid)
@@ -40,9 +41,8 @@ def test_corrected_laplacian_flux_is_exact_for_linear_field():
         assert mat.face_flux_correction is not None
 
 
-def test_corrected_laplacian_matches_sn_grad_path_on_refined_mesh():
-    # Matrix flux must equal gamma_f * |Sf| * snGrad for non-uniform gamma,
-    # so correct_phi via (-pEqn).flux stays consistent with snGrad.
+def test_corrected_laplacian_matches_sn_grad_path_on_refined_mesh() -> None:
+    """``fvm.laplacian`` flux must match ``gamma_f * |Sf| * fvc.sn_grad``."""
     grid = refined_grid()
     geo = face_geometry(grid)
     psi = CellField(grid, "psi_rand", FieldRole.LOCAL, ())
@@ -58,9 +58,8 @@ def test_corrected_laplacian_matches_sn_grad_path_on_refined_mesh():
     torch.testing.assert_close(flux, expected, atol=1e-12, rtol=1e-12)
 
 
-def test_uncorrected_laplacian_has_no_face_flux_correction():
-    # ``uncorrected`` keeps the orthogonal two-point stencil only: exact on
-    # regular faces, O(1) normal-gradient error on hanging faces.
+def test_uncorrected_laplacian_has_no_face_flux_correction() -> None:
+    """Orthogonal stencil: exact on regular faces, wrong on hanging faces."""
     grid = refined_grid(
         fv_schemes=fvSchemesConfig(
             laplacianSchemes={"default": LaplacianScheme.UNCORRECTED}
@@ -82,8 +81,8 @@ def test_uncorrected_laplacian_has_no_face_flux_correction():
     assert (flux[geo.hang_idx] - expected[geo.hang_idx]).abs().max() > 1e-3
 
 
-def test_linear_laplacian_scheme_is_alias_of_corrected():
-    # Legacy ``linear`` value must keep the corrected behaviour.
+def test_linear_yaml_alias_keeps_corrected_hanging_face_flux() -> None:
+    """Legacy ``linear`` must remain the corrected stencil on 2:1 faces."""
     grid = refined_grid(
         fv_schemes=fvSchemesConfig(
             laplacianSchemes={"default": LaplacianScheme.LINEAR}
@@ -98,8 +97,8 @@ def test_linear_laplacian_scheme_is_alias_of_corrected():
     )
 
 
-def test_laplacian_scheme_lookup_prefers_field_specific_key():
-    # ``laplacian(<field>)`` must take precedence over ``default``.
+def test_laplacian_operator_uses_the_field_specific_yaml_key() -> None:
+    """``fvm.laplacian`` must call scheme lookup, not a hardcoded default."""
     grid = refined_grid(
         fv_schemes=fvSchemesConfig(
             laplacianSchemes={

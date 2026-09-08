@@ -1,10 +1,8 @@
 """
-Integration tests for ``fvc.reconstruct`` on refined octree grids.
+Face flux reconstructs uniform and linear velocities across octree refinement.
 
-Pins the OpenFOAM ``fvc::reconstruct`` convention: owner and neighbour
-receive same-signed ``n_f * phi_f`` contributions normalised by the
-area-weighted reference tensor, so uniform and linear velocity fields are
-recovered exactly on every refinement level.
+Uniform velocity is recovered in every cell and written into the target field.
+The linear U=(x, 2y, -3z) case checks component values on a refined 3-D grid.
 """
 
 from __future__ import annotations
@@ -29,9 +27,11 @@ def _uniform_case(
     return phi, U_vec
 
 
-def test_reconstruct_recovers_uniform_velocity_on_refined_grid():
-    # A uniform velocity must be recovered exactly in every cell, including
-    # coarse cells whose faces are split into hanging-node sub-faces.
+def test_reconstruct_recovers_uniform_velocity_on_refined_grid() -> None:
+    """
+    A uniform velocity must be recovered exactly in every cell, including
+    coarse cells whose faces are split into hanging-node sub-faces.
+    """
     grid = refined_grid()
     phi, U_vec = _uniform_case(grid, (1.0, 0.5, -0.25))
     U = CellField(grid, "U_rec", FieldRole.LOCAL, (3,))
@@ -43,9 +43,11 @@ def test_reconstruct_recovers_uniform_velocity_on_refined_grid():
     torch.testing.assert_close(U.data, expected, atol=1e-12, rtol=1e-12)
 
 
-def test_reconstruct_recovers_linear_velocity_on_3d_refined_grid():
-    # ``U = (x, 2y, -3z)`` is linear, so the area-weighted average of the
-    # face-normal velocities equals the cell-centre value on Cartesian cells.
+def test_reconstruct_recovers_linear_velocity_on_3d_refined_grid() -> None:
+    """
+    ``U = (x, 2y, -3z)`` is linear, so the area-weighted average of the
+    face-normal velocities equals the cell-centre value on Cartesian cells.
+    """
     grid = refined_3d_grid(GradScheme.LEASTSQUARE)
     scale = torch.tensor([1.0, 2.0, -3.0], dtype=grid.dtype, device=grid.device)
 

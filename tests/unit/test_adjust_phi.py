@@ -1,4 +1,7 @@
-"""Unit tests for ``adjust_phi`` mass-flux balancing."""
+"""
+Flux balancing adjusts available outlets and leaves fully prescribed
+outflow unchanged.
+"""
 
 from __future__ import annotations
 
@@ -15,9 +18,11 @@ from gridfoam.fv.adjust_phi import adjust_phi
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole
 
 
-def test_adjust_phi_balances_domain_flux(tmp_path: pathlib.Path):
-    # When an adjustable outlet exists, inlet/outlet flux imbalance must be
-    # removed so the sum of domain-boundary phi is (near) zero.
+def test_adjust_phi_balances_domain_flux(tmp_path: pathlib.Path) -> None:
+    """
+    When an adjustable outlet exists, inlet/outlet flux imbalance must be
+    removed so the sum of domain-boundary phi is (near) zero.
+    """
     grid = create_grid(channel_config(tmp_path))
     U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
@@ -48,8 +53,10 @@ def test_adjust_phi_balances_domain_flux(tmp_path: pathlib.Path):
 
 def test_adjust_phi_skips_scaling_when_no_adjustable_outflow(
     tmp_path: pathlib.Path,
-):
-    # With only fixed Dirichlet outlets, adjust_phi must leave phi unchanged.
+) -> None:
+    """
+    With only fixed Dirichlet outlets, adjust_phi must leave phi unchanged.
+    """
     grid = create_grid(channel_config(tmp_path))
     U = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())

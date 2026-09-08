@@ -1,4 +1,7 @@
-"""Unit tests for diagnostics CSV collector."""
+"""
+Diagnostics CSV preserves intervals, final rows, component statistics, and
+flush behavior.
+"""
 
 from __future__ import annotations
 
@@ -28,6 +31,10 @@ def test_collector_writes_continuity_rows_on_interval(
     small_axis_projected_grid: AxisProjectedGrid,
     diagnostics_output_dir: Path,
 ) -> None:
+    """
+    Continuity CSV includes its header, interval rows, and the off-interval
+    final step.
+    """
     grid = small_axis_projected_grid
     config = PostProcessingConfig(
         continuityError=ContinuityErrorConfig(writeInterval=2),
@@ -60,6 +67,10 @@ def test_collector_writes_solver_info_with_flush(
     small_axis_projected_grid: AxisProjectedGrid,
     diagnostics_output_dir: Path,
 ) -> None:
+    """
+    Solver CSV is readable before close and close does not duplicate the
+    last row.
+    """
     grid = small_axis_projected_grid
     config = PostProcessingConfig(
         solverInfo=SolverInfoConfig(fields=["p"], writeInterval=1),
@@ -112,6 +123,10 @@ def test_collector_writes_vector_solver_info_per_component(
     small_axis_projected_grid: AxisProjectedGrid,
     diagnostics_output_dir: Path,
 ) -> None:
+    """
+    Vector CSV columns retain each component's iteration count and
+    convergence flag.
+    """
     grid = small_axis_projected_grid
     _u = CellField(grid, "U", role=FieldRole.LOCAL, component_shape=(3,))
     config = PostProcessingConfig(
@@ -170,6 +185,10 @@ def test_from_config_returns_none_when_disabled(
     small_axis_projected_grid: AxisProjectedGrid,
     diagnostics_output_dir: Path,
 ) -> None:
+    """
+    An empty post-processing configuration creates no diagnostics
+    collector.
+    """
     collector = DiagnosticsCollector.from_config(
         small_axis_projected_grid,
         PostProcessingConfig(),

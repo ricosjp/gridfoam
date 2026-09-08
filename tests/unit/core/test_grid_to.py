@@ -1,4 +1,7 @@
-"""Unit tests for ``GridBase.to``."""
+"""
+Grid device moves preserve identity and topology while transferring
+geometry and fields.
+"""
 
 from __future__ import annotations
 
@@ -19,14 +22,14 @@ def _fresh_grid() -> AxisProjectedGrid:
 
 
 def test_to_same_device_returns_same_object() -> None:
-    # Moving to the current device is a no-op on identity.
+    """Moving to the current device is a no-op on identity."""
     grid = _fresh_grid()
     assert grid.to("cpu") is grid
     assert grid.to(torch.device("cpu")) is grid
 
 
 def test_to_preserves_topology_scalars() -> None:
-    # Device moves must not change topology counts.
+    """Device moves must not change topology counts."""
     grid = _fresh_grid()
     n_cells = grid.num_cells
     n_faces = grid.num_internal_faces
@@ -41,7 +44,7 @@ def test_to_preserves_topology_scalars() -> None:
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_to_cuda_moves_geometry_and_registered_fields() -> None:
-    # Geometry and registered field buffers share the runtime device.
+    """Geometry and registered field buffers share the runtime device."""
     grid = _fresh_grid()
     u = CellField(grid, "U", FieldRole.LOCAL, (3,))
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())

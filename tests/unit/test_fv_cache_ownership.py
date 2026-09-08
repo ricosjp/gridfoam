@@ -1,4 +1,7 @@
-"""Tests for per-instance FV caches on grids and fields."""
+"""
+Grid and field caches are owned by instances and refresh after geometry
+invalidation.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,11 @@ from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole
 
 
-def test_face_geometry_is_cached_on_grid_fv_cache():
+def test_face_geometry_is_cached_on_grid_fv_cache() -> None:
+    """
+    Face geometry is reused until invalidation, then rebuilt on the grid
+    cache.
+    """
     grid = refined_grid()
     geo1 = face_geometry(grid)
     assert grid.fv_cache.face_geometry is geo1
@@ -30,7 +37,11 @@ def test_face_geometry_is_cached_on_grid_fv_cache():
 
 def test_boundary_batches_are_cached_on_field_fv_cache(
     tmp_path: pathlib.Path,
-):
+) -> None:
+    """
+    Boundary batches live on the field cache and are repopulated after
+    invalidation.
+    """
     grid = create_grid(channel_config(tmp_path))
     field = CellField(grid, "U", FieldRole.TRANSIENT, (3,))
     batches1 = tuple(iter_boundary_batches(field))
@@ -46,7 +57,11 @@ def test_boundary_batches_are_cached_on_field_fv_cache(
 
 def test_boundary_mask_size_and_area_refresh_after_geometry_invalidation(
     tmp_path: pathlib.Path,
-):
+) -> None:
+    """
+    Invalidation refreshes patch masks, face counts, area vectors, and
+    magnitudes.
+    """
     grid = create_grid(channel_config(tmp_path))
     field = CellField(grid, "U", FieldRole.LOCAL, (3,))
     patch = DomainBoundaryPatch.X_MINUS

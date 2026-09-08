@@ -15,7 +15,11 @@ from gridfoam.meta.enums import AlgorithmType
 @pytest.mark.parametrize("relative", [False, True])
 def test_velocity_convergence_uses_current_outer_residual(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relative: bool
-):
+) -> None:
+    """
+    PIMPLE exits on current velocity residuals and refreshes the relative
+    baseline each step.
+    """
     config = PIMPLEAlgorithm(
         type=AlgorithmType.PIMPLE,
         nCorrectors=1,
@@ -52,7 +56,8 @@ def test_velocity_convergence_uses_current_outer_residual(
 
 def test_pimple_clears_convergence_after_an_unconverged_step(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
+    """A later unconverged time step clears the previous convergence flag."""
     config = PIMPLEAlgorithm(
         type=AlgorithmType.PIMPLE,
         nCorrectors=1,
@@ -76,7 +81,11 @@ def test_pimple_clears_convergence_after_an_unconverged_step(
 @pytest.mark.parametrize("n_outer", [1, 2, 3, 4])
 def test_relative_check_skips_initial_and_scheduled_final_iterations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, n_outer: int
-):
+) -> None:
+    """
+    Relative control cannot trigger on the initial or scheduled final outer
+    iteration.
+    """
     config = PIMPLEAlgorithm(
         type=AlgorithmType.PIMPLE,
         nCorrectors=1,
@@ -99,7 +108,11 @@ def test_relative_check_skips_initial_and_scheduled_final_iterations(
 
 def test_pressure_uses_first_baseline_and_last_solve_initial_residual(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
+    """
+    Pressure convergence retains the first baseline and latest pre-solve
+    residual.
+    """
     config = PIMPLEAlgorithm(
         type=AlgorithmType.PIMPLE,
         nCorrectors=2,

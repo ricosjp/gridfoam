@@ -56,7 +56,13 @@ def _solver() -> LinearSolver:
     )
 
 
-def test_fixed_constraint_cache_refreshes_values_and_autograd(tmp_path: Path):
+def test_fixed_constraint_cache_refreshes_values_and_autograd(
+    tmp_path: Path,
+) -> None:
+    """
+    Constraint caches refresh BC values, autograd links, and changed
+    geometry masks.
+    """
     grid = immersed_plane_grid(tmp_path, 8, theta=0.03)
     value = torch.tensor(0.7, dtype=grid.dtype, requires_grad=True)
     q = _scalar(grid, "q", value)
@@ -84,7 +90,13 @@ def test_fixed_constraint_cache_refreshes_values_and_autograd(tmp_path: Path):
     assert immersed_dirichlet_constraints(q)[0].numel() == 0
 
 
-def test_mixed_constraint_selection_tracks_flow_reversal(tmp_path: Path):
+def test_mixed_constraint_selection_tracks_flow_reversal(
+    tmp_path: Path,
+) -> None:
+    """
+    InletOutlet constrains near-wall cells only during inflow, including
+    after reversal.
+    """
     grid = immersed_plane_grid(tmp_path, 8, theta=0.03)
     q = CellField(grid, "q", FieldRole.LOCAL, ())
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
@@ -102,7 +114,11 @@ def test_mixed_constraint_selection_tracks_flow_reversal(tmp_path: Path):
         torch.testing.assert_close(values, torch.full_like(values, 0.7))
 
 
-def test_near_boundary_poisson_is_second_order(tmp_path: Path):
+def test_near_boundary_poisson_is_second_order(tmp_path: Path) -> None:
+    """
+    Snapped Dirichlet solves remain symmetric and converge quadratically
+    near the wall.
+    """
     errors = []
     for n in (8, 16, 32):
         h = 1.0 / n
@@ -131,7 +147,11 @@ def test_near_boundary_poisson_is_second_order(tmp_path: Path):
 @pytest.mark.parametrize("theta", [0.3, 0.03, 0.0])
 def test_immersed_pressure_projection_conserves_every_cell(
     tmp_path: Path, theta: float
-):
+) -> None:
+    """
+    Projection conserves each cell and preserves pressure constraints at
+    all wall offsets.
+    """
     grid = immersed_plane_grid(tmp_path, 8, theta)
     p = _scalar(grid, "p", torch.tensor(0.7, dtype=grid.dtype))
     r = CellField(grid, "rAtU", FieldRole.LOCAL, ())
@@ -163,7 +183,13 @@ def test_immersed_pressure_projection_conserves_every_cell(
     assert torch.isfinite(fvc.sn_grad(p).pack()).all()
 
 
-def test_snapping_masks_and_distances_are_unit_invariant(tmp_path: Path):
+def test_snapping_masks_and_distances_are_unit_invariant(
+    tmp_path: Path,
+) -> None:
+    """
+    Scaling length by 1000 preserves snapping masks and scales wall
+    distances.
+    """
     grids = [
         immersed_plane_grid(tmp_path / str(scale), 8, 0.03, scale)
         for scale in (1.0, 1000.0)
@@ -184,7 +210,13 @@ def test_snapping_masks_and_distances_are_unit_invariant(tmp_path: Path):
     assert float(a.ap_dist_owner_to_bnd[0]) < 0.01
 
 
-def test_neumann_at_coincident_boundary_has_no_cell_constraint(tmp_path: Path):
+def test_neumann_at_coincident_boundary_has_no_cell_constraint(
+    tmp_path: Path,
+) -> None:
+    """
+    A coincident Neumann wall imposes its face gradient without
+    constraining a cell.
+    """
     grid = immersed_plane_grid(tmp_path, 8, 0.0)
     q = _scalar(grid, "q", torch.tensor(0.0))
     q.add_boundary_conditions(
@@ -199,7 +231,13 @@ def test_neumann_at_coincident_boundary_has_no_cell_constraint(tmp_path: Path):
     )
 
 
-def test_prescribed_value_adjoint_matches_finite_difference(tmp_path: Path):
+def test_prescribed_value_adjoint_matches_finite_difference(
+    tmp_path: Path,
+) -> None:
+    """
+    The solved objective's Dirichlet-value adjoint matches central finite
+    differences.
+    """
     grid = immersed_plane_grid(tmp_path, 8, 0.03)
 
     def objective(value: torch.Tensor) -> torch.Tensor:
@@ -216,8 +254,13 @@ def test_prescribed_value_adjoint_matches_finite_difference(tmp_path: Path):
     torch.testing.assert_close(gradient, finite_difference, atol=1e-8, rtol=0)
 
 
-def test_velocity_correction_keeps_prescribed_cell_values(tmp_path: Path):
-
+def test_velocity_correction_keeps_prescribed_cell_values(
+    tmp_path: Path,
+) -> None:
+    """
+    Pressure correction retains the immersed cell's prescribed velocity
+    components.
+    """
     grid = immersed_plane_grid(tmp_path, 8, 0.03)
     p = _scalar(grid, "p", torch.tensor(0.7))
     p.data = grid.cell_centers[:, 0].clone()

@@ -18,7 +18,11 @@ from gridfoam.meta.enums import AlgorithmType
 @pytest.mark.parametrize("transient", [False, True])
 def test_runner_stops_only_for_simulation_convergence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, transient: bool
-):
+) -> None:
+    """
+    Steady convergence stops the run; transient steps continue and the
+    final state is written.
+    """
     if transient:
         config = channel_flow_config(
             tmp_path,
@@ -54,7 +58,11 @@ def test_runner_stops_only_for_simulation_convergence(
     write_spy.assert_called_once()
 
 
-def test_simple_ignores_relative_residual_control(tmp_path: Path):
+def test_simple_ignores_relative_residual_control(tmp_path: Path) -> None:
+    """
+    SIMPLE requires an absolute residual hit even after a large relative
+    reduction.
+    """
     algo = SIMPLE(create_grid(simple_convergence_config(tmp_path)))
     algo._residual_control = {  # pyright: ignore[reportPrivateUsage]
         "U": ResidualControlEntry(tolerance=1e-6, rel_tolerance=0.1)

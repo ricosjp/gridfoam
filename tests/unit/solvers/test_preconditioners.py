@@ -1,4 +1,7 @@
-"""Unit tests for linear-solver preconditioner factories."""
+"""
+Jacobi scales by inverse diagonal, NONE preserves values, and unknown types
+fail.
+"""
 
 from __future__ import annotations
 
@@ -17,8 +20,8 @@ from gridfoam.solvers.preconditioners import create_preconditioner
 
 def test_jacobi_preconditioner_scales_by_inverse_diag(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # Jacobi preconditioning must multiply the residual by 1/diag.
+) -> None:
+    """Jacobi preconditioning must multiply the residual by 1/diag."""
     grid = small_axis_projected_grid
     p = CellField(grid, "p_jac", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
@@ -31,8 +34,8 @@ def test_jacobi_preconditioner_scales_by_inverse_diag(
 
 def test_none_preconditioner_is_identity(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # NONE preconditioner must return the residual unchanged.
+) -> None:
+    """NONE preconditioner must return the residual unchanged."""
     grid = small_axis_projected_grid
     p = CellField(grid, "p_none", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)
@@ -43,8 +46,8 @@ def test_none_preconditioner_is_identity(
 
 def test_create_preconditioner_rejects_unknown_type(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # Factory must reject values outside ``PreconditionerType`` at runtime.
+) -> None:
+    """Factory must reject values outside ``PreconditionerType`` at runtime."""
     grid = small_axis_projected_grid
     p = CellField(grid, "p_bad", role=FieldRole.LOCAL, component_shape=())
     mat = FvMatrix(p)

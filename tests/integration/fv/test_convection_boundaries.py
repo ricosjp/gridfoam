@@ -23,7 +23,11 @@ from gridfoam.meta.enums import DivScheme, DomainBoundaryPatch, FieldRole
 @pytest.mark.parametrize("shape", [(), (3,), (3, 3)])
 def test_boundary_transport_matches_prescribed_value(
     tmp_path: Path, side: str, condition: str, shape: tuple[int, ...]
-):
+) -> None:
+    """
+    Domain and immersed fluxes follow each BC through inflow, outflow, and
+    zero flow.
+    """
     grid = immersed_plane_grid(tmp_path, 8, 0.3)
     field = CellField(grid, "transported", FieldRole.LOCAL, shape)
     cell_value = torch.full(shape, 3.0, dtype=grid.dtype)
@@ -89,7 +93,11 @@ def test_boundary_transport_matches_prescribed_value(
             )
 
 
-def test_linear_advection_respects_fixed_outlet_value():
+def test_linear_advection_respects_fixed_outlet_value() -> None:
+    """
+    Prescribed inlet/outlet values give the exact derivative of a linear
+    field.
+    """
     config = small_gridfoam_config()
     config = config.model_copy(
         update={

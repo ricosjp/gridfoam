@@ -1,4 +1,7 @@
-"""Integration tests for diagnostics CSV output."""
+"""
+SIMPLE steps feed continuity and component solver statistics into
+diagnostics CSV.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +41,10 @@ def _config_with_diagnostics(tmp_path: Path) -> GridfoamConfig:
 
 
 def test_simple_run_writes_diagnostics_csv(tmp_path: Path) -> None:
+    """
+    Attached diagnostics emit one continuity and component-solver row per
+    SIMPLE step.
+    """
     config = _config_with_diagnostics(tmp_path)
     grid = create_grid(config)
     algo = SIMPLE(grid)

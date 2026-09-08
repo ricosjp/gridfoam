@@ -120,8 +120,8 @@ def _grad_wrt_coeffs(
 
 def test_as_transpose_matches_dot(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # y·(Ax) must equal (Aᵀy)·x for a random non-symmetric LDU matrix.
+) -> None:
+    """y·(Ax) must equal (Aᵀy)·x for a random non-symmetric LDU matrix."""
     grid = small_axis_projected_grid
     p = CellField(grid, "p_tr", role=FieldRole.LOCAL, component_shape=())
     A = FvMatrix(p)
@@ -150,8 +150,8 @@ def test_krylov_adjoint_gradcheck(
     method: SolverType,
     symmetric: bool,
     seed: int,
-):
-    # Finite-difference check of Krylov implicit adjoint on LDU coeffs.
+) -> None:
+    """Finite-difference check of Krylov implicit adjoint on LDU coeffs."""
     grid = small_axis_projected_grid
     eq, diag0, upper0, lower0, source0 = _diagonally_dominant_system(
         grid,
@@ -193,9 +193,11 @@ def test_krylov_adjoint_gradcheck(
 
 def test_cg_adjoint_matches_pyamg(
     small_axis_projected_grid: AxisProjectedGrid,
-):
-    # On a symmetric diagonally-dominant system, CG and PyAMG implicit
-    # adjoints must agree on coefficient gradients.
+) -> None:
+    """
+    On a symmetric diagonally-dominant system, CG and PyAMG implicit
+    adjoints must agree on coefficient gradients.
+    """
     grid = small_axis_projected_grid
     eq, diag, upper, lower, source = _diagonally_dominant_system(
         grid, name="p_cmp", symmetric=True, seed=3

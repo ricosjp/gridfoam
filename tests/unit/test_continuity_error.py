@@ -1,4 +1,7 @@
-"""Unit tests for continuity error metrics."""
+"""
+Continuity diagnostics use dt-scaled volume averages of signed and absolute
+divergence.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +18,10 @@ from gridfoam.post.diagnostics.continuity import compute_continuity_error
 def test_compute_continuity_error_matches_volume_weighted_div(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
+    """
+    Local and global errors use absolute and signed volume-weighted
+    divergence times dt.
+    """
     grid = small_axis_projected_grid
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.fill_(0.01)
@@ -39,6 +46,7 @@ def test_compute_continuity_error_matches_volume_weighted_div(
 def test_compute_continuity_error_zero_flux_is_zero(
     small_axis_projected_grid: AxisProjectedGrid,
 ) -> None:
+    """Zero face flux gives exactly zero local and global continuity error."""
     grid = small_axis_projected_grid
     phi = FaceField(grid, "phi", role=FieldRole.LOCAL, component_shape=())
     phi.single_data.zero_()
