@@ -28,6 +28,7 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.boundary_ops import (
+    apply_immersed_dirichlet_values,
     boundary_block,
     boundary_fixed_value_mask,
     boundary_normal_gradient,
@@ -48,7 +49,8 @@ class PressureSolveResult:
     ----------
     matrix : FvMatrix
         Pressure-equation matrix of the last non-orthogonal pass
-        (``-laplacian(rAtU, p)`` with the divergence source applied).
+        (``-laplacian(rAtU, p)`` with the divergence source applied), before
+        immersed cell-constraint elimination. Use it for flux correction.
     stats : tuple[SolveStats, ...]
         Linear-solver statistics of the last pass.
     initial_residual : float
@@ -276,7 +278,8 @@ def correct_phi(
     Internal faces use :meth:`~gridfoam.core.fvmatrix.FvMatrix.flux`
     (including hanging-node correction). Boundary faces use
     ``rAtU_P |Sf| (p_b - p_P) / |d|``, which is zero on zero-gradient
-    patches. The result is discretely divergence-free to solver tolerance.
+    patches. On snapped Dirichlet cells, recover boundary flux from the
+    cell mass balance. The result is divergence-free to solver tolerance.
 
     Parameters
     ----------
@@ -286,7 +289,8 @@ def correct_phi(
         Predicted flux from ``compute_phi_hbya`` (after ``adjust_phi`` /
         ``apply_simplec`` when used).
     p_eqn_mat : FvMatrix
-        Solved negative-Laplacian pressure matrix.
+        Assembled negative-Laplacian pressure matrix before cell-constraint
+        elimination, including explicit face-flux corrections.
     p : CellField
         Solved pressure.
     rAtU : CellField
@@ -338,7 +342,8 @@ def correct_velocity(
     """
     Correct cell-centered velocity after the pressure solve.
 
-    ``U = HbyA - rAtU * grad(p)``.
+    Apply ``U = HbyA - rAtU * grad(p)``, then restore prescribed values on
+    snapped immersed Dirichlet cells.
 
     Parameters
     ----------
@@ -353,3 +358,4 @@ def correct_velocity(
     """
     grad_p = fvc.grad(p)
     U.data = HbyA.data - rAtU.data[:, None] * grad_p.data
+    apply_immersed_dirichlet_values(U)

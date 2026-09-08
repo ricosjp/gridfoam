@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from gridfoam.core.field import CellField
@@ -50,3 +51,55 @@ def test_fvmatrix_A_and_H_operators(
     assert torch.allclose(Aop, mat.diag / grid.cell_volumes)
     H = mat.H(x)
     assert H.shape == x.shape
+
+
+@pytest.mark.parametrize("shape", [(), (3,), (3, 3)])
+def test_predictor_source_keeps_base_matrix_independent(
+    small_axis_projected_grid: AxisProjectedGrid, shape: tuple[int, ...]
+):
+    grid = small_axis_projected_grid
+    field = CellField(grid, "predictor_field", FieldRole.LOCAL, shape)
+    base = FvMatrix(field)
+    base.diag.fill_(2.0)
+    base.upper.fill_(-0.2)
+    base.lower.fill_(-0.3)
+    base.source = torch.ones_like(base.source, requires_grad=True)
+    base.face_flux_correction = torch.ones(
+        (grid.num_internal_faces, *shape), dtype=grid.dtype, device=grid.device
+    )
+    force = torch.full_like(base.source, 0.5, requires_grad=True)
+    predictor = base.with_source(base.source + force)
+
+    # Adding a source affects H but not A, and does not contaminate base.H.
+    x = torch.ones_like(base.source)
+    volumes = grid.cell_volumes.reshape(-1, *(1 for _ in shape))
+    torch.testing.assert_close(predictor.A(), base.A())
+    torch.testing.assert_close(predictor.H(x) - base.H(x), force / volumes)
+    source_grad, force_grad = torch.autograd.grad(
+        predictor.source.sum(), (base.source, force)
+    )
+    torch.testing.assert_close(source_grad, torch.ones_like(base.source))
+    torch.testing.assert_close(force_grad, torch.ones_like(force))
+
+    # Later solver/constraint operations must not mutate the base matrix,
+    # including its explicit face-flux correction.
+    for name in ("diag", "upper", "lower", "source", "face_flux_correction"):
+        base_tensor = getattr(base, name)
+        predictor_tensor = getattr(predictor, name)
+        before = base_tensor.clone()
+        with torch.no_grad():
+            predictor_tensor.add_(1.0)
+        torch.testing.assert_close(base_tensor, before)
+
+
+def test_with_source_preserves_absent_face_correction(
+    small_axis_projected_grid: AxisProjectedGrid,
+):
+    field = CellField(
+        small_axis_projected_grid,
+        "predictor_no_correction",
+        FieldRole.LOCAL,
+        (),
+    )
+    base = FvMatrix(field)
+    assert base.with_source(base.source).face_flux_correction is None

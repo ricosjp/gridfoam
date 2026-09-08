@@ -325,26 +325,25 @@ class PIMPLE(AlgorithmBase):
                 - fvm.laplacian(nu_eff, self.U)
             )
 
-            # Keep the original source without pressure-gradient contribution
-            original_source = UEqn_mat.source.clone()
-
-            # Add pressure-gradient source term (-grad(p) * V)
+            # Keep the pressure-free equation for H/A; add pressure only to
+            # the separate momentum predictor before applying cell constraints.
             grad_p = fvc.grad(self.p)
-            UEqn_mat.source = (
-                original_source - grid.cell_volumes[:, None] * grad_p.data
+            predictor_mat = UEqn_mat.with_source(
+                UEqn_mat.source - grid.cell_volumes[:, None] * grad_p.data
             )
-
-            # Solve momentum predictor (obtain U*)
+            momentum_eq = equation(self.U, predictor_mat)
             if self.U.name in self._residual_control:
                 self._record_residual(
                     self.U.name,
-                    field_initial_residual(UEqn_mat, self.U),
+                    field_initial_residual(momentum_eq.fv_matrix, self.U),
                 )
 
-            momentum_eq = equation(self.U, UEqn_mat)
             u_result = self.solvers[momentum_eq.name].solve(momentum_eq)
             self.U.data = u_result.solution
             solve_stats[self.U.name] = u_result.stats
+
+            # Constrain the pressure-free momentum equation for H/A.
+            UEqn_mat = equation(self.U, UEqn_mat).fv_matrix
 
             # =========================================================
             # PISO corrector loop (pressure-velocity coupling)
@@ -358,7 +357,6 @@ class PIMPLE(AlgorithmBase):
                 self.rAU.data = 1.0 / UEqn_mat.A()
 
                 # Compute HbyA with H() without pressure-gradient source
-                UEqn_mat.source = original_source
                 self.HbyA.data = self.rAU.data[:, None] * UEqn_mat.H(
                     self.U.data
                 )

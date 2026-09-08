@@ -224,7 +224,7 @@ def laplacian(
         )
         area = batch.mag_Sf
         conductance = gamma_bnd * area
-        # (u_b - u_P) / d already includes the ghost reconstruction's 1/theta.
+        # Use the actual cell-to-boundary distance exactly once.
         # Constrain near Dirichlet cells after assembling the full equation.
         c_value = conductance * boundary_value_gradient_coefficient(
             field, batch, f

@@ -35,11 +35,11 @@ Responsibilities
 
 ``core``
    Mesh interfaces, cell- and face-centred fields, finite-volume matrices, and
-   equations. Grid- and field-owned FV caches (``fv_cache``) live here so
-   ``core`` does not import ``fv``. ``CellField`` constructs configured
-   boundary conditions, so ``core`` and ``boundaries`` have a narrow
-   integration point even though lower layers should otherwise avoid
-   importing higher layers.
+   equations. Grid- and field-owned FV cache containers (``fv_cache``) live
+   here without importing their numerical builders. ``CellField`` constructs
+   configured boundary conditions, and ``Equation`` uses ``fv.boundary_ops``
+   to select immersed Dirichlet cell constraints. These are narrow integration
+   points; operator assembly and algorithm policy remain in their own layers.
 
 ``boundaries``
    Boundary-condition contracts and implementations. Every condition is

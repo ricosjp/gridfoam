@@ -3,12 +3,12 @@
 from pathlib import Path
 
 import pytest
-import pyvista as pv
 import torch
-from tests.conftest import small_gridfoam_config
+from tests.helpers.grids import immersed_plane_grid
 
 from gridfoam.algorithms.utils.pressure_correction import (
     correct_phi,
+    correct_velocity,
     solve_pressure_poisson,
 )
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
@@ -17,45 +17,13 @@ from gridfoam.boundaries.derived.inlet_outlet import InletOutletBC
 from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.boundary_ops import immersed_dirichlet_constraints
-from gridfoam.meta.config import DomainConfig, SolverConfig
+from gridfoam.meta.config import SolverConfig
 from gridfoam.meta.enums import DomainBoundaryPatch as Patch
 from gridfoam.meta.enums import FieldRole, SolverType
+from gridfoam.solvers.base import LinearSolver
 from gridfoam.solvers.factory import create_solver
-
-
-def _plane_grid(
-    path: Path, n: int, theta: float, scale: float = 1.0
-) -> AxisProjectedGrid:
-    path.mkdir(parents=True, exist_ok=True)
-    interface = (0.5 - 0.5 / n + theta / n) * scale
-    mesh_path = path / "plane.stl"
-    pv.Plane(
-        center=(interface, 0.05 * scale, 0.05 * scale),
-        direction=(1, 0, 0),
-        i_size=scale,
-        j_size=scale,
-    ).triangulate().save(mesh_path)
-    config = small_gridfoam_config(output_dir=path)
-    config = config.model_copy(
-        update={
-            "fluxel": config.fluxel.model_copy(
-                update={
-                    "domain": DomainConfig(
-                        lower=[0, 0, 0], upper=[scale, 0.1 * scale, 0.1 * scale]
-                    ),
-                    "root_resolution": [n, 1, 1],
-                    "mesh_path": mesh_path,
-                }
-            )
-        }
-    )
-    grid = create_grid(config)
-    assert isinstance(grid, AxisProjectedGrid)
-    assert grid.num_immersed_faces == 1
-    return grid
 
 
 def _scalar(
@@ -77,7 +45,7 @@ def _scalar(
     return q
 
 
-def _solver():
+def _solver() -> LinearSolver:
     return create_solver(
         SolverConfig(
             method=SolverType.CG,
@@ -89,7 +57,7 @@ def _solver():
 
 
 def test_fixed_constraint_cache_refreshes_values_and_autograd(tmp_path: Path):
-    grid = _plane_grid(tmp_path, 8, theta=0.03)
+    grid = immersed_plane_grid(tmp_path, 8, theta=0.03)
     value = torch.tensor(0.7, dtype=grid.dtype, requires_grad=True)
     q = _scalar(grid, "q", value)
     patch = next(iter(grid.patch_name_to_id))
@@ -117,7 +85,7 @@ def test_fixed_constraint_cache_refreshes_values_and_autograd(tmp_path: Path):
 
 
 def test_mixed_constraint_selection_tracks_flow_reversal(tmp_path: Path):
-    grid = _plane_grid(tmp_path, 8, theta=0.03)
+    grid = immersed_plane_grid(tmp_path, 8, theta=0.03)
     q = CellField(grid, "q", FieldRole.LOCAL, ())
     phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
     q.add_boundary_conditions(
@@ -138,7 +106,7 @@ def test_near_boundary_poisson_is_second_order(tmp_path: Path):
     errors = []
     for n in (8, 16, 32):
         h = 1.0 / n
-        grid = _plane_grid(tmp_path / str(n), n, theta=0.4 * h)
+        grid = immersed_plane_grid(tmp_path / str(n), n, theta=0.4 * h)
         x_i = 0.5 - h / 2
         x_b = x_i + 0.4 * h * h
         q = _scalar(grid, "q", torch.tensor(x_b**2, dtype=grid.dtype))
@@ -164,7 +132,7 @@ def test_near_boundary_poisson_is_second_order(tmp_path: Path):
 def test_immersed_pressure_projection_conserves_every_cell(
     tmp_path: Path, theta: float
 ):
-    grid = _plane_grid(tmp_path, 8, theta)
+    grid = immersed_plane_grid(tmp_path, 8, theta)
     p = _scalar(grid, "p", torch.tensor(0.7, dtype=grid.dtype))
     r = CellField(grid, "rAtU", FieldRole.LOCAL, ())
     r.data = torch.linspace(0.5, 1.5, grid.num_cells, dtype=grid.dtype)
@@ -197,7 +165,7 @@ def test_immersed_pressure_projection_conserves_every_cell(
 
 def test_snapping_masks_and_distances_are_unit_invariant(tmp_path: Path):
     grids = [
-        _plane_grid(tmp_path / str(scale), 8, 0.03, scale)
+        immersed_plane_grid(tmp_path / str(scale), 8, 0.03, scale)
         for scale in (1.0, 1000.0)
     ]
     a, b = grids
@@ -217,7 +185,7 @@ def test_snapping_masks_and_distances_are_unit_invariant(tmp_path: Path):
 
 
 def test_neumann_at_coincident_boundary_has_no_cell_constraint(tmp_path: Path):
-    grid = _plane_grid(tmp_path, 8, 0.0)
+    grid = immersed_plane_grid(tmp_path, 8, 0.0)
     q = _scalar(grid, "q", torch.tensor(0.0))
     q.add_boundary_conditions(
         dict.fromkeys(grid.patch_name_to_id, NeumannBC(torch.tensor(2.0)))
@@ -226,5 +194,42 @@ def test_neumann_at_coincident_boundary_has_no_cell_constraint(tmp_path: Path):
     matrix = fvm.laplacian(1.0, q)
     assert torch.isfinite(matrix.source).all()
     torch.testing.assert_close(
-        fvc.sn_grad(q).immersed_upper, torch.full((1,), 2.0, dtype=grid.dtype)
+        fvc.sn_grad(q).immersed_upper,
+        torch.full((grid.num_immersed_faces,), 2.0, dtype=grid.dtype),
     )
+
+
+def test_prescribed_value_adjoint_matches_finite_difference(tmp_path: Path):
+    grid = immersed_plane_grid(tmp_path, 8, 0.03)
+
+    def objective(value: torch.Tensor) -> torch.Tensor:
+        q = _scalar(grid, "adjoint_q", value)
+        result = _solver().solve(equation(q, -fvm.laplacian(1.0, q)))
+        return result.solution.square().sum()
+
+    value = torch.tensor(0.7, dtype=grid.dtype, requires_grad=True)
+    gradient = torch.autograd.grad(objective(value), value)[0]
+    step = 1e-5
+    finite_difference = (
+        objective(value.detach() + step) - objective(value.detach() - step)
+    ) / (2 * step)
+    torch.testing.assert_close(gradient, finite_difference, atol=1e-8, rtol=0)
+
+
+def test_velocity_correction_keeps_prescribed_cell_values(tmp_path: Path):
+
+    grid = immersed_plane_grid(tmp_path, 8, 0.03)
+    p = _scalar(grid, "p", torch.tensor(0.7))
+    p.data = grid.cell_centers[:, 0].clone()
+    U = CellField(grid, "U", FieldRole.LOCAL, (3,))
+    value = torch.tensor([1.0, 2.0, 3.0], dtype=grid.dtype)
+    U.add_boundary_conditions(
+        dict.fromkeys(grid.patch_name_to_id, DirichletBC(value))
+    )
+    HbyA = CellField(grid, "HbyA", FieldRole.LOCAL, (3,))
+    r = CellField(grid, "r", FieldRole.LOCAL, ())
+    r.data = torch.ones_like(r.data)
+    correct_velocity(U, HbyA, r, p)
+    cells, values = immersed_dirichlet_constraints(U)
+    torch.testing.assert_close(U.data[cells], values)
+    assert cells.numel() == 1

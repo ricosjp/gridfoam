@@ -3,6 +3,7 @@ import logging
 import torch
 
 from gridfoam.algorithms.utils import needs_reference_value, set_reference_value
+from gridfoam.algorithms.utils.pressure_correction import correct_phi
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
@@ -15,6 +16,7 @@ from gridfoam.core.dimensions import (
 from gridfoam.core.equation import equation
 from gridfoam.core.field import (
     CellField,
+    FaceField,
     get_or_create_cellfield,
     get_or_create_facefield,
 )
@@ -22,6 +24,7 @@ from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
+from gridfoam.fv.boundary_ops import apply_immersed_dirichlet_values
 from gridfoam.fv.flux import correct_flux
 from gridfoam.meta.config import PotentialFlowConfig, SolverConfig
 from gridfoam.meta.enums import BoundaryConditionType, FieldRole
@@ -124,7 +127,7 @@ class PotentialFlow:
 
         1. Build ``phi`` from ``U`` and compute ``div(phi)``.
         2. Solve ``laplacian(Phi) = div(phi)`` with non-orthogonal correctors.
-        3. Update ``phi -= laplacian(Phi).flux(Phi)`` on internal faces.
+        3. Correct internal and boundary fluxes, including snapped cells.
         4. Reconstruct ``U`` from ``phi`` and optionally call ``adjustPhi``.
         """
         logger.info("potential flow solve start")
@@ -181,11 +184,24 @@ class PotentialFlow:
             Phi.data = solve_result.solution
 
         assert phi_eqn_mat is not None
-        # phi -= laplacian(Phi).flux(Phi) on single-sided internal faces
-        phi_hbya = self.phi.single_data.clone()
-        self.phi.single_data = phi_hbya - phi_eqn_mat.flux(Phi.data)
+        # Use the same boundary flux balance as the pressure projection,
+        # including cells on which the potential is prescribed directly.
+        predicted = FaceField(
+            Phi.grid,
+            "potential_predicted_flux",
+            FieldRole.LOCAL,
+            (),
+            dimension=self.phi.dimension,
+        )
+        predicted.unpack(self.phi.pack().clone())
+        coefficient = CellField(
+            Phi.grid, "potential_coefficient", FieldRole.LOCAL, ()
+        )
+        coefficient.data = torch.ones_like(Phi.data)
+        correct_phi(self.phi, predicted, -phi_eqn_mat, Phi, coefficient)
 
         fvc.reconstruct(self.phi, self.U)
+        apply_immersed_dirichlet_values(self.U)
         if self.adjust_phi_enabled:
             adjust_phi(self.phi, self.U)
 

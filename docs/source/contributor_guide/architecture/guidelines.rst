@@ -60,10 +60,11 @@ Dependency guidelines
   ``algorithms.factory.create_algorithm`` is used by ``runner`` and is not
   re-exported from ``algorithms.__init__``.
 
-The boundary-condition factory is intentionally called by ``CellField`` during
-configured field construction. Treat this as a narrow integration point, not
-as a general license for circular imports. ``fv.adjust_phi`` also depends on
-concrete boundary-condition types; keep such FV-to-boundary dependencies
+``CellField`` calls the boundary-condition factory during configured field
+construction. ``Equation`` calls ``fv.boundary_ops`` to select immersed
+Dirichlet cell constraints after full assembly. Keep these integration points
+narrow and avoid circular imports. ``fv.adjust_phi`` and ``fv.boundary_ops``
+also depend on concrete boundary-condition types; keep those dependencies
 local and explicit.
 
 Field and topology rules

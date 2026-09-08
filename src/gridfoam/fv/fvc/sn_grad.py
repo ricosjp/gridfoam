@@ -20,17 +20,19 @@ def sn_grad(field: CellField) -> FaceField:
     Internal faces use the scheme configured in ``snGradSchemes``
     (``corrected`` by default, which adds the hanging-node skewness
     correction). Boundary faces carry the boundary-condition normal
-    gradient.
+    gradient. Snapped immersed Dirichlet faces return a zero placeholder:
+    their boundary flux is recovered from cell continuity during pressure
+    correction. This zero does not prescribe a Neumann condition.
 
     Parameters
     ----------
     field : CellField
-        Cell-centered scalar field.
+        Cell-centered field of any physical tensor shape.
 
     Returns
     -------
     FaceField
-        Face-centered scalar field.
+        Normal derivative with the input field's ``component_shape``.
     """
     grid = field.grid
 

@@ -533,6 +533,13 @@ def _fixed_immersed_constraints(
     return unique_cells, torch.cat(values)[selected]
 
 
+def apply_immersed_dirichlet_values(field: CellField) -> None:
+    """Preserve prescribed near-boundary values after an explicit update."""
+    cells, values = immersed_dirichlet_constraints(field)
+    if cells.numel():
+        field.data = field.data.index_copy(0, cells, values)
+
+
 def fill_boundary_face_values(field: CellField, psi_f: FaceField) -> None:
     """
     Write boundary face values of ``field`` into ``psi_f``.

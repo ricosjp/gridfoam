@@ -59,7 +59,11 @@ FvMatrix and Equation
 ``FvMatrix`` stores LDU coefficients, a source tensor, and an optional explicit
 face-flux correction. Matrix algebra composes equation terms, while
 ``Equation`` pairs the assembled matrix with its target ``CellField`` for a
-linear solver.
+linear solver. Assemble every term and explicit source before calling
+``equation(field, matrix)``. This applies immersed Dirichlet cell constraints
+to the solve matrix without modifying the input; without constraints, the
+input is reused. Keep the original matrix for physical flux reconstruction.
+See `Immersed Dirichlet constraints`_ for the constraint and flux contracts.
 
 Physical tensor layout
 ----------------------
@@ -116,10 +120,6 @@ Velocity reconstruction and flux construction require a vector velocity and
 scalar volumetric flux. Slip boundaries support scalars and vectors; fixed
 flux pressure requires a scalar pressure.
 
-AP interpolation stores boundary and cell weights separately as
-``ap_owner_bnd_weight`` / ``ap_owner_cell_weight`` and the corresponding
-neighbour properties; each has shape ``(F_immersed,)``.
-
 Volumes, area magnitudes, distances, interpolation weights, boundary mixing
 fractions, and LDU coefficients are entity scalars ``(N,)``. Boundary reference
 values and gradients carry the target field's tensor axes. Matrix sources,
@@ -166,3 +166,57 @@ axis. ``torch.stack([a.data, b.data], dim=-1)`` groups fields sharing a grid
 and tensor shape into features. ``ml_values[..., feature_index]`` selects a
 feature without changing the physical tensor axes; use it when returning
 values to gridfoam.
+
+Immersed Dirichlet constraints
+------------------------------
+
+AP geometry stores actual ray distances in ``ap_dist_owner_to_bnd`` and
+``ap_dist_neighbour_to_bnd``. The boolean arrays ``ap_owner_near_boundary``
+and ``ap_neighbour_near_boundary`` identify candidate boundary cells. All
+four arrays have shape ``(F_immersed,)``. They replace the former boundary
+and cell ghost weights; Fluxel and gridfoam must be updated together.
+
+For cell width ``dx`` and the largest domain extent ``L``, Fluxel marks
+``distance / dx <= dx / L``. This is the condition in Gibou et al.,
+*A Second Order Accurate Symmetric Discretization of the Poisson Equation
+on Irregular Domains*, p. 8, expressed in coordinates normalized by ``L``.
+Distances are never replaced by cell widths, including at zero distance.
+The flags describe geometry only: Neumann or partially mixed conditions
+are not converted into Dirichlet constraints. A partially mixed condition
+at exactly zero distance raises ``ValueError`` because its value contribution
+cannot be evaluated by division by the distance.
+
+``equation(field, matrix)`` applies the near-boundary Dirichlet constraints
+**after** assembling the full equation and its explicit sources. When
+constraints are present, it creates a separate solve matrix using
+``FvMatrix.with_fixed_values``: prescribed columns move to the source, both
+row and column couplings are removed, and the prescribed row becomes a
+scaled identity row. Symmetry is preserved. Nonzero diagonal entries are
+retained; zero entries use a unit value with the sign of the diagonal sum
+(positive if zero). Tensor components share the same constrained cells.
+When multiple Dirichlet faces constrain one cell, the closest hit supplies
+the value (ties follow boundary-batch/face order).
+
+The original matrix remains available for physical flux reconstruction;
+using the eliminated solve matrix for this would lose internal face fluxes.
+At ordinary immersed faces, diffusion uses ``gamma * area / distance``
+exactly once. On snapped Dirichlet cells the Poisson row no longer specifies
+a flux balance: the pressure correction recovers the total near-boundary
+flux from that cell's mass balance, distributing it over its near Dirichlet
+faces in proportion to area. This preserves cell continuity but is not a
+pointwise, second-order approximation of the boundary-normal derivative.
+The placeholder zero returned by ``sn_grad`` on snapped Dirichlet faces
+must not be interpreted as an imposed Neumann condition. The original
+paper's second-order result concerns the solution of its Dirichlet Poisson
+problem, not a general guarantee for gradients or Navier--Stokes solutions.
+
+Momentum assembly retains the pressure-free equation. ``with_source`` creates
+an independent predictor matrix with the integrated pressure force added to
+its right-hand side, preserving autograd connections and face corrections.
+Cell constraints are applied to the predictor after adding pressure, and
+separately to the pressure-free equation used for ``H/A``.
+Explicit velocity correction and pressure relaxation reapply the prescribed
+cell values. Boundary-snapping choices are discrete geometry decisions;
+autograd differentiates the equation and prescribed values for fixed choices.
+
+Reference: https://physbam.stanford.edu/papers/cam2000-37.pdf

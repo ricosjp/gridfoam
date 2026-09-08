@@ -35,6 +35,14 @@ when its mathematics and ordering are genuinely common. Algorithm-specific
 loop counts, relaxation, and convergence decisions remain in the concrete
 class.
 
+Assemble explicit sources before constructing ``equation(field, matrix)``.
+For momentum prediction, use ``with_source`` to add pressure to a separate
+matrix and constrain the pressure-free matrix separately for ``H/A``.
+Pass the original pressure matrix to flux correction, since the constrained
+solve matrix has eliminated face couplings. Explicit updates must restore
+immersed Dirichlet cell values. The details are in
+:ref:`architecture-data-contracts`.
+
 Other shared helpers include:
 
 * ``residual.py`` for OpenFOAM-style residual control;

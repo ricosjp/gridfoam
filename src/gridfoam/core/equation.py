@@ -4,15 +4,19 @@ from gridfoam.core.fvmatrix import FvMatrix
 
 class Equation:
     """
-    Container for equation metadata and assembled discrete matrix.
+    Pair a target field with its constrained linear solve matrix.
+
+    Apply near-boundary immersed Dirichlet cell constraints after all terms
+    and explicit sources have been assembled. Keep the input matrix for
+    physical face-flux reconstruction; elimination changes its couplings.
 
     Parameters
     ----------
     target : CellField
         Target cell-centered field to solve/update.
     fv_matrix : FvMatrix
-        Assembled finite-volume matrix.
-        The right-hand-side known term ``b`` is stored in ``fv_matrix.source``.
+        Complete assembled matrix, with the integrated RHS in ``source``.
+        Construction leaves this input unchanged.
 
     Attributes
     ----------
@@ -21,7 +25,8 @@ class Equation:
     target : CellField
         Target cell-centered field to solve/update.
     fv_matrix : FvMatrix
-        Assembled finite-volume matrix.
+        Constrained solve matrix. Shares the input matrix when no cell
+        constraints apply.
     """
 
     name: str
@@ -31,7 +36,7 @@ class Equation:
     """Target cell-centered field to solve/update."""
 
     fv_matrix: FvMatrix
-    """Assembled finite-volume matrix."""
+    """Solve matrix with immersed Dirichlet cell constraints applied."""
 
     def __init__(self, target: CellField, fv_matrix: FvMatrix):
         from gridfoam.fv.boundary_ops import immersed_dirichlet_constraints
@@ -44,18 +49,20 @@ class Equation:
 
 def equation(target: CellField, fv_matrix: FvMatrix) -> Equation:
     """
-    Factory function to build an ``Equation`` instance.
+    Build an equation and apply immersed Dirichlet cell constraints.
 
     Parameters
     ----------
     target : CellField
         Target cell-centered field.
     fv_matrix : FvMatrix
-        Assembled discrete matrix.
+        Complete assembled matrix, including explicit sources. The input
+        is left unchanged and remains suitable for face-flux reconstruction.
 
     Returns
     -------
     Equation
-        Constructed equation object.
+        Target field and constrained solve matrix. With no constraints,
+        the solve matrix is the input matrix itself.
     """
     return Equation(target, fv_matrix)

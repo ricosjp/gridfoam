@@ -210,6 +210,35 @@ class FvMatrix:
             res.face_flux_correction = -self._face_flux_correction
         return res
 
+    def with_source(
+        self, source: Float[torch.Tensor, " C *component_shape"]
+    ) -> FvMatrix:
+        """Return an independent matrix with a replacement integrated RHS.
+
+        Copy all coefficient and face-correction tensors while preserving
+        autograd connections. The field and grid remain shared. In momentum
+        prediction this adds the pressure force to a separate solve matrix,
+        leaving the pressure-free equation available for H/A.
+
+        Parameters
+        ----------
+        source : torch.Tensor
+            Replacement volume-integrated RHS, shape ``[C, *component_shape]``.
+
+        Returns
+        -------
+        FvMatrix
+            Matrix with independent tensor storage and the same field/grid.
+        """
+        result = FvMatrix(self.field)
+        result.source = source.clone()
+        result.diag = self.diag.clone()
+        result.upper = self.upper.clone()
+        result.lower = self.lower.clone()
+        if self.face_flux_correction is not None:
+            result.face_flux_correction = self.face_flux_correction.clone()
+        return result
+
     def A(self) -> Float[torch.Tensor, " C"]:
         """
         OpenFOAM-style ``A()`` operator.
@@ -298,9 +327,26 @@ class FvMatrix:
     ) -> FvMatrix:
         """Eliminate prescribed cell values, preserving matrix symmetry.
 
-        Return a separate solve matrix; the original coefficients remain
-        available for physical face-flux reconstruction. This operation must
-        follow assembly of the complete equation, including explicit sources.
+        Apply this after assembling the complete equation and explicit sources.
+        Move prescribed column contributions to the RHS and remove both row
+        and column couplings. Each fixed row retains its nonzero diagonal;
+        a zero diagonal becomes -1 if the diagonal sum is negative, else +1.
+        Scale its RHS by the same diagonal to impose the prescribed value.
+
+        Parameters
+        ----------
+        cells : torch.Tensor
+            Unique cell indices, shape ``[K]``, on the matrix device.
+        values : torch.Tensor
+            Prescribed values, shape ``[K, *component_shape]``. All physical
+            components share the selected cells; gradients flow to values.
+
+        Returns
+        -------
+        FvMatrix
+            Separate solve matrix without face-flux corrections, or ``self``
+            if ``cells`` is empty. The input is unchanged; retain it for
+            physical face-flux reconstruction.
         """
         require_shape(
             values, (cells.numel(), *self.field.component_shape), "fixed values"
@@ -314,7 +360,15 @@ class FvMatrix:
         prescribed = torch.zeros_like(self.source).index_copy(0, cells, values)
         owner, neighbour = self.grid.owner, self.grid.neighbour
         result = FvMatrix(self.field)
-        result.diag = torch.where(fixed, torch.ones_like(self.diag), self.diag)
+        # An isolated boundary cell can have a zero PDE row. Match the
+        # sign of the other rows so negative Laplacians stay definite too.
+        unit_diag = torch.where(
+            self.diag.sum() < 0,
+            -torch.ones_like(self.diag),
+            torch.ones_like(self.diag),
+        )
+        constraint_diag = torch.where(self.diag != 0, self.diag, unit_diag)
+        result.diag = torch.where(fixed, constraint_diag, self.diag)
         connected = fixed[owner] | fixed[neighbour]
         result.upper = torch.where(
             connected, torch.zeros_like(self.upper), self.upper
@@ -334,7 +388,9 @@ class FvMatrix:
             -broadcast_entity(self.lower, prescribed[owner])
             * prescribed[owner],
         )
-        result.source = source.index_copy(0, cells, values)
+        result.source = source.index_copy(
+            0, cells, broadcast_entity(constraint_diag[cells], values) * values
+        )
         return result
 
     def as_transpose(self) -> FvMatrix:

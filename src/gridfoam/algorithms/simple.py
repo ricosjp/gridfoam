@@ -33,6 +33,7 @@ from gridfoam.core.grid.base import IGridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
+from gridfoam.fv.boundary_ops import apply_immersed_dirichlet_values
 from gridfoam.fv.flux import compute_phi_hbya, correct_flux
 from gridfoam.meta.config import SIMPLEAlgorithm, normalize_residual_control
 from gridfoam.meta.enums import FieldRole
@@ -308,23 +309,20 @@ class SIMPLE(AlgorithmBase):
         relax_source = relax_coeff[:, None] * self.U.data
         UEqn_mat.source = UEqn_mat.source + relax_source
 
-        # Keep the original source without pressure-gradient contribution
-        original_source = UEqn_mat.source.clone()
-
-        # Add pressure-gradient source term to RHS (-grad(p) * V)
+        # Keep the pressure-free equation for H/A; add pressure only to
+        # the separate momentum predictor before applying cell constraints.
         grad_p = fvc.grad(self.p)
-        UEqn_mat.source = (
+        predictor_mat = UEqn_mat.with_source(
             UEqn_mat.source - grid.cell_volumes[:, None] * grad_p.data
         )
-
+        momentum_eq = equation(self.U, predictor_mat)
         if self.U.name in self._residual_control:
             self._record_residual(
                 self.U.name,
-                field_initial_residual(UEqn_mat, self.U),
+                field_initial_residual(momentum_eq.fv_matrix, self.U),
             )
 
         # Solve the momentum predictor equation (obtain U*)
-        momentum_eq = equation(self.U, UEqn_mat)
         u_result = self.solvers[momentum_eq.name].solve(momentum_eq)
         self.U.data = u_result.solution
         solve_stats[self.U.name] = u_result.stats
@@ -332,10 +330,9 @@ class SIMPLE(AlgorithmBase):
         # =========================================================
         # Pressure equation assembly (HbyA, rAU, phiHbyA)
         # =========================================================
+        # Constrain the complete pressure-free momentum equation for H/A.
+        UEqn_mat = equation(self.U, UEqn_mat).fv_matrix
         self.rAU.data = 1.0 / UEqn_mat.A()
-
-        # Compute HbyA with H() using source without pressure gradient
-        UEqn_mat.source = original_source
         self.HbyA.data = self.rAU.data[:, None] * UEqn_mat.H(self.U.data)
 
         # phiHbyA = flux(constrainHbyA(HbyA, U)) on every face block
@@ -387,6 +384,7 @@ class SIMPLE(AlgorithmBase):
 
         # apply pressure relaxation
         self.p.data = p_old + self.alpha_p * (self.p.data - p_old)
+        apply_immersed_dirichlet_values(self.p)
 
         # =========================================================
         # Velocity correction

@@ -72,6 +72,9 @@ An ``fvm`` operator assembles LDU coefficients and source terms for the target
 * ``upper`` and ``lower`` have shape ``[F_internal]``.
 * ``source`` has shape ``[C, *component_shape]``.
 * Boundary contributions must use the common value-fraction contract.
+* Leave immersed cell constraints to ``equation(field, matrix)`` after all
+  terms and explicit sources have been assembled. See
+  :ref:`architecture-data-contracts` for constraint and flux handling.
 * Store explicit non-orthogonal face-flux terms in
   ``FvMatrix.face_flux_correction`` when the matrix flux must reproduce them.
 * Matrix addition and subtraction must continue to represent equation-term
