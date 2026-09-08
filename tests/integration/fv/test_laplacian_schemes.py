@@ -11,7 +11,7 @@ import torch
 from tests.helpers import linear_scalar_field, refined_3d_grid, refined_grid
 
 from gridfoam.core.field import CellField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.fv.kernels.face_interpolation import linear_internal_face_values
@@ -19,7 +19,7 @@ from gridfoam.meta.config import fvSchemesConfig
 from gridfoam.meta.enums import FieldRole, GradScheme, LaplacianScheme
 
 
-def _exact_flux(grid: IGridBase, gradient: torch.Tensor) -> torch.Tensor:
+def _exact_flux(grid: GridBase, gradient: torch.Tensor) -> torch.Tensor:
     geo = face_geometry(grid)
     return geo.mag_Sf_s * gradient[grid.axis[geo.single_idx]]
 

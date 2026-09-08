@@ -11,7 +11,7 @@ from typing import TextIO
 import torch
 
 from gridfoam.core.field import FaceField, get_or_create_facefield
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.meta.config import PostProcessingConfig
 from gridfoam.meta.enums import FieldRole
@@ -39,7 +39,7 @@ class DiagnosticsCollector:
     def __init__(
         self,
         *,
-        grid: IGridBase,
+        grid: GridBase,
         config: PostProcessingConfig,
         output_dir: Path,
         n_steps: int,
@@ -94,7 +94,7 @@ class DiagnosticsCollector:
     @classmethod
     def from_config(
         cls,
-        grid: IGridBase,
+        grid: GridBase,
         post_processing: PostProcessingConfig | None,
         output_dir: Path,
         *,
@@ -107,7 +107,7 @@ class DiagnosticsCollector:
 
         Parameters
         ----------
-        grid : IGridBase
+        grid : GridBase
             Computational grid.
         post_processing : PostProcessingConfig | None
             Post-processing configuration.

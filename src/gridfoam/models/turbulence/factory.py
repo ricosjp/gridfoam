@@ -1,16 +1,16 @@
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.enums import TurbulenceType
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.models.turbulence.laminar import Laminar
 
 
-def create_turbulence_model(grid: IGridBase) -> TurbulenceModel:
+def create_turbulence_model(grid: GridBase) -> TurbulenceModel:
     """
     Create a turbulence model from ``properties.turbulence`` configuration.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid whose simulator configuration selects the model.
 
     Returns

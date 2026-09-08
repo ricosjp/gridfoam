@@ -9,7 +9,7 @@ from gridfoam.core.field import (
     FieldRole,
     get_or_create_cellfield,
 )
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
 
 logger = logging.getLogger(__name__)
@@ -21,11 +21,11 @@ class KOmegaSST(TurbulenceModel):
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
     """
 
-    def __init__(self, grid: IGridBase):
+    def __init__(self, grid: GridBase):
         super().__init__(grid)
 
         self.k = get_or_create_cellfield(self.grid, "k", FieldRole.LOCAL, ())

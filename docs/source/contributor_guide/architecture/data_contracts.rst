@@ -49,7 +49,7 @@ Derived FV data is owned by the object it describes, not by module globals:
   and fixed Dirichlet constraint selections. Constraint selections cache only
   geometry choices; prescribed values and their autograd graph are rebuilt.
 
-Call :meth:`~gridfoam.core.grid.base.IGridBase.invalidate_derived_caches`
+Call :meth:`~gridfoam.core.grid.base.GridBase.invalidate_derived_caches`
 after topology, immersed-boundary, or device changes (``remesh``,
 ``update_ib``, ``to``).
 

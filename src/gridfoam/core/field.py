@@ -18,7 +18,7 @@ from gridfoam.core.dimensions import (
 )
 from gridfoam.core.fv_cache import FvFieldCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import require_shape, validate_component_shape
 from gridfoam.meta.config import TensorValue
 from gridfoam.meta.enums import FieldRole
@@ -38,7 +38,7 @@ class GeometricField(ABC):
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns this field.
     name : str
         Field name, optionally with a phase suffix.
@@ -61,7 +61,7 @@ class GeometricField(ABC):
 
     @property
     @abstractmethod
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid that owns this field."""
         pass
 
@@ -123,7 +123,7 @@ class CellField(GeometricField):
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns this field.
     name : str
         Field name, optionally with a phase suffix.
@@ -152,7 +152,7 @@ class CellField(GeometricField):
 
     def __init__(
         self,
-        grid: IGridBase,
+        grid: GridBase,
         name: str,
         role: FieldRole,
         component_shape: tuple[int, ...],
@@ -270,7 +270,7 @@ class CellField(GeometricField):
     # Grid Accessors
     # ================================
     @property
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid that owns this field."""
         return self._grid
 
@@ -390,7 +390,7 @@ class FaceField(GeometricField):
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns this field.
     name : str
         Field name, optionally with a phase suffix.
@@ -429,7 +429,7 @@ class FaceField(GeometricField):
 
     def __init__(
         self,
-        grid: IGridBase,
+        grid: GridBase,
         name: str,
         role: FieldRole,
         component_shape: tuple[int, ...],
@@ -578,7 +578,7 @@ class FaceField(GeometricField):
     # Grid Accessors
     # ================================
     @property
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid that owns this field."""
         return self._grid
 
@@ -798,13 +798,13 @@ class FaceField(GeometricField):
         return blocks
 
 
-def packed_face_n_rows(grid: IGridBase) -> int:
+def packed_face_n_rows(grid: GridBase) -> int:
     """
     Return the packed face-layout row count for ``grid``.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid whose topology defines the packed layout.
 
     Returns
@@ -821,7 +821,7 @@ def packed_face_n_rows(grid: IGridBase) -> int:
 
 
 def get_or_create_cellfield(
-    grid: IGridBase,
+    grid: GridBase,
     name: str,
     role: FieldRole,
     component_shape: tuple[int, ...],
@@ -832,7 +832,7 @@ def get_or_create_cellfield(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns the field registry.
     name : str
         Field name, optionally with a phase suffix.
@@ -878,7 +878,7 @@ def get_or_create_cellfield(
 
 
 def get_or_create_facefield(
-    grid: IGridBase,
+    grid: GridBase,
     name: str,
     role: FieldRole,
     component_shape: tuple[int, ...],
@@ -890,7 +890,7 @@ def get_or_create_facefield(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns the field registry.
     name : str
         Field name, optionally with a phase suffix.

@@ -12,12 +12,12 @@ import torch
 from tests.helpers import refined_grid
 
 from gridfoam.core.field import FaceField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.fv import fvc
 from gridfoam.meta.enums import FieldRole
 
 
-def _uniform_divergence_flux(grid: IGridBase) -> FaceField:
+def _uniform_divergence_flux(grid: GridBase) -> FaceField:
     """Face flux of ``U = (x, 0, 0)``, whose analytic divergence is one."""
 
     def flux(face_centers: torch.Tensor, Sf: torch.Tensor) -> torch.Tensor:

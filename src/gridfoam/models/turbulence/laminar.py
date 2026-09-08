@@ -4,7 +4,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.core.field import CellField, FaceField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class Laminar(TurbulenceModel):
     Uses only molecular viscosity and does not add turbulent viscosity.
     """
 
-    def __init__(self, grid: IGridBase):
+    def __init__(self, grid: GridBase):
         super().__init__(grid)
 
     def correct(self, U: CellField, phi: FaceField) -> None:

@@ -10,7 +10,7 @@ import torch
 
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.fv.flux import correct_flux
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 
@@ -122,7 +122,7 @@ def set_immersed_wall_velocity(
         field.fv_cache.clear_boundary_states()
 
 
-def refresh_flux(grid: IGridBase, *, update_internal: bool = True) -> None:
+def refresh_flux(grid: GridBase, *, update_internal: bool = True) -> None:
     """Synchronize ``phi`` from ``U`` after an IBM or topology update."""
     u_field = grid.get_cellfield("U")
     phi = grid.get_facefield("phi")

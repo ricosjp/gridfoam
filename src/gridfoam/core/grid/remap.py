@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import torch
 
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import broadcast_entity
 
 
@@ -26,13 +26,13 @@ class VolumeFieldSnapshot:
     phi_domain: torch.Tensor
 
 
-def capture_volume_fields(grid: IGridBase) -> VolumeFieldSnapshot:
+def capture_volume_fields(grid: GridBase) -> VolumeFieldSnapshot:
     """
     Copy ``U``, ``p``, and ``phi`` together with the current mesh geometry.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Grid whose registered fields are snapshotted.
 
     Returns
@@ -65,7 +65,7 @@ def capture_volume_fields(grid: IGridBase) -> VolumeFieldSnapshot:
 
 
 def map_volume_fields(
-    grid: IGridBase,
+    grid: GridBase,
     snapshot: VolumeFieldSnapshot,
 ) -> None:
     """
@@ -78,7 +78,7 @@ def map_volume_fields(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Destination grid after ``remesh``.
     snapshot : VolumeFieldSnapshot
         Source geometry and fields captured before ``remesh``.

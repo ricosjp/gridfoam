@@ -7,7 +7,7 @@ import torch
 
 from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.meta.enums import FieldRole
 from gridfoam.models.turbulence.base import TurbulenceModel
@@ -24,7 +24,7 @@ class ForceEvaluator:
     Evaluate aerodynamic force and moment coefficients on immersed surfaces.
     """
 
-    def __init__(self, grid: IGridBase, phase: str | None = None):
+    def __init__(self, grid: GridBase, phase: str | None = None):
         self.grid = grid
 
         post_processing = grid.sim_config.post_processing
@@ -51,7 +51,7 @@ class ForceEvaluator:
 
     @staticmethod
     def _resolve_field(
-        grid: IGridBase,
+        grid: GridBase,
         name: str,
         component_shape: tuple[int, ...],
     ) -> CellField:
@@ -67,7 +67,7 @@ class ForceEvaluator:
 
     def evaluate(
         self,
-        grid: IGridBase,
+        grid: GridBase,
         time: float,
         turbulence: TurbulenceModel,
     ) -> ForceCoeffs:
@@ -76,7 +76,7 @@ class ForceEvaluator:
 
         Parameters
         ----------
-        grid : IGridBase
+        grid : GridBase
             Axis-projected grid containing immersed-boundary metadata.
         time : float
             Simulation time.

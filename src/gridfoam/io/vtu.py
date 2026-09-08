@@ -1,17 +1,17 @@
 import numpy as np
 import pyvista as pv
 
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 
 
-def to_unstructured_grid(grid: IGridBase) -> pv.UnstructuredGrid:
+def to_unstructured_grid(grid: GridBase) -> pv.UnstructuredGrid:
     """
-    Converts a IGridBase into a UnstructuredGrid of Hexahedrons.
+    Converts a GridBase into a UnstructuredGrid of Hexahedrons.
 
     Parameters
     ----------
-    grid : IGridBase
-        The IGridBase to convert.
+    grid : GridBase
+        The GridBase to convert.
 
     Returns
     -------
@@ -82,7 +82,7 @@ def to_unstructured_grid(grid: IGridBase) -> pv.UnstructuredGrid:
 
 def update_export_cell_data(
     ugrid: pv.UnstructuredGrid,
-    grid: IGridBase,
+    grid: GridBase,
 ) -> None:
     """
     Update ``cell_data`` from exported cell fields on the grid.
@@ -91,7 +91,7 @@ def update_export_cell_data(
     ----------
     ugrid : pv.UnstructuredGrid
         Target unstructured grid to update.
-    grid : IGridBase
+    grid : GridBase
         Source grid that owns registered fields.
     """
     for field_name in grid.cellfield_names():
@@ -106,7 +106,7 @@ def update_export_cell_data(
 
 
 def save_export_fields_as_vtu(
-    grid: IGridBase,
+    grid: GridBase,
     output_path: str,
     *,
     ugrid: pv.UnstructuredGrid | None = None,
@@ -116,7 +116,7 @@ def save_export_fields_as_vtu(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Source grid to export.
     output_path : str
         Output VTU file path.

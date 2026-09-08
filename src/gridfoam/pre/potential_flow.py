@@ -20,7 +20,7 @@ from gridfoam.core.field import (
     get_or_create_cellfield,
     get_or_create_facefield,
 )
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
@@ -42,7 +42,7 @@ class PotentialFlow:
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
     phase : str | None, optional
         Phase name. Default is None.
@@ -50,7 +50,7 @@ class PotentialFlow:
 
     def __init__(
         self,
-        grid: IGridBase,
+        grid: GridBase,
         phase: str | None = None,
     ):
         potential_flow_config = grid.sim_config.fvSolution.potentialFlow

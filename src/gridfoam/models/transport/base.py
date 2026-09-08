@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 
 logger = logging.getLogger(__name__)
 
@@ -17,19 +17,19 @@ class TransportModel(ABC):
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
     """
 
-    grid: IGridBase
+    grid: GridBase
     """Computational grid."""
 
-    def __init__(self, grid: IGridBase):
+    def __init__(self, grid: GridBase):
         self.grid = grid
 
     @abstractmethod

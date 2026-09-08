@@ -23,7 +23,7 @@ from gridfoam.core.field import (
     get_or_create_cellfield,
     get_or_create_facefield,
 )
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
@@ -54,7 +54,7 @@ class PISO(AlgorithmBase):
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
     phase : str | None, optional
         Phase name. Default is None.
@@ -91,7 +91,7 @@ class PISO(AlgorithmBase):
         Reference pressure cell index when ``p_needs_ref`` is True.
     p_ref_value : float
         Reference pressure value when ``p_needs_ref`` is True.
-    grid : IGridBase
+    grid : GridBase
         Computational grid owned by the algorithm.
     turbulence : TurbulenceModel
         Turbulence model used to evaluate effective viscosity.
@@ -135,7 +135,7 @@ class PISO(AlgorithmBase):
 
     def __init__(
         self,
-        grid: IGridBase,
+        grid: GridBase,
         phase: str | None = None,
     ):
         self._grid = grid
@@ -210,7 +210,7 @@ class PISO(AlgorithmBase):
         self.phi.update_history(reset=True)
 
     @property
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid owned by the algorithm."""
         return self._grid
 

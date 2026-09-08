@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField, get_or_create_cellfield
 from gridfoam.core.fvmatrix import FvMatrix
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvm
@@ -135,7 +135,7 @@ def compute_errors(
     }
 
 
-def characteristic_cell_size(grid: IGridBase) -> float:
+def characteristic_cell_size(grid: GridBase) -> float:
     """Return cell size as characteristic mesh spacing."""
     return grid.cell_sizes[0, 0].item()
 

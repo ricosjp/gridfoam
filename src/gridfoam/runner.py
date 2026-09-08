@@ -8,7 +8,7 @@ import yaml
 
 from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.factory import create_algorithm
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.io.vtu import save_export_fields_as_vtu, to_unstructured_grid
 from gridfoam.meta.config import ControlConfig, GridfoamConfig, ManualAlgorithm
@@ -43,7 +43,7 @@ class StepData:
     """
 
 
-def manual_run(config_path: Path) -> IGridBase:
+def manual_run(config_path: Path) -> GridBase:
     """
     Load configuration and construct the computational grid.
 
@@ -54,7 +54,7 @@ def manual_run(config_path: Path) -> IGridBase:
 
     Returns
     -------
-    IGridBase
+    GridBase
         Constructed grid for the configured case.
     """
     with open(config_path) as f:

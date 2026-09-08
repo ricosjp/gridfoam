@@ -24,7 +24,7 @@ from gridfoam.algorithms.utils.pressure_correction import (
 )
 from gridfoam.algorithms.utils.residual import field_initial_residual
 from gridfoam.core.field import CellField, FaceField, FieldRole
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc, fvm
 from gridfoam.fv.adjust_phi import adjust_phi
@@ -66,7 +66,7 @@ def _assert_divergence_free(phi: FaceField, tol: float = _DIV_TOL) -> None:
 
 
 def _assert_boundary_flux_matches_velocity_bcs(
-    grid: IGridBase, phi: FaceField
+    grid: GridBase, phi: FaceField
 ) -> None:
     inlet = grid.get_domain_bnd_mask(DomainBoundaryPatch.X_MINUS)
     walls = grid.get_domain_bnd_mask(

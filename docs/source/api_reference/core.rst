@@ -14,7 +14,7 @@ Core
    FvMatrix
    FvGridCache
    FvFieldCache
-   IGridBase
+   GridBase
    FieldNameParts
 
 .. autosummary::

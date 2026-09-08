@@ -1,6 +1,6 @@
 """Finite-volume caches owned by grids and cell fields.
 
-Lives in ``core`` so :class:`~gridfoam.core.grid.base.IGridBase` and
+Lives in ``core`` so :class:`~gridfoam.core.grid.base.GridBase` and
 :class:`~gridfoam.core.field.CellField` can expose ``fv_cache`` without
 importing ``fv``. Slots are filled lazily by FV helpers
 (:func:`~gridfoam.fv.kernels.face_geometry.face_geometry`,

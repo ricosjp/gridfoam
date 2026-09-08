@@ -4,14 +4,14 @@ import torch
 from jaxtyping import Bool
 
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.enums import DomainBoundaryPatch, FaceSide
 
 logger = logging.getLogger(__name__)
 
 
 def get_mask(
-    grid: IGridBase,
+    grid: GridBase,
     patch_name: str | DomainBoundaryPatch,
     side: FaceSide = FaceSide.UPPER,
 ) -> Bool[torch.Tensor, " F"]:
@@ -20,7 +20,7 @@ def get_mask(
 
 
 def get_mask_and_size(
-    grid: IGridBase,
+    grid: GridBase,
     patch_name: str | DomainBoundaryPatch,
     side: FaceSide = FaceSide.UPPER,
 ) -> tuple[Bool[torch.Tensor, " F"], int]:
@@ -41,7 +41,7 @@ def get_mask_and_size(
 
 
 def _build_mask(
-    grid: IGridBase,
+    grid: GridBase,
     patch_name: str | DomainBoundaryPatch,
     side: FaceSide,
 ) -> Bool[torch.Tensor, " F"]:

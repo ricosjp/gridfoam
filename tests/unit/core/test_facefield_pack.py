@@ -17,14 +17,14 @@ from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.core.field import CellField, FaceField, packed_face_n_rows
 from gridfoam.core.fv_cache import FvGridCache
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc, fvm
 from gridfoam.meta.config import DomainConfig, SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole, IbmType
 
 
-class _NonAxisProjectedGrid(IGridBase):
+class _NonAxisProjectedGrid(GridBase):
     """Minimal non-AP grid so pack omits immersed blocks."""
 
     def __init__(self) -> None:

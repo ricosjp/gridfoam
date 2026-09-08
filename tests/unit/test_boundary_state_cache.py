@@ -9,7 +9,7 @@ from tests.helpers import channel_config
 
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.core.field import CellField, FaceField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid
 from gridfoam.fv import fvc
 from gridfoam.fv.boundary_ops import iter_boundary_states
@@ -33,7 +33,7 @@ class _CountingDirichlet(DirichletBC):
 
 
 def _scalar_field(
-    grid: IGridBase, name: str
+    grid: GridBase, name: str
 ) -> tuple[CellField, _CountingDirichlet]:
     field = CellField(grid, name, FieldRole.LOCAL, ())
     field.data = grid.cell_centers[:, 0].clone()

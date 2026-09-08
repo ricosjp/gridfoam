@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from gridfoam.core.field import FaceField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.models.turbulence.base import TurbulenceModel
 from gridfoam.post.diagnostics import DiagnosticsCollector
 from gridfoam.solvers.base import GradientMode, LinearSolver, SolveStats
@@ -13,7 +13,7 @@ class AlgorithmBase(ABC):
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid owned by the algorithm.
     turbulence : TurbulenceModel
         Turbulence model used to evaluate effective viscosity.
@@ -26,7 +26,7 @@ class AlgorithmBase(ABC):
 
     @property
     @abstractmethod
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid owned by the algorithm."""
         pass
 

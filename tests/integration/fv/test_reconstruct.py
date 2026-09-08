@@ -13,13 +13,13 @@ import torch
 from tests.helpers import refined_3d_grid, refined_grid
 
 from gridfoam.core.field import CellField, FaceField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.fv import fvc
 from gridfoam.meta.enums import FieldRole, GradScheme
 
 
 def _uniform_case(
-    grid: IGridBase, U_ref: tuple[float, float, float]
+    grid: GridBase, U_ref: tuple[float, float, float]
 ) -> tuple[FaceField, torch.Tensor]:
     U_vec = torch.tensor(U_ref, dtype=grid.dtype, device=grid.device)
     phi = FaceField(grid, "phi_uniform_rec", FieldRole.LOCAL, ())

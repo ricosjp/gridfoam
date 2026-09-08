@@ -19,7 +19,7 @@ from fluxel import (
 from jaxtyping import Bool, Float, Int
 
 from gridfoam.core.fv_cache import FvGridCache
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
@@ -56,7 +56,7 @@ _DEVICE_TENSOR_ATTRS = (
 )
 
 
-class AxisProjectedGrid(IGridBase):
+class AxisProjectedGrid(GridBase):
     """
     Axis-projected immersed-boundary grid.
 

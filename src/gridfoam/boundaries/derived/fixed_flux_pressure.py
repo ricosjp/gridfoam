@@ -8,7 +8,7 @@ from jaxtyping import Bool, Float, Int
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.utils import get_mask
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.core.shapes import broadcast_entity
 from gridfoam.meta.enums import (
@@ -40,7 +40,7 @@ def _face_block(
 
 
 def _outward_patch_geometry(
-    grid: IGridBase,
+    grid: GridBase,
     patch_name: PatchName,
     side: FaceSide,
     mask: Bool[torch.Tensor, " F_any"],
@@ -162,7 +162,7 @@ class FixedFluxPressure(BoundaryCondition):
     def type(self) -> BoundaryConditionType:
         return BoundaryConditionType.FIXED_FLUX_PRESSURE
 
-    def _coefficient_field(self, grid: IGridBase) -> CellField | None:
+    def _coefficient_field(self, grid: GridBase) -> CellField | None:
         rAtU = grid.get_cellfield(self.rAtU_name)
         if rAtU is not None:
             return rAtU

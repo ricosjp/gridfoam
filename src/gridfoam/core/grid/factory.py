@@ -3,12 +3,12 @@ from __future__ import annotations
 import fluxel
 
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.config import GridfoamConfig
 from gridfoam.meta.enums import IbmType, MeshMotion
 
 
-def create_grid(config: GridfoamConfig) -> IGridBase:
+def create_grid(config: GridfoamConfig) -> GridBase:
     """
     Build a computational grid from a validated configuration.
 
@@ -20,7 +20,7 @@ def create_grid(config: GridfoamConfig) -> IGridBase:
 
     Returns
     -------
-    IGridBase
+    GridBase
         Constructed grid implementation for the configured IBM type.
 
     Raises

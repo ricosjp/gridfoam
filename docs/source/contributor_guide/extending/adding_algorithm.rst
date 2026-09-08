@@ -13,7 +13,7 @@ Contract
 Subclass ``algorithms.base.AlgorithmBase`` and provide:
 
 ``grid``
-   The algorithm's ``IGridBase``.
+   The algorithm's ``GridBase``.
 
 ``turbulence``
    Its active ``TurbulenceModel``.

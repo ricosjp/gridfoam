@@ -11,7 +11,7 @@ from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import broadcast_entity, require_shape
 from gridfoam.meta.enums import (
     BoundaryConditionType,
@@ -71,7 +71,7 @@ BoundaryBatchCacheKey = tuple[
 
 
 def _grid_topology_token(
-    grid: IGridBase,
+    grid: GridBase,
 ) -> (
     tuple[int, int, int, int, int, tuple[float, ...], tuple[float, ...]]
     | tuple[int, int]
@@ -215,14 +215,14 @@ def boundary_block(
 
 
 def outward_boundary_Sf(
-    grid: IGridBase, batch: BoundaryBatch
+    grid: GridBase, batch: BoundaryBatch
 ) -> Float[torch.Tensor, " F_any 3"]:
     """
     Outward face-area vectors of the faces selected by ``batch``.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Grid providing face geometry.
     batch : BoundaryBatch
         Boundary face block.

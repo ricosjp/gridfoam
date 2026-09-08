@@ -7,13 +7,13 @@ import torch
 from gridfoam.boundaries.base import BoundaryCondition
 from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.core.field import CellField
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.enums import DomainBoundaryPatch, FieldRole
 from gridfoam.meta.types import PatchName
 
 
 def linear_scalar_field(
-    grid: IGridBase,
+    grid: GridBase,
     *,
     name: str = "psi",
     gradient: tuple[float, float, float] = (2.0, -3.0, 5.0),
@@ -49,7 +49,7 @@ def linear_scalar_field(
     return field, grad_vec
 
 
-def interior_mask(grid: IGridBase) -> torch.Tensor:
+def interior_mask(grid: GridBase) -> torch.Tensor:
     """Mask of non-domain-boundary cells on ``grid``."""
     mask = torch.ones(grid.num_cells, dtype=torch.bool, device=grid.device)
     mask[grid.domain_bnd_owner] = False

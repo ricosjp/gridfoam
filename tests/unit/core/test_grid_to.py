@@ -1,4 +1,4 @@
-"""Unit tests for ``IGridBase.to``."""
+"""Unit tests for ``GridBase.to``."""
 
 from __future__ import annotations
 

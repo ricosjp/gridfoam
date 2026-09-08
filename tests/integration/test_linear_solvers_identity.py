@@ -9,7 +9,7 @@ from gridfoam.core.equation import Equation, equation
 from gridfoam.core.field import CellField
 from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.config import SolverConfig
 from gridfoam.meta.enums import (
     FieldRole,
@@ -21,7 +21,7 @@ from gridfoam.solvers.factory import create_solver
 
 
 def _identity_linear_system(
-    grid: IGridBase, *, name: str, component_shape: tuple[int, ...]
+    grid: GridBase, *, name: str, component_shape: tuple[int, ...]
 ) -> tuple[Equation, Float[torch.Tensor, " C *component_shape"]]:
     """Build ``I x = b`` as an ``Equation`` with random right-hand side."""
     p = CellField(

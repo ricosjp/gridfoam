@@ -8,7 +8,7 @@ import torch
 import yaml
 
 from gridfoam.core.field import get_or_create_cellfield
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid as create_grid_from_config
 from gridfoam.core.name import make_field_name
 from gridfoam.fv import fvc
@@ -45,7 +45,7 @@ def configure_run_logger(log_file: Path) -> None:
     logger.addHandler(file_handler)
 
 
-def create_grid(grad_scheme: GradScheme) -> IGridBase:
+def create_grid(grad_scheme: GradScheme) -> GridBase:
     """Build a grid with the requested gradient scheme."""
     with CONFIG_PATH.open() as f:
         raw_yaml = yaml.safe_load(f)

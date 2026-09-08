@@ -7,13 +7,13 @@ from jaxtyping import Float
 
 from gridfoam.core.field import FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import broadcast_entity
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 
 
 def assemble_gauss_gradient(
-    grid: IGridBase,
+    grid: GridBase,
     psi_f: FaceField,
     geometry: FaceGeometry | None = None,
 ) -> Float[torch.Tensor, " C *component_shape 3"]:
@@ -22,7 +22,7 @@ def assemble_gauss_gradient(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Grid providing face topology and geometry.
     psi_f : FaceField
         Face field supplying single-sided, domain, and immersed values.

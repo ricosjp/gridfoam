@@ -5,7 +5,7 @@ from jaxtyping import Float
 
 from gridfoam.core.field import CellField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import (
     broadcast_entity,
     require_shape,
@@ -31,7 +31,7 @@ class FvMatrix:
     ----------
     field : CellField
         Target field solved by this matrix equation.
-    grid : IGridBase
+    grid : GridBase
         Computational grid of ``field``.
     num_components : int
         Number of scalar entries in the target field's physical tensor.
@@ -77,7 +77,7 @@ class FvMatrix:
         return self._field
 
     @property
-    def grid(self) -> IGridBase:
+    def grid(self) -> GridBase:
         """Computational grid of ``field``."""
         return self._grid
 

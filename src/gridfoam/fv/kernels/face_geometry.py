@@ -14,7 +14,7 @@ import torch
 from jaxtyping import Bool, Float, Int
 
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 
 
 @dataclass(frozen=True)
@@ -80,17 +80,17 @@ class FaceGeometry:
         return int(self.hang_idx.shape[0])
 
 
-def face_geometry(grid: IGridBase) -> FaceGeometry:
+def face_geometry(grid: GridBase) -> FaceGeometry:
     """
     Return the cached :class:`FaceGeometry` for ``grid``.
 
     Stored on ``grid.fv_cache``; cleared by
-    :meth:`~gridfoam.core.grid.base.IGridBase.invalidate_derived_caches`
+    :meth:`~gridfoam.core.grid.base.GridBase.invalidate_derived_caches`
     after ``remesh``, ``update_ib``, or ``to``.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Grid providing topology and geometry.
 
     Returns
@@ -104,7 +104,7 @@ def face_geometry(grid: IGridBase) -> FaceGeometry:
     return cache.face_geometry
 
 
-def _build_face_geometry(grid: IGridBase) -> FaceGeometry:
+def _build_face_geometry(grid: GridBase) -> FaceGeometry:
     device = grid.device
     dtype = grid.dtype
     owner = grid.owner
@@ -198,7 +198,7 @@ def _lsq_outer(d: Float[torch.Tensor, " N 3"]) -> Float[torch.Tensor, " N 3 3"]:
 
 
 def boundary_lsq_vectors(
-    grid: IGridBase,
+    grid: GridBase,
 ) -> list[tuple[Int[torch.Tensor, " N"], Float[torch.Tensor, " N 3"]]]:
     """
     Cell-to-boundary-face vectors for every boundary face of the grid.
@@ -208,7 +208,7 @@ def boundary_lsq_vectors(
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Grid providing boundary topology.
 
     Returns
@@ -243,7 +243,7 @@ def boundary_lsq_vectors(
 
 
 def _build_lsq_ata_inv(
-    grid: IGridBase,
+    grid: GridBase,
     owner_s: Int[torch.Tensor, " F_single"],
     neighbour_s: Int[torch.Tensor, " F_single"],
     dtype: torch.dtype,

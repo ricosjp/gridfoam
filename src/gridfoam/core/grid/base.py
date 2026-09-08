@@ -16,9 +16,9 @@ if TYPE_CHECKING:
     from gridfoam.core.field import CellField, FaceField
 
 
-class IGridBase(ABC):
+class GridBase(ABC):
     """
-    Abstract computational-grid interface shared by all mesh backends.
+    Abstract computational-grid base class shared by all mesh backends.
 
     Attributes
     ----------

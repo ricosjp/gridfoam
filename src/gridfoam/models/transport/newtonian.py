@@ -5,7 +5,7 @@ import logging
 import torch
 from jaxtyping import Float
 
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import require_shape
 from gridfoam.models.transport.base import TransportModel
 
@@ -22,13 +22,13 @@ class NewtonianTransport(TransportModel):
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid that owns device, dtype, and simulator config.
     """
 
     _nu: Float[torch.Tensor, ""]
 
-    def __init__(self, grid: IGridBase):
+    def __init__(self, grid: GridBase):
         super().__init__(grid)
         self.set_nu(float(grid.sim_config.properties.transport.nu))
 

@@ -11,7 +11,7 @@ from gridfoam.core.field import (
     FieldRole,
     get_or_create_cellfield,
 )
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.core.name import make_field_name
 from gridfoam.models.transport.base import TransportModel
 from gridfoam.models.transport.factory import create_transport_model
@@ -25,12 +25,12 @@ class TurbulenceModel(ABC):
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
 
     Attributes
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid.
     transport : TransportModel
         Molecular transport model providing ``nu``.
@@ -38,7 +38,7 @@ class TurbulenceModel(ABC):
         Turbulent kinematic viscosity with shape ``[C]``.
     """
 
-    grid: IGridBase
+    grid: GridBase
     """Computational grid."""
 
     transport: TransportModel
@@ -47,7 +47,7 @@ class TurbulenceModel(ABC):
     nu_t: CellField
     """Turbulent kinematic viscosity with shape ``[C]``."""
 
-    def __init__(self, grid: IGridBase):
+    def __init__(self, grid: GridBase):
         self.grid = grid
         self.transport = create_transport_model(grid)
 

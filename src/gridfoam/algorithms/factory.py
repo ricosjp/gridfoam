@@ -2,19 +2,19 @@ from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.pimple import PIMPLE
 from gridfoam.algorithms.piso import PISO
 from gridfoam.algorithms.simple import SIMPLE
-from gridfoam.core.grid.base import IGridBase
+from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.enums import AlgorithmType
 
 
 def create_algorithm(
-    grid: IGridBase, phase: str | None = None
+    grid: GridBase, phase: str | None = None
 ) -> AlgorithmBase:
     """
     Create a pressure--velocity algorithm from ``fvSolution`` configuration.
 
     Parameters
     ----------
-    grid : IGridBase
+    grid : GridBase
         Computational grid whose ``sim_config`` selects the algorithm type.
     phase : str or None, optional
         Optional phase name used when constructing field names.
