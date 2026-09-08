@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from gridfoam.core.equation import Equation, equation
@@ -16,6 +17,7 @@ from gridfoam.meta.enums import (
     SolverType,
 )
 from gridfoam.solvers.cg import CGSolver
+from gridfoam.solvers.factory import create_solver
 
 
 def _identity_equation(grid: AxisProjectedGrid, *, name: str = "p") -> Equation:
@@ -94,3 +96,52 @@ def test_cg_returns_per_component_stats(
     assert len(result.stats) == 3
     assert all(stat.solver == SolverType.CG.value for stat in result.stats)
     assert all(stat.converged for stat in result.stats)
+
+
+@pytest.mark.parametrize(
+    ("atol", "rtol", "expected_x", "iterations", "converged"),
+    [
+        (2.0, 0.0, (0.0, 0.0), 0, True),
+        (0.6, 0.0, (2 / 3, 2 / 3), 1, True),
+        (0.2, 0.0, (13 / 15, 7 / 15), 1, True),
+        (1e-12, 0.5, (2 / 3, 2 / 3), 1, True),
+        (1e-12, 0.2, (13 / 15, 7 / 15), 1, True),
+        (1e-12, 0.0, (13 / 15, 7 / 15), 1, False),
+    ],
+)
+def test_bicgstab_convergence_stages(
+    small_axis_projected_grid: AxisProjectedGrid,
+    atol: float,
+    rtol: float,
+    expected_x: tuple[float, float],
+    iterations: int,
+    converged: bool,
+) -> None:
+    # diag(1, 2) x = (1, 1) distinguishes the initial, s, and r checks.
+    grid = small_axis_projected_grid
+    eq = _identity_equation(grid, name="p_bicg_stats")
+    mat = eq.fv_matrix
+    mat.diag[1] = 2.0
+    mat.source.zero_()
+    mat.source[:2] = 1.0
+    solver = create_solver(
+        SolverConfig(
+            method=SolverType.BiCGSTAB,
+            preconditioner=PreconditionerType.NONE,
+            tolerance=atol,
+            rel_tolerance=rtol,
+            max_iter=1,
+            norm_type=NormType.L_2,
+        )
+    )
+    result = solver.solve(eq)
+    expected = torch.zeros_like(mat.source)
+    expected[:2] = expected.new_tensor(expected_x)
+    torch.testing.assert_close(result.solution, expected)
+    stats = result.stats[0]
+    assert stats.iterations == iterations
+    assert stats.converged is converged
+    assert stats.initial_residual == pytest.approx(2**0.5)
+    assert stats.final_residual == pytest.approx(
+        torch.linalg.vector_norm(mat.source - mat.multiply(expected)).item()
+    )

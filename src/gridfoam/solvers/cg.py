@@ -10,7 +10,6 @@ from gridfoam.solvers.base import (
     LinearSolver,
     SolveResult,
     SolveStats,
-    is_converged,
     residual_threshold,
 )
 from gridfoam.solvers.krylov import solve_components
@@ -92,16 +91,16 @@ class CGSolver(LinearSolver):
             r, dim=0, ord=self.norm_order
         )
 
-        thresh = residual_threshold(self.atol, self.rtol, norm_r0)
+        thresh = residual_threshold(self.atol, self.rtol, norm_r0).item()
         initial_residual = norm_r0.item()
 
         logger.debug(
             "CG init residual=%.3e threshold=%.3e",
             initial_residual,
-            thresh.item(),
+            thresh,
         )
 
-        if is_converged(thresh, norm_r0):
+        if initial_residual < thresh:
             logger.debug(
                 "CG converged at iteration=0 residual=%.3e",
                 initial_residual,
@@ -141,9 +140,9 @@ class CGSolver(LinearSolver):
                     "CG iter=%d residual=%.3e threshold=%.3e",
                     iter_idx,
                     final_residual,
-                    thresh.item(),
+                    thresh,
                 )
-            if is_converged(thresh, norm_r):
+            if final_residual < thresh:
                 logger.debug(
                     "CG converged iter=%d residual=%.3e",
                     iter_idx,

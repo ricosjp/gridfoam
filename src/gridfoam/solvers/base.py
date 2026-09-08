@@ -137,23 +137,6 @@ class LinearSolver(ABC):
         """Solve ``A_T y = rhs`` (used by the implicit adjoint)."""
 
 
-def is_converged(
-    thresh: Float[torch.Tensor, ""],
-    norm_res: Float[torch.Tensor, ""],
-) -> bool:
-    """
-    Return True if residual norm is below threshold.
-
-    Parameters
-    ----------
-    thresh : Float[torch.Tensor, ""]
-        Convergence threshold.
-    norm_res : Float[torch.Tensor, ""]
-        Current residual norm.
-    """
-    return bool((norm_res < thresh).item())
-
-
 def residual_threshold(
     atol: float,
     rtol: float,

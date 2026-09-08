@@ -4,21 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from gridfoam.solvers.base import is_converged, residual_threshold
-
-
-def test_is_converged_true_when_below_threshold():
-    # Converged when normalized residual is strictly below threshold.
-    thresh = torch.tensor(1e-2)
-    norm_res = torch.tensor(1e-3)
-    assert is_converged(thresh, norm_res) is True
-
-
-def test_is_converged_false_when_above_threshold():
-    # Not converged when normalized residual exceeds threshold.
-    thresh = torch.tensor(1e-4)
-    norm_res = torch.tensor(1e-2)
-    assert is_converged(thresh, norm_res) is False
+from gridfoam.solvers.base import residual_threshold
 
 
 def test_residual_threshold_combines_atol_rtol():
@@ -32,6 +18,7 @@ def test_residual_threshold_combines_atol_rtol():
 
 def test_residual_between_max_and_sum_does_not_converge():
     threshold = residual_threshold(0.1, 0.1, torch.tensor(1.0))
-    assert not is_converged(threshold, torch.tensor(0.15))
-    assert not is_converged(threshold, torch.tensor(0.1))
-    assert is_converged(threshold, torch.tensor(0.09))
+    # Convergence is strict: residual == max(atol, rtol * ref) is not enough.
+    assert not (torch.tensor(0.15) < threshold).item()
+    assert not (torch.tensor(0.1) < threshold).item()
+    assert (torch.tensor(0.09) < threshold).item()
