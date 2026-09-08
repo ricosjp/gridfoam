@@ -71,10 +71,24 @@ Boundary patches may use reserved domain names such as ``x_minus`` and
 Field values and boundary behavior
 ----------------------------------
 
+Write scalar values as numbers (``internal: 0.0``, ``value: 0.0``), vectors
+as three-element lists, and tensors as nested lists. A scalar list such as
+``[0.0]`` has the wrong physical shape, even if YAML validation accepts it;
+field initialization checks the shape.
+
 Dirichlet values apply on both inflow and outflow. Use ``inlet_outlet`` to
 select a prescribed value on reverse inflow and zero gradient on outflow.
 Nonzero Neumann gradients extrapolate from the adjacent cell in either
 direction.
+
+Reusable templates
+------------------
+
+``assets/{simple,piso,pimple}.yaml`` are Jinja templates despite their YAML
+extension. Render their placeholders before loading them as a
+``GridfoamConfig``; ``assets/README.md`` lists the required parameters.
+Runnable case configurations are under ``examples/``. SIMPLE templates omit
+``pFinal`` because only the ``p`` tolerances affect its pressure solves.
 
 Second-order time integration
 -----------------------------

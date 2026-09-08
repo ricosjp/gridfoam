@@ -32,6 +32,7 @@ def configure_run_logger(log_file: Path) -> None:
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_file, mode="w")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
@@ -39,7 +40,7 @@ def configure_run_logger(log_file: Path) -> None:
 
 
 def initialize_T(T: CellField) -> None:
-    """Set uniform initial temperature T=1 on [-1, 1] x [-1, 1]."""
+    """Set T=1 on [-1, 1] x [-1, 1] x [1, 3]."""
     cell_centers = T.grid.cell_centers
     x = cell_centers[:, 0]
     y = cell_centers[:, 1]
@@ -82,7 +83,7 @@ def main() -> None:
 
     correct_flux(phi, U, update_internal=True)
     initialize_T(T)
-    T.update_history()
+    T.update_history(reset=True)
 
     T_solver = create_solver(grid.sim_config.fvSolution.solvers[T_name])
 
