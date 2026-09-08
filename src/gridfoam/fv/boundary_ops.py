@@ -7,8 +7,7 @@ from enum import StrEnum, auto
 import torch
 from jaxtyping import Bool, Float, Int
 
-from gridfoam.boundaries.basic.dirichlet import DirichletBC
-from gridfoam.boundaries.basic.neumann import NeumannBC
+from gridfoam.boundaries import basic as basic_boundaries
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import GridBase
@@ -450,11 +449,14 @@ def immersed_dirichlet_constraints(
         batch
         for batch in iter_boundary_batches(field)
         if batch.face_kind != BoundaryFaceKind.DOMAIN
-        and type(field.bcs[batch.patch_name]) is not NeumannBC
+        and type(field.bcs[batch.patch_name]) is not basic_boundaries.NeumannBC
     )
     # Only built-in fixed-value conditions have a field-independent
     # selection. Custom/mixed conditions retain the evaluated-fraction path.
-    if all(type(field.bcs[b.patch_name]) is DirichletBC for b in batches):
+    if all(
+        type(field.bcs[b.patch_name]) is basic_boundaries.DirichletBC
+        for b in batches
+    ):
         return _fixed_immersed_constraints(field, batches)
 
     cells, distances, values = [], [], []

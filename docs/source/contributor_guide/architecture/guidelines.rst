@@ -56,9 +56,10 @@ Dependency guidelines
   calls are appropriate for internal helpers.
 * Avoid adding another dependency across layers when an existing field,
   equation, or model contract can carry the required information.
-* Import factories from their owning modules. For example,
-  ``algorithms.factory.create_algorithm`` is used by ``runner`` and is not
-  re-exported from ``algorithms.__init__``.
+* Import factories and concrete algorithms from their owning modules. For
+  example, ``algorithms.factory.create_algorithm`` and
+  ``algorithms.simple.SIMPLE`` are used by callers and are not re-exported
+  from ``algorithms.__init__``.
 
 ``CellField`` calls the boundary-condition factory during configured field
 construction. ``Equation`` calls ``fv.boundary_ops`` to select immersed
@@ -66,6 +67,17 @@ Dirichlet cell constraints after full assembly. Keep these integration points
 narrow and avoid circular imports. ``fv.adjust_phi`` and ``fv.boundary_ops``
 also depend on concrete boundary-condition types; keep those dependencies
 local and explicit.
+
+At these integration points, ``core.field`` imports the boundary factory module
+and ``fv.boundary_ops`` imports the basic boundary package. Resolve their
+functions and classes when used, rather than importing those names directly:
+boundary modules also need core geometry helpers and may still be initializing
+when these integration points are imported. Keep the imports at module scope.
+
+Preserve the current public exports, but do not expand the eager dependency
+graph of ``core.__init__`` with additional algorithm or FV imports. Import
+new functionality from its owning module. Keep the fresh-process import-order
+tests, with runtime type checking both enabled and disabled.
 
 Field and topology rules
 ------------------------

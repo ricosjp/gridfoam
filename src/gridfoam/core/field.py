@@ -8,8 +8,8 @@ import torch
 from jaxtyping import Bool, Float
 from phlower_tensor import PhysicalDimensions
 
+from gridfoam.boundaries import factory as boundary_factory
 from gridfoam.boundaries.base import BoundaryCondition
-from gridfoam.boundaries.factory import create_boundary_condition
 from gridfoam.core.dimensions import (
     DimensionLike,
     assert_compatible,
@@ -192,7 +192,7 @@ class CellField(GeometricField):
             self.reset_data(self._condition.internal)
             # init boundary conditions
             for bc_config in self._condition.iter_bc_configs():
-                bc = create_boundary_condition(
+                bc = boundary_factory.create_boundary_condition(
                     bc_config, dtype=grid.dtype, device=grid.device
                 )
                 for patch in bc_config.patches:

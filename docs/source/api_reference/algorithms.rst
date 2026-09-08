@@ -6,18 +6,34 @@ Algorithms
 Pressure--velocity algorithms
 -----------------------------
 
-.. currentmodule:: gridfoam.algorithms
+.. currentmodule:: gridfoam.algorithms.simple
 
 .. autosummary::
    :toctree: generated
    :template: autosummary/class.rst
 
    SIMPLE
+
+.. currentmodule:: gridfoam.algorithms.piso
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
    PISO
+
+.. currentmodule:: gridfoam.algorithms.pimple
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
    PIMPLE
 
 Reference-value helpers
 -----------------------
+
+.. currentmodule:: gridfoam.algorithms.utils
 
 .. autosummary::
    :toctree: generated
