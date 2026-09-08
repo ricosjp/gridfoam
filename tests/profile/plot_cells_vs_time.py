@@ -5,32 +5,20 @@ Plot cell count vs elapsed time from resolution benchmark CSV.
 from __future__ import annotations
 
 import argparse
-import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from tests.profile.benchmark_results import RESULTS_CSV, CsvRow, load_rows
 
-PROFILE_DIR = Path(__file__).resolve().parent
-DEFAULT_CSV = PROFILE_DIR / "benchmark_results" / "resolution_scaling.csv"
-DEFAULT_OUTPUT = PROFILE_DIR / "benchmark_results" / "cells_vs_time.png"
-
-
-def _load_rows(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Missing {path}. Run benchmark_resolution.py first."
-        )
-    with path.open(newline="") as f:
-        return list(csv.DictReader(f))
-
-
-CsvRow = dict[str, str]
+DEFAULT_CSV = RESULTS_CSV.with_name("resolution_scaling-latest.csv")
+DEFAULT_OUTPUT = RESULTS_CSV.with_name("cells_vs_time.png")
 
 
 def _group_by_solver(rows: list[CsvRow]) -> dict[str, list[CsvRow]]:
     grouped: dict[str, list[CsvRow]] = {}
     for row in rows:
-        grouped.setdefault(row["solver"], []).append(row)
+        label = f"{row['solver']} ({row['device']}, {row['n_steps']} steps)"
+        grouped.setdefault(label, []).append(row)
     for solver_rows in grouped.values():
         solver_rows.sort(key=lambda row: int(row["n_cells"]))
     return grouped
@@ -42,15 +30,15 @@ def plot_cells_vs_time(
     *,
     use_time_per_step: bool,
 ) -> None:
-    rows = _load_rows(csv_path)
+    rows = load_rows(csv_path)
+    if not rows:
+        raise ValueError(f"No benchmark results in {csv_path}")
     grouped = _group_by_solver(rows)
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    markers = {"gridfoam": "o", "openfoam": "s"}
-    colors = {"gridfoam": "C0", "openfoam": "C1"}
 
     y_label = (
-        "Elapsed time per time step [s]"
+        "Total elapsed time / number of steps [s]"
         if use_time_per_step
         else "Total elapsed time [s]"
     )
@@ -67,8 +55,7 @@ def plot_cells_vs_time(
         ax.plot(
             x,
             y,
-            marker=markers.get(solver, "o"),
-            color=colors.get(solver, None),
+            marker="s" if solver.startswith("openfoam") else "o",
             linewidth=1.5,
             label=solver,
         )
@@ -85,16 +72,18 @@ def plot_cells_vs_time(
     if use_time_per_step:
         title += " (per time step)"
     ax.set_title(title)
+    source_note = csv_path.name
     fig.text(
         0.01,
         0.01,
-        f"source: {csv_path.name} | endTime values: {end_time_note}",
+        f"source: {source_note} | endTime values: {end_time_note}",
         fontsize=8,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
     fig.savefig(output_path, dpi=160)
+    plt.close(fig)
     print(f"Wrote {output_path}")
 
 

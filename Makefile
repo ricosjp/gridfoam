@@ -1,6 +1,12 @@
 # Torch extra: cpu, cu118, or cu124. Do not combine cpu with a CUDA extra.
 CUDA_TAG ?= cu124
 
+# Performance tools run CPU and CUDA sequentially by default.
+PERF_DEVICES ?= cpu cuda
+PERF_ARGS ?=
+BENCHMARK_ARGS ?=
+PROFILE_ARGS ?=
+
 .PHONY: help
 help:
 	@echo "install / dev-install   uv sync (CUDA_TAG=$(CUDA_TAG))"
@@ -8,8 +14,10 @@ help:
 	@echo "cpu-test                default pytest (excludes slow/profile/benchmark)"
 	@echo "slow-test               pytest -m slow"
 	@echo "document                sphinx HTML"
-	@echo "benchmark               resolution sweep under tests/profile"
-	@echo "profile-time / profile-memory"
+	@echo "benchmark               CPU/CUDA sweep + plot; reuse cached OpenFOAM"
+	@echo "benchmark-openfoam      force OpenFOAM resolution sweep"
+	@echo "profile-time / profile-memory  CPU/CUDA reports in outputs/{time,memory}"
+	@echo "  PERF_DEVICES=cpu|cuda  PERF_ARGS='--steps 2 --cpu-threads 4'"
 	@echo "experiment-gf-vs-of     OpenFOAM vs gridfoam slice comparison"
 	@echo "experiment-re-vs-cd     sphere Re–Cd sweep"
 
@@ -48,19 +56,19 @@ document:
 
 .PHONY: benchmark
 benchmark:
-	uv run python tests/profile/benchmark_resolution.py gridfoam
-	uv run python tests/profile/plot_cells_vs_time.py
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m tests.profile.benchmark_resolution --devices $(PERF_DEVICES) $(PERF_ARGS) $(BENCHMARK_ARGS)
+
+.PHONY: benchmark-openfoam
+benchmark-openfoam:
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m tests.profile.benchmark_resolution openfoam $(PERF_ARGS) $(BENCHMARK_ARGS)
 
 .PHONY: profile-time
 profile-time:
-	mkdir -p ./tests/profile/outputs/time/
-	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run pyinstrument -r html -o ./tests/profile/outputs/time/profile.html -m pytest -v -m profile
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m tests.profile.run_profiles time --devices $(PERF_DEVICES) $(PERF_ARGS) $(PROFILE_ARGS)
 
 .PHONY: profile-memory
 profile-memory:
-	mkdir -p ./tests/profile/outputs/memory/
-	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run pytest -v -m profile --memray --memray-bin-path=./tests/profile/outputs/memory --memray-bin-prefix=gridfoam
-	# uv run memray flamegraph -f {bin_path}
+	GRIDFOAM_RUNTIME_TYPE_CHECKS=0 uv run python -m tests.profile.run_profiles memory --devices $(PERF_DEVICES) $(PERF_ARGS) $(PROFILE_ARGS)
 
 .PHONY: experiment-gf-vs-of
 experiment-gf-vs-of:

@@ -14,8 +14,8 @@ from typing import Any
 import matplotlib.pyplot as plt
 
 PROFILE_DIR = Path(__file__).resolve().parent
-DEFAULT_CPU_HTML = PROFILE_DIR / "outputs" / "time" / "cpu-profile.html"
-DEFAULT_CUDA_HTML = PROFILE_DIR / "outputs" / "time" / "cuda-profile.html"
+DEFAULT_CPU_HTML = PROFILE_DIR / "outputs" / "time" / "cpu" / "profile.html"
+DEFAULT_CUDA_HTML = PROFILE_DIR / "outputs" / "time" / "cuda" / "profile.html"
 DEFAULT_OUTPUT = PROFILE_DIR / "outputs" / "time" / "simple_step_breakdown.png"
 
 

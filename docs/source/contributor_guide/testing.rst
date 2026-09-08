@@ -58,6 +58,21 @@ Benchmarks and profiling scripts measure runtime or memory behavior. They are
 not part of the default correctness suite. Mark expensive pytest cases with the
 registered ``benchmark``, ``profile``, or ``slow`` markers as appropriate.
 
+``make benchmark``, ``make profile-time``, and ``make profile-memory`` run CPU
+and CUDA sequentially with separate results. Set ``PERF_DEVICES=cpu`` or
+``PERF_DEVICES=cuda`` for a single device. To try a short workload:
+
+.. code-block:: console
+
+   $ make profile-time PERF_ARGS="--steps 2 --resolution '5 2 2'"
+   $ make profile-memory PERF_DEVICES=cuda PROFILE_ARGS="--native"
+
+Time reports are written to ``tests/profile/outputs/time/{cpu,cuda}/`` and
+memory reports to ``tests/profile/outputs/memory/{cpu,cuda}/``. Memory reports
+include Memray host allocations and, for CUDA, PyTorch allocator counters and
+snapshots. See ``tests/profile/README.md`` for output definitions, benchmark
+comparison limits, and the script layout.
+
 Quick comparison
 ----------------
 
