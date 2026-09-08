@@ -32,7 +32,6 @@ from gridfoam.fv.boundary_ops import (
     boundary_fixed_value_mask,
     boundary_normal_gradient,
     iter_boundary_states,
-    outward_boundary_Sf,
 )
 from gridfoam.fv.kernels.face_geometry import face_geometry
 from gridfoam.solvers.base import LinearSolver, SolveStats
@@ -201,12 +200,9 @@ def _add_boundary_sn_grad_flux(
     """
     Add ``sign * coeff_P * |Sf| * snGrad(p)_b`` on every pressure boundary.
     """
-    grid = p.grid
     for state in iter_boundary_states(p):
         batch = state.batch
-        mag_Sf = torch.linalg.vector_norm(
-            outward_boundary_Sf(grid, batch), dim=1
-        )
+        mag_Sf = batch.mag_Sf
         correction = (
             sign
             * cell_coeff[batch.target_cells]
@@ -317,9 +313,7 @@ def _close_fixed_cell_flux(phi: FaceField, p: CellField) -> None:
         fixed = boundary_fixed_value_mask(p, batch, state.fraction)
         if not bool(torch.any(fixed)):
             continue
-        area = torch.linalg.vector_norm(
-            outward_boundary_Sf(p.grid, batch), dim=1
-        )
+        area = batch.mag_Sf
         area = torch.where(fixed, area, torch.zeros_like(area))
         area_sum.index_add_(0, batch.target_cells, area)
         selected.append((batch, area))

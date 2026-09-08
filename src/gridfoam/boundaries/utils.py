@@ -15,6 +15,36 @@ def get_mask(
     patch_name: str | DomainBoundaryPatch,
     side: FaceSide = FaceSide.UPPER,
 ) -> Bool[torch.Tensor, " F"]:
+    """Read-only patch mask, cached until grid geometry is invalidated."""
+    return get_mask_and_size(grid, patch_name, side)[0]
+
+
+def get_mask_and_size(
+    grid: IGridBase,
+    patch_name: str | DomainBoundaryPatch,
+    side: FaceSide = FaceSide.UPPER,
+) -> tuple[Bool[torch.Tensor, " F"], int]:
+    """Return a cached patch mask and its number of selected faces.
+
+    The mask spans domain-boundary faces for a ``DomainBoundaryPatch`` or
+    immersed faces for a named surface patch; ``side`` selects the immersed
+    side. Treat the returned mask as read-only. The Python integer count is
+    cached with the mask to avoid repeated GPU synchronization. Both are
+    discarded when the grid invalidates its derived caches.
+    """
+    key = (patch_name, side)
+    cache = grid.fv_cache.boundary_masks
+    if key not in cache:
+        mask = _build_mask(grid, patch_name, side)
+        cache[key] = (mask, int(mask.sum().item()))
+    return cache[key]
+
+
+def _build_mask(
+    grid: IGridBase,
+    patch_name: str | DomainBoundaryPatch,
+    side: FaceSide,
+) -> Bool[torch.Tensor, " F"]:
     if isinstance(patch_name, DomainBoundaryPatch):
         dir_id = patch_name.to_direction().value
         mask = grid.domain_bnd_dir_id == dir_id

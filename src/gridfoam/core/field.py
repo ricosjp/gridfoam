@@ -147,7 +147,7 @@ class CellField(GeometricField):
     old_data : torch.Tensor
         Previous time-level values with shape ``[C, *component_shape]``.
     fv_cache : FvFieldCache
-        Field-owned FV cache (boundary batches and states).
+        Field-owned FV cache (boundary batches, states, and cell constraints).
     """
 
     def __init__(
@@ -263,7 +263,7 @@ class CellField(GeometricField):
 
     @property
     def fv_cache(self) -> FvFieldCache:
-        """Field-owned FV cache (boundary batches and states)."""
+        """Cache of boundary batches, states, and cell constraints."""
         return self._fv_cache
 
     # ================================

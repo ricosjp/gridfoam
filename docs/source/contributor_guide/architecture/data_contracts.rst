@@ -42,9 +42,12 @@ FV caches
 Derived FV data is owned by the object it describes, not by module globals:
 
 * ``grid.fv_cache`` (:class:`~gridfoam.core.FvGridCache`) holds static face
-  geometry (:class:`~gridfoam.fv.kernels.FaceGeometry`).
+  geometry (:class:`~gridfoam.fv.kernels.FaceGeometry`) and read-only patch
+  masks with their CPU face counts.
 * ``field.fv_cache`` (:class:`~gridfoam.core.FvFieldCache`) holds boundary
-  batches and evaluated boundary states.
+  batches (including area vectors and magnitudes), evaluated boundary states,
+  and fixed Dirichlet constraint selections. Constraint selections cache only
+  geometry choices; prescribed values and their autograd graph are rebuilt.
 
 Call :meth:`~gridfoam.core.grid.base.IGridBase.invalidate_derived_caches`
 after topology, immersed-boundary, or device changes (``remesh``,

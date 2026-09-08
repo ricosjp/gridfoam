@@ -7,7 +7,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.boundaries.base import BoundaryCondition
-from gridfoam.boundaries.utils import get_mask
+from gridfoam.boundaries.utils import get_mask_and_size
 from gridfoam.core.shapes import require_shape
 from gridfoam.meta.enums import BoundaryConditionType, FaceSide
 from gridfoam.meta.types import PatchName
@@ -51,8 +51,7 @@ class NeumannBC(BoundaryCondition):
         grad_value = self.grad_value.to(dtype=grid.dtype, device=grid.device)
 
         require_shape(grad_value, field.component_shape, "neumann value")
-        mask = get_mask(grid, patch_name, side)
-        n_faces = int(mask.sum().item())
+        _, n_faces = get_mask_and_size(grid, patch_name, side)
 
         fraction = torch.zeros((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(

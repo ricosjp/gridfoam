@@ -7,6 +7,8 @@ from enum import StrEnum, auto
 import torch
 from jaxtyping import Bool, Float, Int
 
+from gridfoam.boundaries.basic.dirichlet import DirichletBC
+from gridfoam.boundaries.basic.neumann import NeumannBC
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import IGridBase
@@ -46,6 +48,8 @@ class BoundaryBatch:
         Vector from the cell centre to the boundary point, ``[F_any, 3]``.
     mag_d : torch.Tensor
         ``|d_vec|`` with shape ``[F_any]``.
+    Sf, mag_Sf : torch.Tensor
+        Cached outward area vectors ``[F_any, 3]`` and magnitudes ``[F_any]``.
     """
 
     patch_name: PatchName
@@ -55,6 +59,8 @@ class BoundaryBatch:
     target_cells: Int[torch.Tensor, " F_any"]
     d_vec: Float[torch.Tensor, " F_any 3"]
     mag_d: Float[torch.Tensor, " F_any"]
+    Sf: Float[torch.Tensor, " F_any 3"]
+    mag_Sf: Float[torch.Tensor, " F_any"]
 
 
 BoundaryBatchCacheKey = tuple[
@@ -128,6 +134,7 @@ def _build_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
             C_O = grid.cell_centers[target_cells]
             d_vec = Cf_bnd - C_O
             mag_d = torch.linalg.vector_norm(d_vec, dim=1)
+            Sf = grid.domain_bnd_Sf[mask]
             yield BoundaryBatch(
                 patch_name=patch,
                 side=FaceSide.UPPER,
@@ -136,6 +143,8 @@ def _build_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
                 target_cells=target_cells,
                 d_vec=d_vec,
                 mag_d=mag_d,
+                Sf=Sf,
+                mag_Sf=torch.linalg.vector_norm(Sf, dim=1),
             )
             continue
 
@@ -158,6 +167,8 @@ def _build_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
                     ],
                     d_vec=mag_d[:, None] * n_hat[upper_mask],
                     mag_d=mag_d,
+                    Sf=immersed_Sf[upper_mask],
+                    mag_Sf=mag_Sf[upper_mask],
                 )
 
             if torch.any(lower_mask):
@@ -172,6 +183,8 @@ def _build_boundary_batches(field: CellField) -> Iterator[BoundaryBatch]:
                     ],
                     d_vec=mag_d[:, None] * (-n_hat[lower_mask]),
                     mag_d=mag_d,
+                    Sf=-immersed_Sf[lower_mask],
+                    mag_Sf=mag_Sf[lower_mask],
                 )
             continue
 
@@ -219,13 +232,8 @@ def outward_boundary_Sf(
     torch.Tensor
         Outward ``Sf`` with shape ``[F_any, 3]``.
     """
-    if batch.face_kind == BoundaryFaceKind.DOMAIN:
-        return grid.domain_bnd_Sf[batch.face_mask]
-    assert isinstance(grid, AxisProjectedGrid)
-    immersed_Sf = grid.Sf[grid.ap_is_immersed_faces][batch.face_mask]
-    if batch.face_kind == BoundaryFaceKind.IMMERSED_UPPER:
-        return immersed_Sf
-    return -immersed_Sf
+    del grid
+    return batch.Sf
 
 
 def uncovered_domain_faces(field: CellField) -> Bool[torch.Tensor, " F_bnd"]:
@@ -438,21 +446,39 @@ def immersed_dirichlet_constraints(
     If several Dirichlet faces constrain a cell, use the closest intersection;
     ties follow boundary-batch/face order. No boundary values are averaged.
     """
+    batches = tuple(
+        batch
+        for batch in iter_boundary_batches(field)
+        if batch.face_kind != BoundaryFaceKind.DOMAIN
+        and type(field.bcs[batch.patch_name]) is not NeumannBC
+    )
+    # Only built-in fixed-value conditions have a field-independent
+    # selection. Custom/mixed conditions retain the evaluated-fraction path.
+    if all(type(field.bcs[b.patch_name]) is DirichletBC for b in batches):
+        return _fixed_immersed_constraints(field, batches)
+
     cells, distances, values = [], [], []
-    for state in iter_boundary_states(field):
-        batch = state.batch
-        fixed = boundary_fixed_value_mask(field, batch, state.fraction)
+    for batch in batches:
+        fraction, ref_v, _, _ = evaluate_boundary_state(field, batch)
+        fixed = boundary_fixed_value_mask(field, batch, fraction)
         if bool(torch.any(fixed)):
             cells.append(batch.target_cells[fixed])
             distances.append(batch.mag_d[fixed])
-            values.append(state.ref_v[fixed])
+            values.append(ref_v[fixed])
     if not cells:
         return torch.empty(
             0, device=field.grid.device, dtype=torch.long
         ), field.data[:0]
     cell = torch.cat(cells)
     distance = torch.cat(distances)
-    value = torch.cat(values)
+    unique_cells, selected = _closest_constraint_indices(field, cell, distance)
+    return unique_cells, torch.cat(values)[selected]
+
+
+def _closest_constraint_indices(
+    field: CellField, cell: torch.Tensor, distance: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Select the nearest face per cell, preserving face order for ties."""
     closest = torch.full_like(field.grid.cell_volumes, torch.inf)
     closest.scatter_reduce_(0, cell, distance, reduce="amin")
     index = torch.arange(cell.numel(), device=cell.device)
@@ -465,7 +491,46 @@ def immersed_dirichlet_constraints(
     )
     selected.scatter_reduce_(0, cell, candidate, reduce="amin")
     unique_cells = torch.nonzero(selected < cell.numel(), as_tuple=True)[0]
-    return unique_cells, value[selected[unique_cells]]
+    return unique_cells, selected[unique_cells]
+
+
+def _fixed_immersed_constraints(
+    field: CellField, batches: tuple[BoundaryBatch, ...]
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Reuse fixed-BC geometry choices, but rebuild values and their graph."""
+    cache = field.fv_cache
+    key = _boundary_batch_cache_key(field)
+    if cache.immersed_constraints_key != key:
+        selections, cells, distances = [], [], []
+        for batch in batches:
+            fraction = torch.ones_like(batch.mag_d)
+            fixed = boundary_fixed_value_mask(field, batch, fraction)
+            indices = torch.nonzero(fixed, as_tuple=True)[0]
+            if indices.numel():
+                selections.append((batch, indices))
+                cells.append(batch.target_cells[indices])
+                distances.append(batch.mag_d[indices])
+        if cells:
+            unique_cells, selected = _closest_constraint_indices(
+                field, torch.cat(cells), torch.cat(distances)
+            )
+        else:
+            unique_cells = torch.empty(
+                0, device=field.grid.device, dtype=torch.long
+            )
+            selected = unique_cells
+        cache.immersed_constraints = (selections, unique_cells, selected)
+        cache.immersed_constraints_key = key
+    assert cache.immersed_constraints is not None
+    selections, unique_cells, selected = cache.immersed_constraints
+    if not selections:
+        return unique_cells, field.data[:0]
+    values = []
+    for batch, indices in selections:
+        bc = field.bcs[batch.patch_name]
+        _, ref_v, _ = bc.evaluate(field, batch.patch_name, side=batch.side)
+        values.append(ref_v[indices])
+    return unique_cells, torch.cat(values)[selected]
 
 
 def fill_boundary_face_values(field: CellField, psi_f: FaceField) -> None:

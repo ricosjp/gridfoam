@@ -6,7 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.boundaries.base import BoundaryCondition
-from gridfoam.boundaries.utils import get_mask
+from gridfoam.boundaries.utils import get_mask_and_size
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.name import make_field_name
 from gridfoam.core.shapes import require_shape
@@ -69,8 +69,7 @@ class InletOutletBC(BoundaryCondition):
         require_shape(self.inlet_value, field.component_shape, "inlet value")
         grid = field.grid
 
-        mask = get_mask(grid, patch_name, side)
-        n_faces = int(mask.sum().item())
+        mask, n_faces = get_mask_and_size(grid, patch_name, side)
 
         # Default behavior is Neumann (outflow).
         fraction = torch.zeros((n_faces,), dtype=grid.dtype, device=grid.device)

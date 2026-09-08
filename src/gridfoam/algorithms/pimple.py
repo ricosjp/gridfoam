@@ -383,10 +383,11 @@ class PIMPLE(AlgorithmBase):
                 else:
                     self.rAtU.data = self.rAU.data
 
-                logger.debug(
-                    "PIMPLE predicted-flux divergence L2=%.3e",
-                    continuity_residual(self.phi_hbya),
-                )
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "PIMPLE predicted-flux divergence L2=%.3e",
+                        continuity_residual(self.phi_hbya),
+                    )
 
                 # solve pressure Poisson equation (pFinal on last corrector)
                 div_phi_hbya = fvc.div(self.phi_hbya).data
@@ -426,12 +427,13 @@ class PIMPLE(AlgorithmBase):
                     self.rAtU,
                 )
                 correct_velocity(self.U, self.HbyA, self.rAtU, self.p)
-                logger.debug(
-                    "PIMPLE corrected flux L2=%.3e",
-                    torch.linalg.vector_norm(
-                        self.phi.single_data, ord=2
-                    ).item(),
-                )
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "PIMPLE corrected flux L2=%.3e",
+                        torch.linalg.vector_norm(
+                            self.phi.single_data, ord=2
+                        ).item(),
+                    )
 
             # =========================================================
             # Turbulence model update

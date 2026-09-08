@@ -280,10 +280,11 @@ class PISO(AlgorithmBase):
                 adjust_phi(self.phi_hbya, self.U, self.p)
             self.rAtU.data = self.rAU.data
 
-            logger.debug(
-                "PISO predicted-flux divergence L2=%.3e",
-                continuity_residual(self.phi_hbya),
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "PISO predicted-flux divergence L2=%.3e",
+                    continuity_residual(self.phi_hbya),
+                )
 
             # solve pressure Poisson equation (pFinal on last corrector)
             div_phi_hbya = fvc.div(self.phi_hbya).data
@@ -309,10 +310,13 @@ class PISO(AlgorithmBase):
                 self.phi, self.phi_hbya, p_result.matrix, self.p, self.rAtU
             )
             correct_velocity(self.U, self.HbyA, self.rAtU, self.p)
-            logger.debug(
-                "PISO corrected flux L2=%.3e",
-                torch.linalg.vector_norm(self.phi.single_data, ord=2).item(),
-            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "PISO corrected flux L2=%.3e",
+                    torch.linalg.vector_norm(
+                        self.phi.single_data, ord=2
+                    ).item(),
+                )
 
         # =========================================================
         # Turbulence model update

@@ -6,7 +6,7 @@ import torch
 from jaxtyping import Float
 
 from gridfoam.boundaries.base import BoundaryCondition
-from gridfoam.boundaries.utils import get_mask
+from gridfoam.boundaries.utils import get_mask_and_size
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.meta.enums import (
     BoundaryConditionType,
@@ -57,8 +57,7 @@ class SlipBC(BoundaryCondition):
             raise ValueError("SlipBC supports scalar and vector fields")
         grid = field.grid
 
-        mask = get_mask(grid, patch_name, side)
-        n_faces = int(mask.sum().item())
+        mask, n_faces = get_mask_and_size(grid, patch_name, side)
 
         fraction = torch.ones((n_faces,), dtype=grid.dtype, device=grid.device)
         ref_v = torch.zeros(

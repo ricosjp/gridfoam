@@ -13,6 +13,7 @@ from gridfoam.algorithms.utils.pressure_correction import (
 )
 from gridfoam.boundaries.basic.dirichlet import DirichletBC
 from gridfoam.boundaries.basic.neumann import NeumannBC
+from gridfoam.boundaries.derived.inlet_outlet import InletOutletBC
 from gridfoam.core.equation import equation
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
@@ -85,6 +86,52 @@ def _solver():
             max_iter=1000,
         )
     )
+
+
+def test_fixed_constraint_cache_refreshes_values_and_autograd(tmp_path: Path):
+    grid = _plane_grid(tmp_path, 8, theta=0.03)
+    value = torch.tensor(0.7, dtype=grid.dtype, requires_grad=True)
+    q = _scalar(grid, "q", value)
+    patch = next(iter(grid.patch_name_to_id))
+    bc = q.bcs[patch]
+    assert isinstance(bc, DirichletBC)
+
+    # Reuse the same field and BC, but start a fresh autograd graph each time.
+    for factor in (2.0, 3.0):
+        bc.value = factor * value
+        cells, values = immersed_dirichlet_constraints(q)
+        assert cells.numel() == 1
+        torch.testing.assert_close(values, (factor * value).reshape(1))
+        gradient = torch.autograd.grad(values.sum(), value)[0]
+        torch.testing.assert_close(gradient, torch.full_like(value, factor))
+
+    q.add_boundary_conditions({patch: NeumannBC(torch.tensor(0.0))})
+    assert immersed_dirichlet_constraints(q)[0].numel() == 0
+    q.add_boundary_conditions({patch: bc})
+    assert immersed_dirichlet_constraints(q)[0].numel() == 1
+
+    grid.ap_owner_near_boundary.zero_()
+    grid.ap_neighbour_near_boundary.zero_()
+    grid.invalidate_derived_caches()
+    assert immersed_dirichlet_constraints(q)[0].numel() == 0
+
+
+def test_mixed_constraint_selection_tracks_flow_reversal(tmp_path: Path):
+    grid = _plane_grid(tmp_path, 8, theta=0.03)
+    q = CellField(grid, "q", FieldRole.LOCAL, ())
+    phi = FaceField(grid, "phi", FieldRole.LOCAL, ())
+    q.add_boundary_conditions(
+        dict.fromkeys(
+            grid.patch_name_to_id,
+            InletOutletBC(torch.tensor(0.7, dtype=grid.dtype)),
+        )
+    )
+    for flux, expected_cells in ((1.0, 0), (-1.0, 1), (1.0, 0)):
+        phi.immersed_upper.fill_(flux)
+        phi.immersed_lower.fill_(flux)
+        cells, values = immersed_dirichlet_constraints(q)
+        assert cells.numel() == expected_cells
+        torch.testing.assert_close(values, torch.full_like(values, 0.7))
 
 
 def test_near_boundary_poisson_is_second_order(tmp_path: Path):

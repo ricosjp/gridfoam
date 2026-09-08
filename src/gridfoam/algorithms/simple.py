@@ -355,10 +355,11 @@ class SIMPLE(AlgorithmBase):
         # =========================================================
         # -∇・(rAtU ∇p) = -∇・phiHbyA
 
-        logger.debug(
-            "SIMPLE predicted-flux divergence L2=%.3e",
-            continuity_residual(self.phi_hbya),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "SIMPLE predicted-flux divergence L2=%.3e",
+                continuity_residual(self.phi_hbya),
+            )
 
         # Store old pressure for pressure under-relaxation
         p_old = self.p.data.clone()
@@ -395,10 +396,11 @@ class SIMPLE(AlgorithmBase):
         if "phi" in self._residual_control:
             self._record_residual("phi", continuity_residual(self.phi))
 
-        logger.debug(
-            "SIMPLE corrected flux L2=%.3e",
-            torch.linalg.vector_norm(self.phi.single_data, ord=2).item(),
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "SIMPLE corrected flux L2=%.3e",
+                torch.linalg.vector_norm(self.phi.single_data, ord=2).item(),
+            )
 
         # =========================================================
         # Turbulence model update

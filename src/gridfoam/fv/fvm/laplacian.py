@@ -12,7 +12,6 @@ from gridfoam.fv.boundary_ops import (
     boundary_value_gradient_coefficient,
     evaluate_boundary_state,
     iter_boundary_batches,
-    outward_boundary_Sf,
 )
 from gridfoam.fv.kernels.face_geometry import FaceGeometry, face_geometry
 from gridfoam.fv.kernels.face_interpolation import sn_grad_hanging_correction
@@ -223,7 +222,7 @@ def laplacian(
             if isinstance(gamma, torch.Tensor)
             else gamma
         )
-        area = torch.linalg.vector_norm(outward_boundary_Sf(grid, batch), dim=1)
+        area = batch.mag_Sf
         conductance = gamma_bnd * area
         # (u_b - u_P) / d already includes the ghost reconstruction's 1/theta.
         # Constrain near Dirichlet cells after assembling the full equation.
