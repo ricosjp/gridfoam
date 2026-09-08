@@ -41,12 +41,11 @@ tensor shapes exactly.
 Current dispatch coverage
 -------------------------
 
-``div`` and ``grad`` schemes are selected from ``fvSchemes`` through
-dispatch tables. ``sn_grad`` uses the configured gradient via
-``eval_grad``. ``fvm.ddt`` currently always uses Euler, and
-``fvm.laplacian`` has a single implementation, even though the corresponding
-configuration dictionaries already exist. When adding a selectable ddt or
-laplacian scheme, wire the lookup in the operator as part of the same change.
+``div`` and ``grad`` use dispatch tables. ``sn_grad`` and ``fvm.laplacian``
+select corrected or uncorrected treatment of hanging-node faces;
+``sn_grad`` obtains configured gradients through ``eval_grad``.
+``fvm.ddt`` and ``fvc.ddt_corr`` share Euler/BDF2 time weights.
+See :doc:`../../user_guide/configuration` for selection keys and defaults.
 
 Adding an explicit operator
 ---------------------------

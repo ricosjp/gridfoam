@@ -162,14 +162,15 @@ class SnGradScheme(StrEnum):
 class LaplacianScheme(StrEnum):
     """
     Type of the Laplacian scheme.
+
     - LINEAR: Alias of CORRECTED kept for backward compatibility.
     - CORRECTED: Orthogonal implicit part plus explicit skewness correction
       on hanging-node faces (OpenFOAM ``Gauss linear corrected``).
     - UNCORRECTED: Orthogonal implicit part only. Cheapest; accepts an
       O(h) flux error on hanging-node faces.
-    - GAUSS_LINEAR_*: OpenFOAM spelling of linear coefficient interpolation
+    - ``GAUSS_LINEAR_*``: OpenFOAM spelling of linear coefficient interpolation
       with the selected surface-normal gradient correction.
-    - GAUSS_HARMONIC_*: Distance-weighted harmonic coefficient interpolation
+    - ``GAUSS_HARMONIC_*``: Distance-weighted harmonic coefficient interpolation
       with the selected correction, for nonnegative scalar diffusivity.
     """
 

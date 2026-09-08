@@ -74,7 +74,7 @@ Use grid-owned metadata for tensor allocation:
 
 * dtype: ``grid.dtype``
 * device: ``grid.device``
-* cell shape: ``[grid.num_cells, k]``
+* cell shape: ``[grid.num_cells, *component_shape]``
 
 Do not assume all internal faces are single-sided. ``FaceField`` separates
 ordinary internal values from the upper and lower sides of immersed faces.
@@ -100,9 +100,9 @@ Most configurable features follow the same path:
 Not every internal helper needs an enum or factory entry. Add those entries
 only when users must select the implementation from configuration.
 
-Some configuration enums exist before runtime dispatch is complete. For
-example, ``ddtSchemes`` is accepted by ``fvSchemesConfig``, but the current
-``fvm.ddt`` implementation does not yet look it up.
+Configuration validation alone does not prove that an option is used. Verify
+the operator's lookup and numerical behavior; for time schemes, both
+``fvm.ddt`` and ``fvc.ddt_corr`` must use the same configured weights.
 
 For a feature selected from YAML, review all of these locations:
 

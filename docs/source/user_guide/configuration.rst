@@ -44,7 +44,10 @@ Simulator blocks
 ``simulator.fvSolution``
    Pressure--velocity algorithm (SIMPLE, PISO, or PIMPLE), linear solvers per
    field, optional potential-flow initialization, and ``adjustPhi`` behaviour.
-   ``consistent: true`` selects SIMPLEC (``rAtU = 1/(1/A - H1)``).
+   For SIMPLE/PIMPLE, ``consistent: true`` selects SIMPLEC
+   (``rAtU = 1/(1/rAU - H1)`` with ``rAU = 1/A``).
+   PIMPLE bounds the denominator below by ``0.1/rAU``. PISO has no
+   ``consistent`` option.
 
 ``simulator.conditions``
    Initial field values and boundary conditions per patch.
@@ -80,6 +83,13 @@ Dirichlet values apply on both inflow and outflow. Use ``inlet_outlet`` to
 select a prescribed value on reverse inflow and zero gradient on outflow.
 Nonzero Neumann gradients extrapolate from the adjacent cell in either
 direction.
+
+For axis-projected immersed boundaries, sufficiently close Dirichlet faces
+constrain the adjacent cell directly. Algorithms preserve these values after
+velocity correction and pressure relaxation; pressure flux correction closes
+the constrained cell's mass balance. This is automatic and requires no new
+YAML option. See :ref:`architecture-data-contracts` for the distance criterion
+and accuracy limits.
 
 Reusable templates
 ------------------
@@ -131,7 +141,7 @@ ALE/GCL time terms or conservative transfer of two old mesh histories.
 Stored old levels remain connected to autograd for transient sensitivities.
 
 Discontinuous diffusion coefficients
------------------------------------
+------------------------------------
 
 For a scalar diffusivity that jumps across cell faces, select harmonic
 interpolation for the corresponding Laplacian:

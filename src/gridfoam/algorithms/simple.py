@@ -79,7 +79,7 @@ class SIMPLE(AlgorithmBase):
         Reciprocal of the momentum diagonal, ``1/A(U)``.
     rAtU : CellField
         Pressure-equation coefficient: ``rAU`` or, with ``consistent``,
-        the SIMPLEC value ``1/(1/A(U) - H1)``.
+        the SIMPLEC value ``1/(1/rAU - H1)`` with ``rAU = 1/A(U)``.
     HbyA : CellField
         Explicit momentum contribution ``H(U)/A(U)``.
     solvers : dict[str, LinearSolver]

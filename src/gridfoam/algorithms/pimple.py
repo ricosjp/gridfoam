@@ -81,7 +81,7 @@ class PIMPLE(AlgorithmBase):
         Reciprocal of the momentum diagonal, ``1/A(U)``.
     rAtU : CellField
         Pressure-equation coefficient: ``rAU`` or, with ``consistent``,
-        the SIMPLEC value ``1/max(1/A(U) - H1, 0.1/A(U))``.
+        the SIMPLEC value ``1/max(1/rAU - H1, 0.1/rAU)``.
     HbyA : CellField
         Explicit momentum contribution ``H(U)/A(U)``.
     solvers : dict[str, LinearSolver]

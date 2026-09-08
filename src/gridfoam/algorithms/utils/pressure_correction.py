@@ -89,7 +89,7 @@ def solve_pressure_poisson(
         Pressure field to solve.
     rAtU : CellField
         Diffusion coefficient of the pressure equation: ``1 / A(U)`` or the
-        SIMPLEC coefficient ``1 / (1/A - H1)``.
+        SIMPLEC coefficient from :func:`simplec_rAtU`.
     div_phi_hbya : torch.Tensor
         Cell-centered divergence of the predicted face flux, normalized by
         the cell volume as returned by ``fvc.div``.
