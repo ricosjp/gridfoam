@@ -1,7 +1,5 @@
 import logging
 
-import torch
-
 from gridfoam.core.dimensions import DIM_VOL_FLUX, assert_compatible
 from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.fvmatrix import FvMatrix
@@ -38,7 +36,9 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
     """
     Build the convection (divergence) matrix term.
 
-    Represents div(U * psi).
+    Represents div(U * psi). Boundary values follow the prescribed boundary
+    condition for either flux direction; inlet/outlet switching belongs to
+    the boundary condition itself.
 
     Parameters
     ----------
@@ -82,13 +82,11 @@ def div(phi: FaceField, field: CellField) -> FvMatrix:
         distance = broadcast_entity(batch.mag_d, ref_g)
         boundary_source = f_view * ref_v + (1.0 - f_view) * distance * ref_g
 
-        # These blocks contain outward fluxes through the physical boundary.
-        # Use the boundary value, not an extrapolated ghost-cell value.
+        # psi_b = (1 - f) * psi_P + boundary_source. The boundary condition
+        # selects f, including any flow-direction switching in inletOutlet.
         flux = boundary_block(phi, batch.face_kind)[batch.face_mask]
-        F_out = torch.clamp(flux, min=0.0)
-        F_in = torch.clamp(flux, max=0.0)
-        diag = F_out + F_in * (1.0 - f)
-        src = broadcast_entity(F_in, boundary_source) * boundary_source
+        diag = flux * (1.0 - f)
+        src = broadcast_entity(flux, boundary_source) * boundary_source
         mat.diag.index_add_(0, batch.target_cells, diag)
         mat.source.index_add_(0, batch.target_cells, -src)
 

@@ -27,8 +27,9 @@ class DirichletBC(BoundaryCondition):
 
     Parameters
     ----------
-    value : Float[torch.Tensor, " *component_shape"]
-        Fixed value tensor prescribed at the boundary.
+    value : torch.Tensor
+        Uniform prescribed value with shape ``component_shape``; a scalar
+        uses shape ``()``. Applied on both inflow and outflow.
     """
 
     def __init__(self, value: Float[torch.Tensor, " *component_shape"]):

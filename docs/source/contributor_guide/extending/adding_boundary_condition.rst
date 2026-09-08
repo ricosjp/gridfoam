@@ -42,6 +42,16 @@ Implementation outline
 
 Use ``boundaries.utils.get_mask`` for domain and immersed patches. Respect the
 ``side`` argument; it distinguishes upper and lower immersed-boundary values.
+Masks are cached and must be treated as read-only. Use ``get_mask_and_size``
+when allocation also needs the patch face count, avoiding repeated GPU
+synchronization.
+
+Convection honors the evaluated condition for both flux directions. Implement
+inlet/outlet switching in the condition itself. Near immersed boundaries,
+fully Dirichlet values may constrain the adjacent cell at equation assembly;
+Neumann and partially mixed values retain their gradient contribution. See
+:ref:`architecture-data-contracts` for geometry selection and zero-distance
+behavior.
 
 Place the implementation in:
 

@@ -62,6 +62,14 @@ pass of the last pressure corrector (every PISO/PIMPLE outer iteration).
 Boundary patches may use reserved domain names such as ``x_minus`` and
 ``x_plus``, or custom patch names for immersed surfaces.
 
+Field values and boundary behavior
+----------------------------------
+
+Dirichlet values apply on both inflow and outflow. Use ``inlet_outlet`` to
+select a prescribed value on reverse inflow and zero gradient on outflow.
+Nonzero Neumann gradients extrapolate from the adjacent cell in either
+direction.
+
 Second-order time integration
 -----------------------------
 

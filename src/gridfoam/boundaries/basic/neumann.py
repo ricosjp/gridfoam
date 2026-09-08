@@ -26,8 +26,10 @@ class NeumannBC(BoundaryCondition):
 
     Parameters
     ----------
-    grad_value : Float[torch.Tensor, " *component_shape"]
-        Fixed normal-gradient tensor prescribed at the boundary.
+    grad_value : torch.Tensor
+        Uniform outward normal gradient with shape ``component_shape``;
+        a scalar uses shape ``()``. Boundary values extrapolate from the
+        adjacent cell in both flux directions.
     """
 
     def __init__(self, grad_value: Float[torch.Tensor, " *component_shape"]):

@@ -167,6 +167,17 @@ and tensor shape into features. ``ml_values[..., feature_index]`` selects a
 feature without changing the physical tensor axes; use it when returning
 values to gridfoam.
 
+Boundary convection
+-------------------
+
+``fvm.div`` assembles boundary convection using the value-fraction contract.
+On domain and immersed boundaries, it uses the value prescribed by the
+boundary condition for either flux direction. Dirichlet conditions supply
+the fixed value; zero-gradient conditions supply the adjacent cell value.
+``inletOutlet`` itself selects zero gradient on outflow and the prescribed
+value on reverse inflow. A nonzero Neumann gradient contributes through
+the cell-to-boundary extrapolation, including on outflow.
+
 Immersed Dirichlet constraints
 ------------------------------
 

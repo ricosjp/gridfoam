@@ -72,6 +72,8 @@ An ``fvm`` operator assembles LDU coefficients and source terms for the target
 * ``upper`` and ``lower`` have shape ``[F_internal]``.
 * ``source`` has shape ``[C, *component_shape]``.
 * Boundary contributions must use the common value-fraction contract.
+  Convection uses it for both inflow and outflow; the boundary condition
+  owns any flow-direction switching.
 * Leave immersed cell constraints to ``equation(field, matrix)`` after all
   terms and explicit sources have been assembled. See
   :ref:`architecture-data-contracts` for constraint and flux handling.

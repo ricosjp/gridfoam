@@ -28,13 +28,15 @@ class InletOutletBC(BoundaryCondition):
     """
     Inlet-outlet boundary condition.
 
-    Behaves as zero-gradient (Neumann) for outflow (phi > 0), and
-    switches to fixed-value (Dirichlet) for reverse flow (phi < 0).
+    Uses zero gradient for outward or zero flux (``phi >= 0``), and the
+    prescribed value for reverse inflow (``phi < 0``). This condition owns
+    the switching; convection operators use its evaluated value fraction.
 
     Parameters
     ----------
-    inlet_value : Float[torch.Tensor, " *component_shape"]
-        Fixed value applied during reverse inflow.
+    inlet_value : torch.Tensor
+        Uniform reverse-inflow value with shape ``component_shape``;
+        a scalar uses shape ``()``.
     phi_builtin_key : str, optional
         Builtin key to lookup the face flux field.
     """

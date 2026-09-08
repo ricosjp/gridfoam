@@ -93,16 +93,14 @@ class BoundaryCondition(ABC):
 
         Returns
         -------
-        tuple[
-            Float[torch.Tensor, " F_patch"],
-            Float[torch.Tensor, " F_patch *component_shape"],
-            Float[torch.Tensor, " F_patch *component_shape"],
-        ]
-        - ``fraction``: ``[F_patch]``, 1.0 for Dirichlet
-            and 0.0 for Neumann.
-        - ``ref_value``: ``[F_patch, *component_shape]``, fixed value
-            for Dirichlet contribution.
-        - ``ref_grad``: ``[F_patch, *component_shape]``, fixed normal gradient
-            for Neumann contribution.
+        fraction : torch.Tensor
+            Shape ``[F_patch]``; 1 for Dirichlet, 0 for Neumann, and
+            intermediate values for mixed conditions.
+        ref_value : torch.Tensor
+            Shape ``[F_patch, *component_shape]``; prescribed value for the
+            Dirichlet contribution.
+        ref_grad : torch.Tensor
+            Shape ``[F_patch, *component_shape]``; prescribed outward normal
+            gradient for the Neumann contribution.
         """
         pass
