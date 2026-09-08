@@ -70,3 +70,17 @@ Static face geometry is cached on ``grid.fv_cache`` and rebuilt after
    :template: autosummary/function.rst
 
    face_geometry
+
+Experimental GCIBM interpolation
+----------------------------------------
+
+``InterpolationStencil`` is an M0 prototype for interpolation and transpose
+validation. It is not connected to production matrix assembly or flow solvers
+and does not provide donor search or physical ghost boundary conditions.
+See :ref:`state-and-geometry` for its scope and the remaining GCIBM work.
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   InterpolationStencil

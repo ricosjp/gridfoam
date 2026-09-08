@@ -76,8 +76,7 @@ when these integration points are imported. Keep the imports at module scope.
 
 Preserve the current public exports, but do not expand the eager dependency
 graph of ``core.__init__`` with additional algorithm or FV imports. Import
-new functionality from its owning module. Keep the fresh-process import-order
-tests, with runtime type checking both enabled and disabled.
+new functionality from its owning module.
 
 Field and topology rules
 ------------------------
