@@ -27,7 +27,8 @@ fluxel:
       level: 2
 
 # Simulator config (simulation settings)
-# Steady scalar-transport demo: U is fixed (pre-converged channel flow).
+# Steady scalar-transport demo: U is prescribed uniform channel flow.
+# Walls at T=0 cool the fluid as it travels downstream; no internal heat source.
 # control.deltaT/endTime are unused because fvSolution.algorithm is manual.
 simulator:
   control:
@@ -35,8 +36,8 @@ simulator:
     endTime: 1.0
     writeInterval: 1
     output:
-      output_dir: "examples/optimize/inlet_temperature/outputs"
-      base_name: "inlet_temperature"
+      output_dir: "examples/optimize/inlet_temperature_steady/outputs"
+      base_name: "inlet_temperature_steady"
       overwrite_file: true
     precision: float64
   fvSchemes:
@@ -60,6 +61,8 @@ simulator:
         tolerance: 1e-10
         rel_tolerance: 1e-8
         max_iter: 3000
+        # Refined mesh needs more restarts to reach the requested tolerance.
+        max_restart: 20
         norm_type: l_2
   conditions:
     U:
@@ -94,8 +97,8 @@ simulator:
           type: neumann
           patches: [x_plus]
           value: 0.0
-        slip_wall:
-          type: slip
+        cooled_wall:
+          type: dirichlet
           patches: [y_minus, y_plus]
           value: 0.0
         empty:
@@ -104,7 +107,7 @@ simulator:
   properties:
     transport:
       type: newtonian
-      nu: 0.1
+      nu: 0.1  # Used as scalar diffusivity alpha in this transport demo.
     turbulence:
       type: laminar
   device: cpu

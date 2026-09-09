@@ -57,7 +57,7 @@ Optimization
      - Command
      - Notes
    * - Inlet temperature
-     - ``uv run examples/optimize/inlet_temperature/run.py``
+     - ``uv run examples/optimize/inlet_temperature_steady/run.py``
      - Differentiable optimization example; see config in the same directory.
 
 Moving immersed boundary
