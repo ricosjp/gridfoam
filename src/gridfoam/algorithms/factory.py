@@ -6,9 +6,7 @@ from gridfoam.core.grid.base import GridBase
 from gridfoam.meta.enums import AlgorithmType
 
 
-def create_algorithm(
-    grid: GridBase, phase: str | None = None
-) -> AlgorithmBase:
+def create_algorithm(grid: GridBase, phase: str | None = None) -> AlgorithmBase:
     """
     Create a pressure--velocity algorithm from ``fvSolution`` configuration.
 
