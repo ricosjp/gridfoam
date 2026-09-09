@@ -1,0 +1,45 @@
+.. _release-v0-4-0a1:
+
+v0.4.0a1
+=========
+
+Summary
+-------
+
+Version ``0.4.0a1`` is the first pre-release toward the M1 DAG integration
+milestone. It provides the gridfoam-side field I/O and replay contracts needed
+to start phlower MR1, together with replayable SIMPLE steps and an implicit
+steady fixed-point adjoint.
+
+Added
+-----
+
+* ``FieldBindings`` for named, graph-preserving tensor I/O on prepared cell
+  and packed face fields.
+* A field-registry freeze scope that keeps weakly registered fields alive and
+  rejects unprepared registration during evaluation.
+* Read-only compatibility validation for grid and algorithm checkpoints.
+* ``SimpleStepMap`` with explicit SIMPLE state and restoration of ambient
+  fields, histories, iteration controls, boundary inputs, and diagnostics.
+* ``steady_solve`` with primal convergence checks and a matrix-free,
+  restarted-GMRES implicit backward.
+* Standalone steady inlet-velocity and inlet-temperature optimization
+  examples with gradient checks.
+
+Changed
+-------
+
+* Package version bumped from ``0.3.0`` to ``0.4.0a1``. The YAML configuration
+  schema remains at ``0.3.0`` because this release does not change its format.
+* ``graphlow`` is resolved lazily when surface-mesh functionality is used, so
+  importing core gridfoam APIs does not require the optional dependency.
+* The inlet-temperature optimization example was reorganized around a
+  standalone steady advection--diffusion solve.
+
+Limitations
+-----------
+
+* The validated steady-adjoint scope is fixed geometry, laminar SIMPLE,
+  CPU ``float64``, first derivatives, and small cases.
+* phlower CoreModules, PresetGroups, case data-pipeline integration, and
+  generalized boundary inputs are not included in this pre-release.

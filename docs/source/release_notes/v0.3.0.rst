@@ -6,9 +6,8 @@ v0.3.0
 Summary
 -------
 
-Version ``0.3.0`` is the current development release. It updates immersed-boundary
-data contracts, boundary treatment, pressure-solver selection, and performance
-reporting.
+Version ``0.3.0`` updated immersed-boundary data contracts, boundary
+treatment, pressure-solver selection, and performance reporting.
 
 Changed
 -------
