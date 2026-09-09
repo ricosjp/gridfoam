@@ -119,6 +119,13 @@ def test_captured_iteration_state_is_isolated_from_later_steps(
     with torch.no_grad():
         algo.step()
     assert saved.iteration == expected
+    current_iteration = algo.capture_iteration_state()
+    velocity = algo.grid.get_cellfield("U")
+    assert velocity is not None
+    current_velocity = velocity.data
+    saved.validate(algo)
+    assert algo.capture_iteration_state() == current_iteration
+    assert velocity.data is current_velocity
     saved.restore(algo)
     assert algo.capture_iteration_state() == expected
 

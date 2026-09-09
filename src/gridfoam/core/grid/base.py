@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Self
 
-import graphlow as gl
 import torch
 from jaxtyping import Bool, Float, Int
 
@@ -13,7 +13,17 @@ from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
 if TYPE_CHECKING:
+    from graphlow import TensorMesh as GraphlowTensorMesh
+
     from gridfoam.core.field import CellField, FaceField
+
+    TensorMesh = GraphlowTensorMesh[Any]
+else:
+    # Concrete registration methods are runtime type-checked; the field module
+    # imports this one, so resolve the names without a circular import.
+    CellField = Any
+    FaceField = Any
+    TensorMesh = Any
 
 
 class GridBase(ABC):
@@ -78,13 +88,100 @@ class GridBase(ABC):
     def __init__(self) -> None:
         self._geometry_revision = 0
         self._topology_revision = 0
+        self._field_registry_freeze_depth = 0
+
+    @contextmanager
+    def freeze_field_registry(self) -> Generator[None]:
+        """
+        Keep prepared fields alive and reject new or replacement registration.
+
+        Prepare input, output and scratch fields before entering. The scope
+        protects registry membership only: tensor values, geometry, boundary
+        conditions and solver settings are not frozen. Scopes may nest; the
+        guard is released when the outermost scope exits, including after an
+        exception. The scope does not make a shared grid thread-safe.
+
+        Yields
+        ------
+        None
+            Control returns to the caller while the registry is frozen.
+
+        Raises
+        ------
+        ValueError
+            Raised by :meth:`register_cellfield` or :meth:`register_facefield`
+            when a new or replacement field is registered inside the scope.
+            Re-registering the already registered object is allowed.
+        """
+        # Registries may hold only weak references; pin every existing field
+        # until the outermost evaluation using it has finished.
+        pinned_fields = (
+            tuple(self.get_cellfield(name) for name in self.cellfield_names()),
+            tuple(self.get_facefield(name) for name in self.facefield_names()),
+        )
+        self._field_registry_freeze_depth += 1
+        try:
+            yield
+        finally:
+            self._field_registry_freeze_depth -= 1
+            del pinned_fields
+
+    def register_cellfield(self, field: CellField) -> None:
+        """
+        Register a cell field under ``field.name``.
+
+        Parameters
+        ----------
+        field : CellField
+            Field to register. Replaces any field with the same name.
+
+        Raises
+        ------
+        ValueError
+            If the registry is frozen and ``field`` is not the object already
+            registered under that name.
+        """
+        self._check_registration(field, self.get_cellfield(field.name), "cell")
+        self._register_cellfield(field)
+
+    def register_facefield(self, field: FaceField) -> None:
+        """
+        Register a face field under ``field.name``.
+
+        Parameters
+        ----------
+        field : FaceField
+            Field to register. Replaces any field with the same name.
+
+        Raises
+        ------
+        ValueError
+            If the registry is frozen and ``field`` is not the object already
+            registered under that name.
+        """
+        self._check_registration(field, self.get_facefield(field.name), "face")
+        self._register_facefield(field)
+
+    def _check_registration(
+        self,
+        field: CellField | FaceField,
+        registered: CellField | FaceField | None,
+        location: str,
+    ) -> None:
+        if self._field_registry_freeze_depth and registered is not field:
+            raise ValueError(
+                f"Field registry is frozen: cannot register "
+                f"{location} field {field.name!r}. Prepare fields first."
+            )
 
     @abstractmethod
-    def register_cellfield(self, field: CellField):
+    def _register_cellfield(self, field: CellField) -> None:
+        """Store ``field`` in the backend registry without any guard."""
         pass
 
     @abstractmethod
-    def register_facefield(self, field: FaceField):
+    def _register_facefield(self, field: FaceField) -> None:
+        """Store ``field`` in the backend registry without any guard."""
         pass
 
     @abstractmethod
@@ -111,7 +208,7 @@ class GridBase(ABC):
 
     @property
     @abstractmethod
-    def surface_mesh(self) -> gl.TensorMesh[Any]:
+    def surface_mesh(self) -> TensorMesh:
         """Surface mesh used for force and visualization sampling."""
         pass
 

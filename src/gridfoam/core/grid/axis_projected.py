@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import logging
 import pathlib
 from collections.abc import Iterator, Sequence
@@ -7,7 +8,6 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Self
 from weakref import WeakValueDictionary
 
-import graphlow as gl
 import numpy as np
 import torch
 from fluxel import (
@@ -24,10 +24,15 @@ from gridfoam.meta.config import SimulatorConfig
 from gridfoam.meta.enums import DomainBoundaryPatch
 
 if TYPE_CHECKING:
+    from graphlow import TensorMesh as GraphlowTensorMesh
+
     from gridfoam.core.field import CellField, FaceField
+
+    TensorMesh = GraphlowTensorMesh[Any]
 else:
     CellField = Any
     FaceField = Any
+    TensorMesh = Any
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +84,7 @@ class AxisProjectedGrid(GridBase):
         self._cellfields = WeakValueDictionary[str, CellField]()
         self._facefields = WeakValueDictionary[str, FaceField]()
         self._mesh_path = mesh_path
-        self._surface_mesh_cache: gl.TensorMesh[Any] | None = None
+        self._surface_mesh_cache: TensorMesh | None = None
         self._surface_mesh_rest_points: torch.Tensor | None = None
         self._fv_cache = FvGridCache()
 
@@ -369,10 +374,10 @@ class AxisProjectedGrid(GridBase):
         self._sync_registered_fields(topology_changed=True)
         return self
 
-    def register_cellfield(self, field: CellField):
+    def _register_cellfield(self, field: CellField) -> None:
         self._cellfields[field.name] = field
 
-    def register_facefield(self, field: FaceField):
+    def _register_facefield(self, field: FaceField) -> None:
         self._facefields[field.name] = field
 
     def get_cellfield(self, name: str) -> CellField | None:
@@ -420,21 +425,30 @@ class AxisProjectedGrid(GridBase):
         self._sim_config = value
 
     @property
-    def surface_mesh(self) -> gl.TensorMesh[Any]:
+    def surface_mesh(self) -> TensorMesh:
         if self._mesh_path is None:
             raise ValueError("surface_mesh requires a mesh_path. ")
         if self._surface_mesh_cache is None:
-            self._surface_mesh_cache = gl.read(
+            try:
+                gl = importlib.import_module("graphlow")
+            except ModuleNotFoundError as error:
+                raise ModuleNotFoundError(
+                    "surface_mesh requires the optional 'graphlow' extra"
+                ) from error
+            surface_mesh = gl.read(
                 str(self._mesh_path),
                 backend="torch",
                 dtype=self.dtype,
                 device=self.device,
             )
+            self._surface_mesh_cache = surface_mesh
             self._surface_mesh_rest_points = (
-                self._surface_mesh_cache.points.detach().clone()
+                surface_mesh.points.detach().clone()
             )
             self._apply_ib_pose_to_surface_mesh()
-        return self._surface_mesh_cache
+        surface_mesh = self._surface_mesh_cache
+        assert surface_mesh is not None
+        return surface_mesh
 
     @property
     def is_dynamic(self) -> bool:

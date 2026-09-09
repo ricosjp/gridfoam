@@ -85,12 +85,24 @@ class GridCheckpoint:
         self.values.validate_layout(values)
         return replace(self, values=values)
 
-    def restore(self, grid: GridBase) -> None:
-        """Restore independent buffers, preserving the checkpoint's graph.
+    def validate(self, grid: GridBase) -> None:
+        """
+        Check replay compatibility without modifying fields or caches.
 
-        Validate every field before writing any buffers. Restoration does
-        not call ``update_history`` and clears all derived FV caches so a
-        no-grad or already-consumed graph cannot leak into a new replay.
+        Boundary values, solver settings and model parameters remain the
+        caller's fixed-input contract; they are not captured or compared here.
+
+        Parameters
+        ----------
+        grid : GridBase
+            Grid the checkpoint will be restored onto.
+
+        Raises
+        ------
+        ValueError
+            If ``grid`` is a different object, its geometry or topology
+            generation, configuration or time step changed, the set or
+            identity of registered fields changed, or a buffer layout differs.
         """
         if (
             grid is not self._grid
@@ -136,6 +148,26 @@ class GridCheckpoint:
                 self.previous_dts[key],
             )
 
+    def restore(self, grid: GridBase) -> None:
+        """
+        Restore independent buffers, preserving the checkpoint's graph.
+
+        Every field is validated before any buffer is written. Restoration
+        does not call ``update_history`` and clears all derived FV caches so a
+        no-grad or already-consumed graph cannot leak into a new replay.
+
+        Parameters
+        ----------
+        grid : GridBase
+            Grid the checkpoint is restored onto.
+
+        Raises
+        ------
+        ValueError
+            If :meth:`validate` rejects ``grid``. Nothing is written in that
+            case.
+        """
+        self.validate(grid)
         # Clone even when the source has no graph: an in-place solver update
         # must never mutate the checkpoint used by a later replay.
         values = self.values.clone()

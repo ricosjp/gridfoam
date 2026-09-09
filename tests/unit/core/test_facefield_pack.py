@@ -39,10 +39,10 @@ class _NonAxisProjectedGrid(GridBase):
         self._n_bnd = 8
         self._fv_cache = FvGridCache()
 
-    def register_cellfield(self, field: CellField) -> None:
+    def _register_cellfield(self, field: CellField) -> None:
         return None
 
-    def register_facefield(self, field: FaceField) -> None:
+    def _register_facefield(self, field: FaceField) -> None:
         return None
 
     def get_cellfield(self, name: str) -> CellField | None:

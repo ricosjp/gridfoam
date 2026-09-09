@@ -37,15 +37,11 @@ use this validation directly.
 * ``detach()`` discards the graph but shares storage.
 * ``checkpoint()`` copies storage and discards the graph.
 
-This differs from ``FlowState.clone()`` on the experimental
-``feature/adjoint_for_algorithms`` branch, which also detaches. When adopting
-that branch, use ``checkpoint()`` where a detached primal snapshot is intended.
-
 Boundary conditions, material/model parameters, and solver settings are explicit
 inputs to replay. They are not implicitly captured as evolving field state.
 Reapply them for every evaluation, including after restoring a checkpoint.
-The first trainer integration optimizes inlet conditions; learned model
-corrections can later use the same tensor-input contract.
+External adapters can use the same tensor-input contract for boundary
+conditions, model parameters and learned corrections.
 
 Field checkpoints
 -----------------
@@ -77,6 +73,14 @@ Checkpoint restore validates the grid/configuration, geometry generations,
 field registry and buffer layouts before changing fields. Checkpoints are
 in-memory objects tied to their original grid, not portable restart files.
 Hold the configuration fixed for replay; changing it requires a new checkpoint.
+``validate(grid)`` performs the same compatibility checks without restoring
+values or clearing caches. ``AlgorithmCheckpoint.validate(algorithm)`` also
+checks the algorithm instance. Validation does not compare current field
+values with saved values or inspect arbitrary mutable boundary/model objects.
+
+External callers use ``FieldBindings`` for current-value tensor I/O and
+``GridBase.freeze_field_registry()`` to reject unprepared field registration
+during evaluation. See :ref:`external-field-io` for ownership and usage.
 
 Algorithm checkpoints
 ---------------------

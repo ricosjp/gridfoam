@@ -41,6 +41,17 @@ Field helpers
    get_or_create_facefield
    packed_face_n_rows
 
+External field bindings
+-----------------------
+
+.. currentmodule:: gridfoam.core.field_bindings
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   FieldBindings
+
 Physical dimensions
 -------------------
 
