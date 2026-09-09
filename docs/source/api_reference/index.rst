@@ -16,6 +16,7 @@ implementation modules are omitted.
    boundaries
    solvers
    algorithms
+   optimize
    models
    pre_post_io
 

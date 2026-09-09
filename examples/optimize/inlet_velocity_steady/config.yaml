@@ -1,0 +1,104 @@
+# gridfoam config file
+version: 0.3.0
+
+# Fluxel config (mesh generation)
+fluxel:
+  domain:
+    lower: [0.0, 0.0, 0.0]
+    upper: [2.0, 0.5, 0.1]
+  root_resolution: [8, 2, 1]
+  target_level: 0
+  n_leaf_refinement: 0
+  mesh_path: null
+  ibm_type: axis_projected
+  motion: static
+
+# Simulator config (simulation settings)
+# steady_solve controls convergence; deltaT/endTime/writeInterval do not
+# control the optimization loop. Use run.py --n-opt / --lr for SGD settings.
+simulator:
+  control:
+    deltaT: 1.0
+    endTime: 10.0
+    writeInterval: 1
+    output:
+      output_dir: "examples/optimize/inlet_velocity_steady/outputs"
+      base_name: "inlet_velocity"
+      overwrite_file: true
+    precision: float64
+  fvSchemes: {}
+  fvSolution:
+    adjustPhi: true
+    algorithm:
+      type: simple
+      nNonOrthogonalCorrectors: 0
+      consistent: false
+      relaxationFactors:
+        equations:
+          U: 0.7
+          p: 0.3
+    # Tight linear solves for the fixed-point adjoint.
+    solvers:
+      U:
+        method: bicgstab
+        preconditioner: none
+        tolerance: 1.0e-12
+        rel_tolerance: 0.0
+        max_iter: 1000
+        norm_type: l_2
+      p:
+        method: cg
+        preconditioner: none
+        tolerance: 1.0e-12
+        rel_tolerance: 0.0
+        max_iter: 1000
+        norm_type: l_2
+  conditions:
+    U:
+      dimension: {L: 1, T: -1}
+      internal: [1.0, 0.0, 0.0]
+      boundary:
+        inlet:
+          # Replaced by the optimization parameter during each solve.
+          type: dirichlet
+          patches: [x_minus]
+          value: [1.0, 0.0, 0.0]
+        outlet:
+          type: inlet_outlet
+          patches: [x_plus]
+          value: [0.0, 0.0, 0.0]
+        slip_wall:
+          type: slip
+          patches: [y_minus, y_plus]
+          value: [0.0, 0.0, 0.0]
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+      export: true
+    p:
+      # Kinematic pressure (p/rho): L^2/T^2.
+      dimension: {L: 2, T: -2}
+      internal: 0.0
+      boundary:
+        inlet:
+          type: fixed_flux_pressure
+          patches: [x_minus]
+        slip_wall:
+          type: neumann
+          patches: [y_minus, y_plus]
+          value: 0.0
+        outlet:
+          type: dirichlet
+          patches: [x_plus]
+          value: 0.0
+        empty:
+          type: empty
+          patches: [z_minus, z_plus]
+      export: true
+  properties:
+    transport:
+      type: newtonian
+      nu: 0.01
+    turbulence:
+      type: laminar
+  device: cpu

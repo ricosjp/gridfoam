@@ -53,4 +53,5 @@ Go deeper
    data_contracts
    state_and_geometry
    external_field_io
+   steady_solve
    guidelines

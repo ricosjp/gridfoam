@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from collections.abc import Generator
+from contextlib import contextmanager
 
 from gridfoam.algorithms.iteration_state import IterationState
 from gridfoam.core.field import FaceField
@@ -82,6 +84,26 @@ class AlgorithmBase(ABC):
             Collector that receives continuity and solver statistics.
         """
         self._diagnostics = diagnostics
+
+    @contextmanager
+    def suspend_diagnostics(self) -> Generator[None]:
+        """
+        Suppress external diagnostic output during differentiable replay.
+
+        The previous diagnostics object is reinstated when the scope exits,
+        including after an exception.
+
+        Yields
+        ------
+        None
+            Control returns to the caller with diagnostics disabled.
+        """
+        saved = self._diagnostics
+        self._diagnostics = None
+        try:
+            yield
+        finally:
+            self._diagnostics = saved
 
     def _finalize_diagnostics(
         self,
