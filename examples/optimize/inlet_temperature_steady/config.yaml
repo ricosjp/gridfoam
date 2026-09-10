@@ -68,7 +68,7 @@ simulator:
     U:
       # Optional SI base exponents (T, L, M, I, Theta, N, J).
       # Must match solver defaults when both are set (velocity: L/T).
-      dimension: {L: 1, T: -1}
+      physical_dimension: {L: 1, T: -1}
       internal: [1.0, 0.0, 0.0]
       boundary:
         inlet:

@@ -175,7 +175,9 @@ class CellField(GeometricField):
         self._export = False
         self._condition = self.grid.sim_config.get_field_condition(self.name)
         config_dimension = (
-            self._condition.dimension if self._condition is not None else None
+            self._condition.physical_dimension
+            if self._condition is not None
+            else None
         )
         self._dimension = resolve_field_dimension(
             self.name, explicit=dimension, config=config_dimension

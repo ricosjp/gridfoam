@@ -282,7 +282,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                 ),
                 conditions={
                     "U": ConditionConfig(
-                        dimension=dimension_config(DIM_VELOCITY),
+                        physical_dimension=dimension_config(DIM_VELOCITY),
                         internal=[0.0, 0.0, 0.0],
                         boundary={
                             "inlet": BoundaryConditionConfig(
@@ -312,7 +312,7 @@ def build_cube_simple_config() -> Callable[..., GridfoamConfig]:
                         },
                     ),
                     "p": ConditionConfig(
-                        dimension=dimension_config(DIM_KIN_PRESSURE),
+                        physical_dimension=dimension_config(DIM_KIN_PRESSURE),
                         internal=0.0,
                         boundary={
                             "inlet": BoundaryConditionConfig(

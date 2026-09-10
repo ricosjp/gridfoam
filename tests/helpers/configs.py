@@ -212,7 +212,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
-                    dimension=dimension_config(DIM_VELOCITY),
+                    physical_dimension=dimension_config(DIM_VELOCITY),
                     internal=[0.0, 0.0, 0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -227,7 +227,7 @@ def simple_convergence_config(output_dir: pathlib.Path) -> GridfoamConfig:
                     },
                 ),
                 "p": ConditionConfig(
-                    dimension=dimension_config(DIM_KIN_PRESSURE),
+                    physical_dimension=dimension_config(DIM_KIN_PRESSURE),
                     internal=0.0,
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -291,7 +291,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
-                    dimension=dimension_config(DIM_VELOCITY),
+                    physical_dimension=dimension_config(DIM_VELOCITY),
                     internal=[1.0, 0.1, 0.0],
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -306,7 +306,7 @@ def potential_flow_config(output_dir: pathlib.Path) -> GridfoamConfig:
                     },
                 ),
                 "p": ConditionConfig(
-                    dimension=dimension_config(DIM_KIN_PRESSURE),
+                    physical_dimension=dimension_config(DIM_KIN_PRESSURE),
                     internal=0.0,
                     boundary={
                         "walls": BoundaryConditionConfig(
@@ -422,7 +422,7 @@ def channel_flow_config(
             ),
             conditions={
                 "U": ConditionConfig(
-                    dimension=dimension_config(DIM_VELOCITY),
+                    physical_dimension=dimension_config(DIM_VELOCITY),
                     internal=[1.0, 0.0, 0.0],
                     boundary={
                         "inlet": BoundaryConditionConfig(
@@ -446,7 +446,7 @@ def channel_flow_config(
                     },
                 ),
                 "p": ConditionConfig(
-                    dimension=dimension_config(DIM_KIN_PRESSURE),
+                    physical_dimension=dimension_config(DIM_KIN_PRESSURE),
                     internal=0.0,
                     boundary=p_bcs,
                 ),
@@ -492,7 +492,7 @@ def channel_config(output_dir: pathlib.Path) -> GridfoamConfig:
             ),
             conditions={
                 "U": ConditionConfig(
-                    dimension=dimension_config(DIM_VELOCITY),
+                    physical_dimension=dimension_config(DIM_VELOCITY),
                     internal=[1.0, 0.0, 0.0],
                     boundary={
                         "inlet": BoundaryConditionConfig(

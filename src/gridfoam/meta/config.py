@@ -739,9 +739,9 @@ class ForceCoeffConfig(BaseModel, frozen=True):
 
 
 class ConditionConfig(BaseModel, frozen=True):
-    dimension: dict[str, float | int] | None = None
+    physical_dimension: dict[str, float | int] | None = None
     """
-    dimension : dict[str, float | int] | None, default=None
+    physical_dimension : dict[str, float | int] | None, default=None
         Physical dimension of the field as SI base exponents
         (``T``, ``L``, ``M``, ``I``, ``Theta``, ``N``, ``J``).
     """
