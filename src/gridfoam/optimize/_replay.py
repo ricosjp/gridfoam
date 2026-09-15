@@ -18,7 +18,6 @@ from gridfoam.core.field import (
     get_or_create_facefield,
 )
 from gridfoam.core.field_bindings import FieldBindings
-from gridfoam.core.grid.base import GridBase
 from gridfoam.core.state import TensorState
 from gridfoam.meta.enums import FieldRole
 from gridfoam.solvers.base import LinearSolver, require_converged_solves
@@ -39,8 +38,9 @@ class SegregatedAlgorithm(CheckpointableAlgorithm, Protocol):
     rAtU: CellField
     HbyA: CellField
     phi_hbya: FaceField
-    grid: GridBase
-    solvers: dict[str, LinearSolver]
+
+    @property
+    def solvers(self) -> Mapping[str, LinearSolver]: ...
 
     def step(self) -> None: ...
 

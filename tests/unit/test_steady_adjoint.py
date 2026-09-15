@@ -7,7 +7,7 @@ from gridfoam.core.state import TensorState
 from gridfoam.optimize.steady import (
     ConvergenceError,
     SteadyOptions,
-    _gmres,
+    _gmres,  # pyright: ignore[reportPrivateUsage]
     steady_solve,
 )
 

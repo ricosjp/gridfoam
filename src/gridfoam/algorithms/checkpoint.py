@@ -14,7 +14,8 @@ from gridfoam.core.grid.base import GridBase
 class CheckpointableAlgorithm(Protocol):
     """Algorithm instance with a grid and restorable iteration controls."""
 
-    grid: GridBase
+    @property
+    def grid(self) -> GridBase: ...
 
     def capture_iteration_state(self) -> IterationState: ...
 
