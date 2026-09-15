@@ -7,6 +7,7 @@ from gridfoam.core.state import TensorState
 from gridfoam.optimize.steady import (
     ConvergenceError,
     SteadyOptions,
+    _gmres,
     steady_solve,
 )
 
@@ -91,3 +92,32 @@ def test_unconverged_primal_and_adjoint_raise() -> None:
     )
     with pytest.raises(ConvergenceError, match="Adjoint"):
         result["x"].backward()
+
+
+def test_gmres_thins_true_residual_matvecs() -> None:
+    """Hessenberg residuals skip most true-residual matvecs."""
+    size = 16
+    diagonal = torch.linspace(0.5, 2.0, size, dtype=torch.float64)
+    rhs = torch.ones(size, dtype=torch.float64)
+    calls = {"n": 0}
+
+    def matvec(vector: torch.Tensor) -> torch.Tensor:
+        calls["n"] += 1
+        return diagonal * vector
+
+    options = SteadyOptions(
+        adjoint_atol=1e-12,
+        adjoint_rtol=0.0,
+        restart=40,
+        true_residual_interval=8,
+        max_adjoint_steps=50,
+    )
+    solution = _gmres(matvec, rhs, options)
+    torch.testing.assert_close(solution, rhs / diagonal, rtol=1e-9, atol=1e-10)
+    assert size < calls["n"] < 2 * size
+
+
+def test_true_residual_interval_must_be_positive() -> None:
+    """A non-positive true-residual interval is rejected."""
+    with pytest.raises(ValueError, match="true-residual interval"):
+        SteadyOptions(true_residual_interval=0)

@@ -1,11 +1,8 @@
 Steady solve and SIMPLE replay
 ========================================
 
-The initial M1 path supports fixed geometry, laminar SIMPLE and uniform inlet
-velocity optimization. It uses the M0 checkpoint contracts and preserves the
-existing YAML and algorithm APIs. CPU float64 is the validated configuration.
-PISO/PIMPLE trajectory adjoints, shape derivatives, turbulence and second
-derivatives require later milestones.
+``SimpleStepMap`` and ``steady_solve`` evaluate laminar SIMPLE on a fixed
+grid. CPU float64 is the validated configuration.
 
 State and inputs
 ----------------
@@ -15,15 +12,14 @@ State and inputs
 existing packed layout, including both APIBM sides. Some auxiliary fields
 are read by ``fixedFluxPressure`` before the predictor overwrites them; a
 U/p/phi-only vector is not a complete step state for these boundaries.
-This conservative state includes auxiliary unknowns rather than attempting
-to eliminate their boundary coupling in M1.
 
 The full checkpoint additionally contains histories, unrelated registered
 fields and iteration controls. Each evaluation restores the baseline, writes
-the explicit state and applies the design context. It suppresses diagnostic
-files and restores the caller's field/iteration state even on exceptions.
-Caches are cleared before replay and on restoration. Calls sharing an
-algorithm must run sequentially.
+the explicit state and applies the design context.
+It suppresses diagnostic files and restores the caller's field/iteration
+state even on exceptions. Caches are cleared before replay and on
+restoration. Calls sharing an algorithm must run sequentially. SIMPLE and
+transient maps share this replay lifecycle.
 
 Design applicators are context managers: install all variable inputs on entry
 and restore them on exit. The inlet-velocity example defines a local applicator
@@ -47,12 +43,21 @@ history. The initial state is an initial guess, not a differentiable trajectory.
 
 Backward receives arbitrary cotangents from the objective and solves
 ``(I - dG/dq)^T lambda = grad_output`` using matrix-free VJPs and restarted
-GMRES. A true adjoint residual controls convergence. GMRES avoids requiring
-the Richardson iteration itself to be contractive; it still may fail to
-converge and will then raise rather than return an unchecked gradient.
+GMRES. The Hessenberg (Arnoldi least-squares) residual is the primary
+iteration check. The true unpreconditioned residual is computed when that
+estimate meets the tolerance, at restart or breakdown, and every
+``true_residual_interval`` steps; a solve is accepted only after the true
+residual meets the tolerance. GMRES avoids requiring the Richardson
+iteration itself to be contractive; it still may fail to converge and will
+then raise rather than return an unchecked gradient.
 The existing implicit linear-solver adjoints supply the VJPs through each
 SIMPLE linear solve. Linear-solver tolerances must be tight enough for the
 requested gradient accuracy.
+
+The step map requires converged internal primal and transpose solves;
+failures raise ``LinearSolveError`` from ``gridfoam.solvers.base``. This policy
+persists through backward after the forward scope has restored the caller's
+solver settings. See :doc:`transient_steps` for the shared failure contract.
 
 The design gradient is ``(dG/ddesign)^T lambda``. Explicit objective dependence
 on design is accumulated by ordinary PyTorch autograd. Each backward builds
@@ -77,6 +82,3 @@ Example
    loss.backward()
 
 The executable example is ``examples/optimize/inlet_velocity_steady/run.py``.
-Tests compare real SIMPLE gradients with finite differences and short unrolls,
-check arbitrary cotangents on a coupled reference system, and verify repeated
-optimizer updates, state isolation and convergence failures.

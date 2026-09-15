@@ -10,6 +10,7 @@ from typing import Any, Protocol, cast, runtime_checkable
 import torch
 
 from gridfoam.core.state import TensorState
+from gridfoam.optimize._inference import call_without_inference
 
 
 @runtime_checkable
@@ -19,7 +20,25 @@ class StepMap(Protocol):
 
 @dataclass(frozen=True)
 class SteadyOptions:
-    """Separate primal and adjoint convergence budgets and tolerances."""
+    """Separate primal and adjoint convergence budgets and tolerances.
+
+    Parameters
+    ----------
+    max_steps : int, default 1000
+        Maximum primal fixed-point iterations.
+    primal_atol, primal_rtol : float
+        Absolute and relative tolerances for each primal state block.
+    max_adjoint_steps : int, default 400
+        Maximum GMRES iterations of the adjoint solve.
+    adjoint_atol, adjoint_rtol : float
+        Absolute and relative tolerances for the adjoint residual.
+    restart : int, default 40
+        GMRES restart length.
+    true_residual_interval : int, default 10
+        Compute the true residual at least this often, in addition to
+        checks at restart, breakdown, and when the Hessenberg residual
+        meets the tolerance.
+    """
 
     max_steps: int = 1000
     primal_atol: float = 1e-9
@@ -28,10 +47,22 @@ class SteadyOptions:
     adjoint_atol: float = 1e-10
     adjoint_rtol: float = 1e-8
     restart: int = 40
+    true_residual_interval: int = 10
 
     def __post_init__(self) -> None:
-        if min(self.max_steps, self.max_adjoint_steps, self.restart) < 1:
-            raise ValueError("Iteration budgets and restart must be positive")
+        if (
+            min(
+                self.max_steps,
+                self.max_adjoint_steps,
+                self.restart,
+                self.true_residual_interval,
+            )
+            < 1
+        ):
+            raise ValueError(
+                "Iteration budgets, restart and true-residual interval "
+                "must be positive"
+            )
         for value in (
             self.primal_atol,
             self.primal_rtol,
@@ -106,7 +137,14 @@ def _gmres(
     rhs: torch.Tensor,
     options: SteadyOptions,
 ) -> torch.Tensor:
-    """Restarted GMRES; accept only the actual unpreconditioned residual."""
+    """Restarted GMRES using the Hessenberg residual as the primary check.
+
+    The cheap Arnoldi least-squares residual drives iteration. The true
+    unpreconditioned residual is computed when that estimate meets the
+    tolerance, at restart or breakdown, and every
+    ``true_residual_interval`` iterations. Acceptance still requires the
+    true residual so loss of orthogonality cannot hide an unconverged solve.
+    """
     solution = torch.zeros_like(rhs)
     threshold = options.adjoint_atol + options.adjoint_rtol * float(
         torch.linalg.vector_norm(rhs)
@@ -146,13 +184,28 @@ def _gmres(
             candidate = (
                 solution + torch.stack(basis[: j + 1], dim=1) @ coefficients
             )
-            residual = rhs - matvec(candidate)
+            hessenberg_residual = torch.linalg.vector_norm(
+                target[: j + 2] - hessenberg[: j + 2, : j + 1] @ coefficients
+            )
             used += 1
-            norm = float(torch.linalg.vector_norm(residual))
+            norm = float(hessenberg_residual)
             if not isfinite(norm):
                 raise ConvergenceError("Adjoint residual is non-finite")
-            if norm <= threshold:
-                return candidate
+            cycle_end = (
+                j + 1 == width or float(length) <= torch.finfo(rhs.dtype).eps
+            )
+            check_true = (
+                norm <= threshold
+                or used % options.true_residual_interval == 0
+                or cycle_end
+            )
+            if check_true:
+                residual = rhs - matvec(candidate)
+                norm = float(torch.linalg.vector_norm(residual))
+                if not isfinite(norm):
+                    raise ConvergenceError("Adjoint residual is non-finite")
+                if norm <= threshold:
+                    return candidate
             if float(length) <= torch.finfo(rhs.dtype).eps:
                 break
             basis.append(vector / length)
@@ -273,13 +326,14 @@ def steady_solve(
     """
     options = SteadyOptions() if options is None else options
     if torch.is_inference_mode_enabled():
-        with torch.inference_mode(False), torch.no_grad():
-            return steady_solve(
+        return call_without_inference(
+            lambda: steady_solve(
                 mapping,
                 initial.checkpoint(),
                 design.checkpoint(),
                 options=options,
             )
+        )
     if not initial or not design:
         raise ValueError("State and design mappings must be nonempty")
     first = next(iter(initial.values()))
