@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
-from gridfoam.algorithms.base import AlgorithmBase
 from gridfoam.algorithms.iteration_state import IterationState
 from gridfoam.core.checkpoint import GridCheckpoint
+from gridfoam.core.grid.base import GridBase
+
+
+@runtime_checkable
+class CheckpointableAlgorithm(Protocol):
+    """Algorithm instance with a grid and restorable iteration controls."""
+
+    grid: GridBase
+
+    def capture_iteration_state(self) -> IterationState: ...
+
+    def restore_iteration_state(self, state: IterationState) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -20,11 +32,11 @@ class AlgorithmCheckpoint:
 
     fields: GridCheckpoint
     iteration: IterationState
-    _algorithm: AlgorithmBase
+    _algorithm: CheckpointableAlgorithm
 
     @classmethod
     def capture(
-        cls, algorithm: AlgorithmBase, *, detach: bool = True
+        cls, algorithm: CheckpointableAlgorithm, *, detach: bool = True
     ) -> AlgorithmCheckpoint:
         return cls(
             GridCheckpoint.capture(algorithm.grid, detach=detach),
@@ -32,13 +44,13 @@ class AlgorithmCheckpoint:
             algorithm,
         )
 
-    def validate(self, algorithm: AlgorithmBase) -> None:
+    def validate(self, algorithm: CheckpointableAlgorithm) -> None:
         """
         Check instance and field compatibility without restoring state.
 
         Parameters
         ----------
-        algorithm : AlgorithmBase
+        algorithm : CheckpointableAlgorithm
             Algorithm the checkpoint will be restored onto.
 
         Raises
@@ -51,13 +63,13 @@ class AlgorithmCheckpoint:
             raise ValueError("Checkpoint belongs to another algorithm instance")
         self.fields.validate(algorithm.grid)
 
-    def restore(self, algorithm: AlgorithmBase) -> None:
+    def restore(self, algorithm: CheckpointableAlgorithm) -> None:
         """
         Restore field buffers, histories and iteration controls.
 
         Parameters
         ----------
-        algorithm : AlgorithmBase
+        algorithm : CheckpointableAlgorithm
             Algorithm the checkpoint is restored onto.
 
         Raises

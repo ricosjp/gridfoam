@@ -35,6 +35,10 @@ Choose the owning layer
    Equation sequencing, pressure--velocity coupling, correction loops, and
    time-step-level convergence.
 
+``optimize``
+   Replayable step maps and implicit fixed-point adjoints. Shared replay
+   belongs here rather than in ``algorithms``.
+
 ``pre``, ``post``, and ``io``
    Initialization, analysis/diagnostics, and serialization respectively.
 
@@ -47,8 +51,8 @@ Dependency guidelines
 
 * Keep ``meta`` free of numerical implementation dependencies.
 * Keep ``core`` focused on shared data contracts rather than algorithm policy.
-* Do not import ``algorithms`` or ``runner`` from ``fv``, ``models``, or
-  ``solvers``.
+* Do not import ``algorithms``, ``optimize`` or ``runner`` from ``fv``,
+  ``models``, or ``solvers``.
 * Put logic shared by SIMPLE, PISO, and PIMPLE in ``algorithms/utils``.
   Initialization code in ``pre`` may reuse those helpers, but should not own
   a full algorithm.

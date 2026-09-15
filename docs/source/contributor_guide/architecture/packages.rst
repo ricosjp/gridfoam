@@ -19,6 +19,7 @@ Source map
    ├── models/          # transport/ and turbulence/
    ├── solvers/         # krylov, pyamg, adjoint/
    ├── algorithms/      # simple, piso, pimple, checkpoint, utils/
+   ├── optimize/        # step maps and implicit steady adjoints
    ├── pre/             # potential flow
    ├── post/            # diagnostics, forces
    ├── io/              # VTU export
@@ -69,6 +70,11 @@ Responsibilities
    PISO, and PIMPLE. Shared helpers live under ``algorithms/utils``. Algorithm
    checkpoints add iteration controls on top of field checkpoints. The
    algorithm base may also emit diagnostics through ``post``.
+
+``optimize``
+   Replayable step maps and the implicit steady adjoint. Current field I/O
+   uses :class:`~gridfoam.core.field_bindings.FieldBindings`; algorithm
+   histories and iteration controls stay on the checkpoint contract.
 
 ``pre``, ``post``, and ``io``
    Potential-flow initialization, diagnostics and force evaluation, and VTU

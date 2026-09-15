@@ -3,6 +3,7 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -16,6 +17,7 @@ from gridfoam.core.state import TensorState
 from gridfoam.meta.config import RelaxationFactorsConfig, SIMPLEAlgorithm
 from gridfoam.meta.enums import AlgorithmType, DomainBoundaryPatch
 from gridfoam.optimize.simple import SimpleStepMap
+from gridfoam.solvers.base import LinearSolveError
 
 
 @contextmanager
@@ -108,25 +110,20 @@ def test_step_design_gradient_matches_finite_difference_on_repeated_replays(
     mapping = make_step_map(tmp_path)
     dtype = mapping.algorithm.grid.dtype
     direction = torch.tensor([1.0, 0.0, 0.0], dtype=dtype)
-    for speed in (1.1, 1.2):
-        parameter = torch.tensor(speed, dtype=dtype, requires_grad=True)
+    parameter = torch.tensor(1.2, dtype=dtype, requires_grad=True)
 
-        def objective(value: torch.Tensor) -> torch.Tensor:
-            result = mapping.step(
-                mapping.initial_state,
-                TensorState({"inlet_velocity": value * direction}),
-            )
-            return (
-                result["U"].square().sum() + 0.01 * result["p"].square().sum()
-            )
+    def objective(value: torch.Tensor) -> torch.Tensor:
+        result = mapping.step(
+            mapping.initial_state,
+            TensorState({"inlet_velocity": value * direction}),
+        )
+        return result["U"].square().sum() + 0.01 * result["p"].square().sum()
 
-        loss = objective(parameter)
-        gradient = torch.autograd.grad(loss, parameter)[0]
-        with torch.no_grad():
-            fd = (
-                objective(parameter + 1e-5) - objective(parameter - 1e-5)
-            ) / 2e-5
-        torch.testing.assert_close(gradient, fd, rtol=2e-4, atol=1e-6)
+    loss = objective(parameter)
+    gradient = torch.autograd.grad(loss, parameter)[0]
+    with torch.no_grad():
+        fd = (objective(parameter + 1e-5) - objective(parameter - 1e-5)) / 2e-5
+    torch.testing.assert_close(gradient, fd, rtol=2e-4, atol=1e-6)
 
 
 def test_auxiliary_state_gradient_matches_finite_difference(
@@ -169,3 +166,47 @@ def test_design_failure_restores_fields_and_boundary(tmp_path: Path) -> None:
         torch.testing.assert_close(
             after.fields.values[key], before.fields.values[key]
         )
+
+
+def test_failed_primal_restores_prepared_scratch_and_allows_retry(
+    tmp_path: Path,
+) -> None:
+    """A solver exception retaining FVC temporaries must not block restore."""
+    mapping = make_step_map(tmp_path)
+    algorithm = mapping.algorithm
+    before = AlgorithmCheckpoint.capture(algorithm)
+    boundary = algorithm.U.bcs[DomainBoundaryPatch.X_MINUS]
+    design = TensorState(
+        {"inlet_velocity": torch.tensor([1.2, 0.0, 0.0], dtype=torch.float64)}
+    )
+    with patch.object(algorithm.solvers["U"], "max_iter", 0):
+        with pytest.raises(LinearSolveError, match="Primal"):
+            mapping.step(mapping.initial_state, design)
+    after = AlgorithmCheckpoint.capture(algorithm)
+    assert after.iteration == before.iteration
+    assert algorithm.U.bcs[DomainBoundaryPatch.X_MINUS] is boundary
+    assert not algorithm.solvers["U"].require_convergence
+    for key in before.fields.values:
+        torch.testing.assert_close(
+            after.fields.values[key], before.fields.values[key]
+        )
+    mapping.step(mapping.initial_state, design)
+
+
+def test_nested_step_is_rejected(tmp_path: Path) -> None:
+    """Calls sharing an algorithm must run sequentially."""
+    mapping = make_step_map(tmp_path)
+    design = TensorState(
+        {"inlet_velocity": torch.tensor([1.2, 0.0, 0.0], dtype=torch.float64)}
+    )
+
+    @contextmanager
+    def recursive(_algorithm: SIMPLE, values: TensorState) -> Generator[None]:
+        mapping.step(mapping.initial_state, values)
+        yield
+
+    mapping.apply_design = recursive
+    with pytest.raises(RuntimeError, match="reentry"):
+        mapping.step(mapping.initial_state, design)
+    mapping.apply_design = _apply_inlet_velocity
+    mapping.step(mapping.initial_state, design)

@@ -76,6 +76,8 @@ By default ``write`` leaves time histories unchanged. Use
 older levels while retaining gradients through the new initial value.
 Use checkpoints to restore an established trajectory. Field bindings are
 neither a complete algorithm state nor a boundary-condition binding API.
+Segregated step maps in ``gridfoam.optimize`` use the same bindings for the
+current ``U``, ``p``, packed ``phi`` and auxiliary fields.
 
 Evaluate and restore
 --------------------
@@ -124,6 +126,4 @@ For evaluation inside ``torch.inference_mode()``, wrap the entire FV execution
 and its restore in ``torch.inference_mode(False), torch.no_grad()``. FV caches
 need ordinary tensors with version counters; changing only the final output
 conversion is insufficient. Construct case contexts outside inference mode.
-In training, keep autograd enabled. Tests cover two pending forwards, separate
-backwards, finite differences, and inference evaluation between those forwards
-and backwards.
+In training, keep autograd enabled.
