@@ -1,4 +1,8 @@
+import math
 from abc import ABC, abstractmethod
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
+from copy import copy
 from dataclasses import dataclass
 from typing import Literal
 
@@ -10,6 +14,10 @@ from gridfoam.core.fvmatrix import FvMatrix
 from gridfoam.solvers.adjoint import attach_implicit_adjoint
 
 GradientMode = Literal["adjoint", "unrolled"]
+
+
+class LinearSolveError(RuntimeError):
+    """A required primal or transpose linear solve failed to converge."""
 
 
 @dataclass(frozen=True)
@@ -94,6 +102,9 @@ class LinearSolver(ABC):
     grad_mode: GradientMode = "adjoint"
     """Differentiation mode for ``solve``."""
 
+    require_convergence: bool = False
+    """Raise on failed solves; captured by each strict implicit backward."""
+
     def solve(
         self,
         eq: Equation,
@@ -112,17 +123,45 @@ class LinearSolver(ABC):
             Computed solution and solver statistics.
         """
         if self.grad_mode == "unrolled":
-            return self._solve_primal(eq)
+            result = self._solve_primal(eq)
+            self._check_result(result, eq.name, "Primal")
+            return result
 
         A = eq.fv_matrix
         with torch.no_grad():
             result = self._solve_primal(eq)
+        self._check_result(result, eq.name, "Primal")
+        # The caller may restore its solver policy before backward, or run
+        # another forward. Keep this solve's strict policy and scalar settings.
+        transpose = (
+            copy(self).solve_transpose
+            if self.require_convergence
+            else self.solve_transpose
+        )
         solution = attach_implicit_adjoint(
             A,
             result.solution,
-            solve_transpose=self.solve_transpose,
+            solve_transpose=transpose,
         )
         return SolveResult(solution=solution, stats=result.stats)
+
+    def _check_result(
+        self, result: SolveResult, field_name: str, stage: str
+    ) -> None:
+        """Propagate the solver's per-component convergence decision."""
+        if not self.require_convergence:
+            return
+        for component, stats in enumerate(result.stats):
+            if not stats.converged or not math.isfinite(stats.final_residual):
+                raise LinearSolveError(
+                    f"{stage} solve failed for {field_name!r}, component "
+                    f"{component}: residual={stats.final_residual}, "
+                    f"iterations={stats.iterations}"
+                )
+        if not bool(torch.isfinite(result.solution).all()):
+            raise LinearSolveError(
+                f"Non-finite {stage.lower()} solution for {field_name!r}"
+            )
 
     @abstractmethod
     def _solve_primal(self, eq: Equation) -> SolveResult:
@@ -160,3 +199,22 @@ def residual_threshold(
         Residual convergence threshold ``max(atol, rtol * ref_norm)``.
     """
     return torch.maximum(torch.full_like(ref_norm, atol), rtol * ref_norm)
+
+
+@contextmanager
+def require_converged_solves(
+    solvers: Iterable[LinearSolver],
+) -> Generator[None]:
+    """Require successful solves in this scope, including later backward.
+
+    Solver instances must not be used concurrently. Implicit backward keeps
+    the strict policy after this scope has restored the caller's settings.
+    """
+    saved = {solver: solver.require_convergence for solver in solvers}
+    try:
+        for solver in saved:
+            solver.require_convergence = True
+        yield
+    finally:
+        for solver, previous in saved.items():
+            solver.require_convergence = previous

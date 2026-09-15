@@ -155,7 +155,7 @@ class PyamgBridgeSolver(LinearSolver):
         A_csr = _build_csr(
             A_T.diag, A_T.upper, A_T.lower, A_T.grid.owner, A_T.grid.neighbour
         )
-        return _solve_csr_components(
+        result = _solve_csr_components(
             A_csr,
             rhs,
             torch.zeros_like(rhs),
@@ -163,4 +163,6 @@ class PyamgBridgeSolver(LinearSolver):
             rtol=self.rtol,
             norm_order=self.norm_order,
             max_iter=self.max_iter,
-        ).solution
+        )
+        self._check_result(result, A_T.field.name, "Transpose")
+        return result.solution

@@ -63,12 +63,15 @@ class CGSolver(LinearSolver):
         A_T: FvMatrix,
         rhs: Float[torch.Tensor, " C *component_shape"],
     ) -> Float[torch.Tensor, " C *component_shape"]:
-        solution, _ = solve_components(
+        solution, stats = solve_components(
             A_T,
             rhs,
             torch.zeros_like(rhs),
             precon_type=self.precon_type,
             solve_single=self._solve_single,
+        )
+        self._check_result(
+            SolveResult(solution, stats), A_T.field.name, "Transpose"
         )
         return solution
 
