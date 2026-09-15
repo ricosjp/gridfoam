@@ -11,6 +11,7 @@ Core
 
    CellField
    FaceField
+   FieldBindings
    FvMatrix
    FvGridCache
    FvFieldCache
@@ -25,6 +26,8 @@ Core
 
    equation
    create_grid
+   get_or_create_cellfield
+   get_or_create_facefield
    make_field_name
    parse_field_name
 
