@@ -56,9 +56,18 @@ Optimization
    * - Case
      - Command
      - Notes
-   * - Inlet temperature
-     - ``uv run examples/optimize/inlet_temperature_steady/run.py``
-     - Differentiable optimization example; see config in the same directory.
+   * - Inlet temperature (steady)
+     - ``uv run python -m examples.optimize.inlet_temperature_steady.run``
+     - Scalar transport adjoint; prescribed flow.
+   * - Inlet temperature (transient)
+     - ``uv run python -m examples.optimize.inlet_temperature_transient.run``
+     - Unrolled scalar trajectory; prescribed flow.
+   * - Inlet velocity (steady)
+     - ``uv run python -m examples.optimize.inlet_velocity_steady.run``
+     - Implicit SIMPLE adjoint; ``steady_solve``.
+   * - Inlet velocity (transient)
+     - ``uv run python -m examples.optimize.inlet_velocity_transient.run``
+     - Unrolled PISO trajectory; ``PisoStepMap``.
 
 Moving immersed boundary
 ------------------------
