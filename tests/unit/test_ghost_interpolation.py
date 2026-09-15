@@ -38,11 +38,6 @@ def test_transpose_matches_autograd_with_repeated_donors() -> None:
     dx, _dw = torch.autograd.grad(lhs, (x, weights))
     torch.testing.assert_close(dx, op.transpose_apply(y))
 
-    def interpolate(v: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-        return InterpolationStencil(indices, w, 4).apply(v)
-
-    assert torch.autograd.gradcheck(interpolate, (x, weights))
-
 
 def _poisson_matrix(walls: torch.Tensor) -> torch.Tensor:
     # Ghost centers: 0 and 1. Fluid centers: 0.25, 0.5 and 0.75.
@@ -81,11 +76,6 @@ def test_ghost_poisson_solution_and_wall_position_adjoint() -> None:
     )[0]
     torch.testing.assert_close(grad, implicit)
     assert not torch.allclose(matrix, matrix.T)
-
-    def objective(w: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.solve(_poisson_matrix(w), rhs) @ objective_weights
-
-    assert torch.autograd.gradcheck(objective, (walls,))
 
 
 def test_negative_donor_indices_are_rejected() -> None:

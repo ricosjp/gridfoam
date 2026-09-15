@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from types import MappingProxyType
 
 import torch
@@ -79,11 +79,6 @@ class GridCheckpoint:
             _revision=(grid.topology_revision, grid.geometry_revision),
             _dt=grid.dt,
         )
-
-    def with_values(self, values: TensorState) -> GridCheckpoint:
-        """Replace differentiable blocks without changing replay metadata."""
-        self.values.validate_layout(values)
-        return replace(self, values=values)
 
     def validate(self, grid: GridBase) -> None:
         """

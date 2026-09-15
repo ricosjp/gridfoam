@@ -9,8 +9,7 @@ Iteration snapshots
     mutate the checkpoint. PISO has empty residuals; PIMPLE has outer flags.
 
 Layout and graphs
-    ``with_values`` rejects a different layout. Restore keeps autograd links
-    and does not write into the saved tensors.
+    Restore keeps autograd links and does not write into the saved tensors.
 
 Boundaries and history
     Design inputs such as Dirichlet values are reapplied after restore.
@@ -41,7 +40,6 @@ from gridfoam.core.field import CellField, FaceField
 from gridfoam.core.grid.axis_projected import AxisProjectedGrid
 from gridfoam.core.grid.base import GridBase
 from gridfoam.core.grid.factory import create_grid
-from gridfoam.core.state import TensorState
 from gridfoam.fv import fvm
 from gridfoam.fv.boundary_ops import iter_boundary_states
 from gridfoam.fv.flux import correct_flux
@@ -130,30 +128,24 @@ def test_captured_iteration_state_is_isolated_from_later_steps(
     assert algo.capture_iteration_state() == expected
 
 
-def test_with_values_rejects_layout_changes_and_keeps_the_graph() -> None:
-    """Replacement tensors must match the checkpoint; restore clones them."""
+def test_restore_clones_storage_and_keeps_the_graph() -> None:
+    """Restore clones buffers and retains captured autograd links."""
     grid = create_grid(small_gridfoam_config())
     field = CellField(grid, "T", FieldRole.TRANSIENT, ())
-    saved = GridCheckpoint.capture(grid)
-    key = "cell/T/data"
-    invalid = dict(saved.values)
-    invalid[key] = torch.zeros(1, dtype=grid.dtype, device=grid.device)
-    with pytest.raises(ValueError, match="layout"):
-        saved.with_values(TensorState(invalid))
-    with pytest.raises(ValueError, match="keys or order"):
-        saved.with_values(
-            TensorState(dict(reversed(tuple(saved.values.items()))))
-        )
-
     parameter = torch.tensor(2.0, dtype=grid.dtype, requires_grad=True)
-    updated = dict(saved.values)
-    updated[key] = torch.ones_like(field.data) * parameter
-    saved.with_values(TensorState(updated)).restore(grid)
+    field.data = torch.ones_like(field.data) * parameter
+    saved = GridCheckpoint.capture(grid, detach=False)
+    captured = saved.values["cell/T/data"]
+    field.data = torch.zeros_like(field.data)
+    saved.restore(grid)
     field.data.sum().backward()
     torch.testing.assert_close(
         parameter.grad, parameter.new_tensor(grid.num_cells)
     )
-    torch.testing.assert_close(saved.values[key], torch.zeros_like(field.data))
+    expected = torch.ones_like(field.data) * 2
+    torch.testing.assert_close(captured, expected)
+    field.data.zero_()
+    torch.testing.assert_close(captured, expected)
 
 
 @pytest.mark.parametrize(

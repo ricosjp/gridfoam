@@ -5,8 +5,8 @@ Graphs
     links through ``clone``. ``checkpoint`` copies storage and drops the graph.
 
 Layout
-    Addition, VJP rebuild, and ``validate_layout`` reject reordered keys,
-    a different block count, or a mismatched shape, dtype, or device.
+    VJP rebuild and ``validate_layout`` reject reordered keys, a different
+    block count, or a mismatched shape, dtype, or device.
 
 Integers
     Discrete selections cannot be marked ``requires_grad``.
@@ -47,14 +47,13 @@ def test_checkpoint_storage_is_independent_and_has_no_graph() -> None:
     torch.testing.assert_close(saved["T"], torch.tensor([2.0, 4.0]))
 
 
-def test_vector_operations_reject_reordered_or_missing_blocks() -> None:
+def test_layout_rejects_reordered_or_missing_blocks() -> None:
     """Key order and block count define the vector space."""
     state = TensorState({"U": torch.ones(4, 3), "T": torch.ones(4)})
     with pytest.raises(ValueError, match="keys or order"):
-        _ = state + TensorState({"T": state["T"], "U": state["U"]})
+        state.validate_layout(TensorState({"T": state["T"], "U": state["U"]}))
     with pytest.raises(ValueError, match="block count"):
         state.from_tuple((state["U"],))
-    assert (state + state.scale(-1.0)).norm() == 0.0
 
 
 @pytest.mark.parametrize(
@@ -69,7 +68,7 @@ def test_vector_operations_reject_reordered_or_missing_blocks() -> None:
 def test_validate_layout_rejects_incompatible_blocks(
     replacement: torch.Tensor,
 ) -> None:
-    """``+`` and ``from_tuple`` share this check; test the shared helper."""
+    """``from_tuple`` uses this check; test the shared helper."""
     state = TensorState({"U": torch.ones(4, 3)})
     with pytest.raises(ValueError, match="layout"):
         state.validate_layout(TensorState({"U": replacement}))

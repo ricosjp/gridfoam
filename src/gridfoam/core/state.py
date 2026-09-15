@@ -66,10 +66,6 @@ class TensorState(Mapping[str, torch.Tensor]):
         """Copy storage while preserving autograd links."""
         return self._map(torch.clone)
 
-    def detach(self) -> Self:
-        """Detach blocks; storage is still shared."""
-        return self._map(torch.Tensor.detach)
-
     def checkpoint(self) -> Self:
         """Copy storage and discard the graph, suitable for primal replay."""
         return self._map(lambda value: value.detach().clone())
@@ -87,23 +83,6 @@ class TensorState(Mapping[str, torch.Tensor]):
     def zeros_like(self) -> Self:
         """Return a zero cotangent with this layout."""
         return self._map(torch.zeros_like)
-
-    def __add__(self, other: Self) -> Self:
-        self.validate_layout(other)
-        return type(self)({key: self[key] + other[key] for key in self})
-
-    def scale(self, alpha: float) -> Self:
-        return self._map(lambda value: value * alpha)
-
-    def norm(self) -> float:
-        """Euclidean norm for diagnostics, with no autograd graph."""
-        return (
-            sum(
-                float(torch.sum(value.detach().double().square()).item())
-                for value in self.values()
-            )
-            ** 0.5
-        )
 
 
 def validate_history(

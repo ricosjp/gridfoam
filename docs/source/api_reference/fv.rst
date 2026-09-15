@@ -71,13 +71,11 @@ Static face geometry is cached on ``grid.fv_cache`` and rebuilt after
 
    face_geometry
 
-Experimental GCIBM interpolation
-----------------------------------------
+GCIBM interpolation foothold
+----------------------------
 
-``InterpolationStencil`` is an M0 prototype for interpolation and transpose
-validation. It is not connected to production matrix assembly or flow solvers
-and does not provide donor search or physical ghost boundary conditions.
-See :ref:`state-and-geometry` for its scope and the remaining GCIBM work.
+``InterpolationStencil`` is a donor-weighted gather and its exact transpose.
+It is not wired to matrix assembly or flow solvers.
 
 .. autosummary::
    :toctree: generated

@@ -6,7 +6,6 @@ from types import MappingProxyType
 import torch
 
 from gridfoam.core.field import CellField, FaceField
-from gridfoam.core.grid.base import GridBase
 from gridfoam.core.shapes import require_shape
 from gridfoam.core.state import TensorState
 
@@ -48,11 +47,6 @@ class FieldBindings:
             raise ValueError("Bound fields must belong to the same grid")
         self._fields = MappingProxyType(dict(fields))
         self._validate_registration()
-
-    @property
-    def grid(self) -> GridBase:
-        """Grid shared by all bindings."""
-        return self._grid
 
     @property
     def fields(self) -> Mapping[str, CellField | FaceField]:

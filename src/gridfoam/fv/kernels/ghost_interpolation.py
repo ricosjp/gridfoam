@@ -12,14 +12,10 @@ import torch
 
 @dataclass(frozen=True)
 class InterpolationStencil:
-    """Experimental GCIBM interpolation with an explicit transpose.
+    """GCIBM interpolation foothold with an explicit transpose.
 
-    This M0 prototype is not connected to production matrix assembly or flow
-    solvers. It does not implement donor search or physical ghost boundaries.
-
-    ``indices`` and ``weights`` have shape ``(N_image, N_donor)``. Repeated
-    indices and negative weights are supported; missing donors must be
-    represented by a valid index with zero weight, not by ``-1``.
+    Donor search and production matrix assembly are not implemented here.
+    Missing donors must use a valid index with zero weight, not ``-1``.
     """
 
     indices: torch.Tensor
