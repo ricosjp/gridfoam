@@ -1,6 +1,6 @@
 .. _api-optimize:
 
-Differentiable steady solves
+Differentiable solves and time steps
 ========================================
 
 Import from the owning modules; these APIs are not re-exported by ``core``.
@@ -14,6 +14,20 @@ convergence criteria, and the supported scope.
    :template: autosummary/class.rst
 
    SimpleStepMap
+
+.. currentmodule:: gridfoam.optimize.transient
+
+See :doc:`../contributor_guide/architecture/transient_steps` for physical-time
+boundaries, fixed controls, history blocks and replay guarantees.
+
+.. autosummary::
+   :toctree: generated
+   :template: autosummary/class.rst
+
+   TransientState
+   TransientStepMap
+   PisoStepMap
+   PimpleStepMap
 
 .. currentmodule:: gridfoam.optimize.steady
 

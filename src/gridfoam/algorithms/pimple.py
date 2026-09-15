@@ -275,6 +275,11 @@ class PIMPLE(AlgorithmBase):
         """
         return self._outer_converged
 
+    @property
+    def residual_control_enabled(self) -> bool:
+        """Whether residuals may end the outer corrector loop early."""
+        return bool(self._residual_control)
+
     def _record_residual(
         self,
         field_name: str,

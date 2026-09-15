@@ -31,6 +31,9 @@ Packages at a glance
 ``algorithms``
    Pressure--velocity sequencing (SIMPLE, PISO, PIMPLE).
 
+``optimize``
+   Replayable step maps and implicit steady adjoints.
+
 ``pre``, ``post``, ``io``, ``runner``
    Initialization, diagnostics, VTU output, and top-level orchestration.
 
@@ -54,4 +57,5 @@ Go deeper
    state_and_geometry
    external_field_io
    steady_solve
+   transient_steps
    guidelines
