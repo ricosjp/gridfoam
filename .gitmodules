@@ -1,3 +1,0 @@
-[submodule "lib/fluxel"]
-	path = lib/fluxel
-	url = git@gitlab.ritc.jp:ricos/simulation/fluxel.git

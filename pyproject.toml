@@ -33,7 +33,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "scipy>=1.17.1",
     "phlower-tensor>=0.1.0",
-    "fluxel",
+    "fluxel-cfd>=0.2.0,<0.3.0",
     "pyamg>=5.3.0",
     "beartype",
     "jaxtyping",
@@ -93,7 +93,6 @@ torchvision = [
     { index = "pytorch-cu118", extra = "cu118" },
     { index = "pytorch-cu124", extra = "cu124" },
 ]
-fluxel = { path = "lib/fluxel" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
