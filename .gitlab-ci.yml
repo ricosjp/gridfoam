@@ -22,7 +22,7 @@ default:
 lint:
   stage: test
   script:
-    - uv sync --group lint --extra cpu --extra graphlow
+    - uv sync --group lint --extra cpu
     - make lint
   tags:
     - no-gpu
@@ -30,7 +30,7 @@ lint:
 cpu-pytest:
   stage: test
   script:
-    - uv sync --group test --extra cpu --extra graphlow
+    - uv sync --group test --extra cpu
     - make cpu-test
     - mv .coverage .coverage.cpu
   artifacts:
@@ -89,7 +89,7 @@ coverage:
 pages:
   stage: deploy
   script:
-    - uv sync --group docs --extra cpu --extra graphlow
+    - uv sync --group docs --extra cpu
     - make document
     - mkdir public
     - mv docs/build/* public/

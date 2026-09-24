@@ -28,7 +28,7 @@ environment:
 
 .. code-block:: console
 
-   $ uv sync --extra cpu --extra graphlow --group dev
+   $ uv sync --extra cpu --group dev
 
 For CUDA, replace ``cpu`` with the supported extra matching the local runtime,
 currently ``cu118`` or ``cu124``. The ``cpu`` and CUDA extras conflict and must
