@@ -102,18 +102,18 @@ pages:
     - no-gpu
 
 
-# .deploy:wheel:
-#   stage: deploy
-#   script:
-#     - uv version $VERSION
-#     - uv build
-#     - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN -n -v
+.deploy:wheel:
+  stage: deploy
+  script:
+    - uv version $VERSION
+    - uv build
+    - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN -n -v
 
 
-# deploy:wheel:tags:
-#   image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
-#   extends: .deploy:wheel
-#   before_script:
-#     - export VERSION=$CI_COMMIT_REF_NAME
-#   only:
-#     - tags
+deploy:wheel:tags:
+  image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
+  extends: .deploy:wheel
+  before_script:
+    - export VERSION=$CI_COMMIT_REF_NAME
+  only:
+    - tags
