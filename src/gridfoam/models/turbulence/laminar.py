@@ -36,11 +36,10 @@ class Laminar(TurbulenceModel):
             Effective viscosity per cell with shape ``[C]``.
         """
         nu_eff_value = self.transport.nu() + self.nu_t.data
-        nu_eff_min = torch.min(nu_eff_value).item()
-        nu_eff_max = torch.max(nu_eff_value).item()
-        logger.debug(
-            "Laminar nu_eff range=[%.3e, %.3e]",
-            nu_eff_min,
-            nu_eff_max,
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Laminar nu_eff range=[%.3e, %.3e]",
+                torch.min(nu_eff_value).item(),
+                torch.max(nu_eff_value).item(),
+            )
         return nu_eff_value
