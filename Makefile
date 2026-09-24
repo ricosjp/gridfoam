@@ -28,11 +28,11 @@ reset:
 
 .PHONY: install
 install:
-	uv sync --refresh --reinstall --extra ${CUDA_TAG} --extra graphlow
+	uv sync --refresh --reinstall --extra ${CUDA_TAG}
 
 .PHONY: dev-install
 dev-install:
-	uv sync --refresh --reinstall --extra ${CUDA_TAG} --extra graphlow --group dev
+	uv sync --refresh --reinstall --extra ${CUDA_TAG} --group dev
 
 .PHONY: lint
 lint:

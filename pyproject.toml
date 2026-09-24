@@ -37,15 +37,13 @@ dependencies = [
     "pyamg>=5.3.0",
     "beartype",
     "jaxtyping",
+    "graphlow>=0.1.0",
 ]
 
 [project.optional-dependencies]
 cpu = ["torch>=2.5.1", "torchvision>=0.20.1"]
 cu118 = ["torch>=2.5.1", "torchvision>=0.20.1"]
 cu124 = ["torch>=2.5.1", "torchvision>=0.20.1"]
-graphlow = [
-    "graphlow @ git+https://github.com/ricosjp/graphlow.git@develop",
-]
 
 [dependency-groups]
 dev = [
